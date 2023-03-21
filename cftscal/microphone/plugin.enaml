@@ -1,0 +1,34 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+from cfts.app.cal_settings import MicrophoneSettings
+
+
+def microphone_workspace_factory(workbench):
+    with enaml.imports():
+        from .view import MicrophoneView
+    space = Workspace()
+    space.window_title = 'Microphone Calibration'
+    space.content = MicrophoneView(settings=MicrophoneSettings())
+    return space
+
+
+enamldef MicrophoneManifest(PluginManifest):
+    id = 'microphone'
+
+    Extension:
+        id = 'microphone_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/microphone'
+            label = 'Microphone'
+            shortcut = 'Ctrl+m'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'microphone.microphone_workspace'}
+
+    Extension:
+        id = 'microphone_workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = microphone_workspace_factory

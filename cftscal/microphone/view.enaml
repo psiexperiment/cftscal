@@ -1,0 +1,140 @@
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+)
+
+from psi.data.plots_manifest import PGCanvas
+from cfts.calibration import microphone_manager
+
+from cftscal.widgets import (
+    AddItem, CalibratedObjects, MicrophonePlotManager, ObjectCollection,
+)
+
+
+enamldef MicrophoneView(Container):
+
+    attr settings = MicrophoneSettings()
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings_mic',
+                    'mic_list',
+                    sizes=[25, 200],
+                ),
+                'mic_sens_plot',
+                sizes=[150, 900],
+            ),
+        )
+
+        DockItem:
+            name = 'settings_mic'
+            title = 'Microphone'
+            closable = False
+            stretch = 0
+
+            Container:
+                constraints = [
+                    vbox(
+                        hbox(
+                            pistonphone_label,
+                            pistonphone_select,
+                            pistonphone_frequency,
+                            pistonphone_frequency_label,
+                            pistonphone_level,
+                            pistonphone_level_label,
+                            spacer(0),
+                        ),
+                        hbox(
+                            mic_label,
+                            hbox(mic_select, mic_add, mic_gain, spacing=0),
+                            mic_gain_label,
+                            spacer(0),
+                            mic_cal_start,
+                            spacing=5,
+                        ),
+                        spacing=5,
+                    ),
+                    mic_add.width == 25,
+                    pistonphone_frequency.width == 50,
+                    pistonphone_level.width == 50,
+                    align('width', pistonphone_select, mic_select),
+                    align('left', pistonphone_label, mic_label),
+                    align('left', pistonphone_select, mic_select),
+                    align('v_center', pistonphone_label,
+                            pistonphone_select, pistonphone_frequency,
+                            pistonphone_frequency_label,
+                            pistonphone_level, pistonphone_level_label),
+                    align('v_center', mic_label, mic_select, mic_add,
+                            mic_gain, mic_gain_label, mic_cal_start),
+                ]
+
+                Label: pistonphone_label:
+                    text = 'Pistonphone'
+
+                Field: pistonphone_select:
+                    text := settings.pistonphone
+
+                FloatField: pistonphone_frequency:
+                    value := settings.pistonphone_frequency
+
+                Label: pistonphone_frequency_label:
+                    text = 'Hz @'
+
+                FloatField: pistonphone_level:
+                    value := settings.pistonphone_level
+
+                Label: pistonphone_level_label:
+                    text = 'dB SPL'
+
+                Label: mic_label:
+                    text = 'Microphone'
+
+                ObjectCombo: mic_select:
+                    items << settings.available_microphones
+                    selected := settings.microphone
+
+                PushButton: mic_add:
+                    text = '+'
+                    clicked ::
+                        popup = AddItem(self, combo=mic_select, label='Microphone')
+                        popup.show()
+
+                ObjectCombo: mic_gain:
+                    items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                    selected := settings.microphone_gain
+
+                Label: mic_gain_label:
+                    text = 'dB gain'
+
+                PushButton: mic_cal_start:
+                    text = 'Calibrate'
+                    enabled << bool(settings.microphone)
+                    clicked ::
+                        settings.run_mic_cal()
+                        mic_tree.collection.update_groups()
+
+        DockItem:
+            name = 'mic_sens_plot'
+            title = 'Microphone Sensitivity'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: microphone_plot:
+                    attr manager = MicrophonePlotManager()
+                    component << manager.component
+
+        DockItem:
+            name = 'mic_list'
+            title = 'Microphone Calibrations'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: mic_tree:
+                headers = ['Name', 'Sens', 'Pistonphone']
+                collection = ObjectCollection(
+                    microphone_manager, microphone_plot.manager
+                )

@@ -1,0 +1,316 @@
+import shutil
+
+from palettable.tableau import Tableau_20
+import pyqtgraph as pg
+
+from atom.api import Atom, Bool, Float, List, Value
+import enaml
+with enaml.imports():
+    from psi.data.plots_manifest import PGCanvas
+
+from enaml.colors import Color
+from enaml.core.api import DynamicTemplate, Looper
+from enaml.layout.api import (
+    align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout, TabLayout
+)
+from enaml.stdlib.fields import FloatField
+from enaml.stdlib.message_box import question
+from enaml.widgets.api import (
+    Action, ActionGroup, Container, Label, Field, Form, MainWindow, Menu, MenuBar,
+    ObjectCombo, PopupView, PushButton, DockArea, DockItem,
+)
+from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
+
+from psi.data.plots import make_color
+from cfts.calibration import (
+    CFTSMicrophoneCalibration, inear_manager, microphone_manager,
+    starship_manager
+)
+
+enamldef AddItem(PopupView): popup:
+
+    attr combo
+    window_type = 'popup'
+    arrow_size = 20
+    arrow_edge = 'top'
+    alias label: label.text
+
+    Container:
+        constraints = [
+            vbox(
+                hbox(label, field),
+                hbox(spacer(0), pb_ok, pb_cancel, spacing=0)
+            ),
+            align('v_center', label, field),
+            align('v_center', pb_ok, pb_cancel),
+            align('width', pb_ok, pb_cancel),
+        ]
+
+        Label: label:
+            pass
+        Field: field:
+            pass
+        PushButton: pb_ok:
+            text = 'OK'
+            clicked ::
+                items = combo.items[:]
+                items.append(field.text)
+                combo.items = items
+                combo.selected = field.text
+                popup.close()
+
+        PushButton: pb_cancel:
+            text = 'Cancel'
+            clicked ::
+                popup.close()
+
+
+class BasePlotManager:
+
+    def __init__(self):
+        component = pg.GraphicsLayout()
+        component.setSpacing(10)
+        y_axis = pg.AxisItem('left')
+        y_axis.setLabel('Sensitivity (dB re 1Vrms)')
+        y_axis.setGrid(64)
+        component.addItem(y_axis, 0, 0)
+
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Frequency', units='Hz')
+        x_axis.setLogMode(True)
+        component.addItem(x_axis, 1, 1)
+
+        vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        y_axis.linkToView(vb)
+        x_axis.linkToView(vb)
+        component.addItem(vb, 0, 1)
+
+        legend = pg.LegendItem()
+        legend.setParentItem(vb)
+
+        self.legend = legend
+        self.component = component
+        self.vb = vb
+
+        self.color_cycle = iter(Tableau_20.colors)
+
+        self.plots = {}
+
+    def plot(self, calibration):
+        if calibration not in self.plots:
+            color, plot = self.make_plot(calibration)
+            color = Color(color.red(), color.green(), color.blue(), color.alpha())
+            self.plots[calibration] = color, plot
+        color, plot = self.plots[calibration]
+        self.legend.addItem(plot, str(calibration))
+        self.vb.addItem(plot)
+        return color
+
+    def remove(self, calibration):
+        if calibration not in self.plots:
+            return
+        _, plot = self.plots[calibration]
+        self.legend.removeItem(plot)
+        self.vb.removeItem(plot)
+
+
+class StarshipPlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color = make_color(next(self.color_cycle))
+        pen = pg.mkPen(color, width=2)
+        plot = pg.PlotCurveItem(pen=pen)
+        cal = calibration.load()
+        x = np.log10(cal.frequency[1:])
+        y = cal.sensitivity[1:]
+        plot.setData(x, y)
+        return color, plot
+
+
+class InEarPlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color = make_color(next(self.color_cycle))
+        pen = pg.mkPen(color, width=2)
+        plot = pg.PlotCurveItem(pen=pen)
+        cal = calibration.load()
+        x = np.log10(cal.frequency[1:])
+        y = cal.sensitivity[1:]
+        plot.setData(x, y)
+        return color, plot
+
+
+class MicrophonePlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color = make_color(next(self.color_cycle))
+        pen = pg.mkPen(color, width=2)
+        plot = pg.PlotCurveItem(pen=pen)
+        fh = calibration.load_recording()
+        psd = fh.get_psd(average_seconds=1).iloc[1:]
+        x = np.log10(psd.index.values)
+        y = psd.values
+        plot.setData(x, y)
+        return color, plot
+
+
+################################################################################
+# Organize list of calibrated objects and calibrations for each object
+################################################################################
+class ObjectNode(Atom):
+    selected = Bool(False)
+    item = Value()
+    manager = Value()
+    color = Value(None)
+
+    def _observe_selected(self, event):
+        if self.selected:
+            self.color = self.manager.plot(self.item)
+        else:
+            self.manager.remove(self.item)
+            self.color = None
+
+
+class ObjectGroup(Atom):
+    selected = Bool(False)
+    skip_autoselect = Bool(False)
+    subitems = List(ObjectNode)
+    item = Value()
+    manager = Value()
+    color = Value(None)
+
+    def __init__(self, item, manager):
+        self.item = item
+        self.manager = manager
+        self.update_subitems()
+
+    def update_subitems(self):
+        print(f'updating subitems for {self.item} {type(self.item)}')
+        objects = sorted(self.item.list_calibrations(), reverse=True)
+        print(objects)
+        self.subitems = [ObjectNode(item=obj, manager=self.manager) for obj in objects]
+        print(self.subitems)
+        return
+        subitems = [i for i in self.subitems if i.item in objects]
+        for obj in objects:
+            for i in subitems:
+                if obj == i.item:
+                    break
+            else:
+                subitems.append(ObjectNode(item=obj, manager=self.manager))
+        self.subitems = sorted(subitems, key =lambda x: x.item, reverse=True)
+
+    def _observe_subitems(self, event):
+        for i in self.subitems:
+            i.observe('selected', self._check_selected)
+            i.observe('color', self._check_color)
+
+    def _check_selected(self, event):
+        for i in self.subitems:
+            if i.selected:
+                self.skip_autoselect = True
+                self.selected = True
+                self.skip_autoselect = False
+                return
+        self.selected = False
+
+    def _check_color(self, event):
+        for i in self.subitems:
+            if i.color is not None:
+                self.color = i.color
+                break
+        else:
+            self.color = None
+
+    def _observe_selected(self, event):
+        if self.selected:
+            if not self.skip_autoselect:
+                self.subitems[0].selected = True
+        else:
+            for i in self.subitems:
+                i.selected = False
+
+
+class ObjectCollection(Atom):
+    groups = List(ObjectGroup)
+    manager = Value()
+    plot_manager = Value()
+
+    def __init__(self, manager, plot_manager):
+        self.manager = manager
+        self.plot_manager = plot_manager
+        self.update_groups()
+
+    def update_groups(self):
+        objects = sorted(self.manager.list_objects())
+        self.groups = [ObjectGroup(obj, self.plot_manager) for obj in objects]
+        print(self.groups)
+        #groups = [g for g in self.groups if g.item in objects]
+        #for obj in objects:
+        #    for i in groups:
+        #        if obj == i.item:
+        #            i.update_subitems()
+        #            break
+        #    else:
+        #        groups.append(ObjectGroup(obj, self.plot_manager))
+
+        #self.groups = sorted(groups, key=lambda x: x.item)
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
+    TreeViewColumn:
+        text << f'{item.sens:.2f} mV/Pa'
+    TreeViewColumn:
+        text << item.pistonphone
+
+
+template CalibratedObjectTemplate(item, MemberType):
+    pass
+
+
+enamldef CalibratedObjects(Container):
+    alias headers: tree.horizontal_headers
+    attr collection
+
+    TreeView: tree:
+        horizontal_headers << ['Name']
+        resize_mode = 'resize_to_contents'
+        horizontal_stretch = True
+        items << collection.groups
+        Looper:
+            iterable << parent.items
+            TreeViewItem: tree_group:
+                attr group << loop_item
+                text << loop_item.item.name
+                items << loop_item.subitems
+                checkable = True
+                checked := loop_item.selected
+                background << loop_item.color
+                Looper:
+                    iterable << parent.items
+                    TreeViewItem: tree_node:
+                        checkable = True
+                        checked := loop_item.selected
+                        text << str(loop_item.item.datetime)
+                        background << loop_item.color
+                        Menu:
+                            Action:
+                                text = 'Set as reference'
+                            Action:
+                                separator = True
+                            Action:
+                                text = 'Delete'
+                                triggered ::
+                                    name = f'{loop_item.item.datetime} from {loop_item.item.name}'
+                                    q = f'Are you sure you want to delete {name}?'
+                                    button = question(tree_node, '', q)
+                                    if button.text == 'Yes':
+                                        shutil.rmtree(loop_item.item.filename)
+                                        collection.update_groups()
+                        DynamicTemplate:
+                            base = CalibratedObjectTemplate
+                            args = (loop_item.item, type(loop_item.item))
+
+
