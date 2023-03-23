@@ -121,7 +121,7 @@ enamldef SpeakerView(Container):
                             and bool(speaker.name) \
                             and '(' not in speaker.name
                         clicked ::
-                            speaker.run_cal_golay(mic_settings)
+                            settings.run_cal_golay(speaker, mic_settings)
                             speaker_tree.collection.update_groups()
 
                     PushButton: chirp_start:
@@ -130,7 +130,7 @@ enamldef SpeakerView(Container):
                             and bool(speaker.name) \
                             and '(' not in speaker.name
                         clicked ::
-                            speaker.run_cal_chirp(mic_settings)
+                            settings.run_cal_chirp(speaker, mic_settings)
                             speaker_tree.collection.update_groups()
 
         DockItem:

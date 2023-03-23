@@ -4,14 +4,14 @@ from enaml.workbench.ui.api import ActionItem, Workspace
 
 
 from cftscal.util import list_starship_connections
-from .settings import StarshipSettings
+from .settings import StarshipCalibrationSettings
 from .view import StarshipView
 
 
 def starship_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Starship Calibration'
-    settings = [StarshipSettings(output=s) for s in list_starship_connections()]
+    settings = StarshipCalibrationSettings(list_starship_connections())
     space.content = StarshipView(settings=settings)
     return space
 

@@ -8,7 +8,7 @@ from psi import get_config_folder
 from psi.util import get_tagged_values
 
 
-from cftscal.objects import microphone_manager, speaker_manager
+from cftscal.objects import microphone_manager, speaker_manager, starship_manager
 
 
 class PersistentSettings(Atom):
@@ -42,7 +42,7 @@ class CalibrationSettings(Atom):
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
             env = {}
-        env = {**os.environ, **env, **self.get_env_vars()}
+        env = {**os.environ, **env}
         args = ['psi', experiment, str(filename)]
         print(' '.join(args))
         subprocess.check_output(args, env=env)
@@ -113,7 +113,7 @@ class SpeakerSettings(PersistentSettings):
             return ''
 
     def get_env_vars(self):
-        speaker = speaker_manager.get_object(self.speaker)
+        speaker = speaker_manager.get_object(self.name)
         cal = speaker.get_current_calibration()
         return {
             'CFTS_TEST_SPEAKER': self.output,
@@ -125,23 +125,24 @@ class StarshipSettings(PersistentSettings):
 
     output = Str()
     name = Str()
+    gain = Float(40)
     available_starships = Property()
 
-    def _get_available_speakers(self):
-        return sorted(speaker_manager.list_names('CFTS'))
+    def _get_available_starships(self):
+        return sorted(starship_manager.list_names('CFTS'))
 
     def _get_filename(self):
-        return f'speaker_{self.output}.json'
+        return f'starship_{self.output}.json'
 
     def _default_name(self):
         try:
-            return self.available_speakers[0]
+            return self.available_starships[0]
         except IndexError:
             return ''
 
     def get_env_vars(self):
-        speaker = speaker_manager.get_object(self.speaker)
-        cal = speaker.get_current_calibration()
+        starship = starship_manager.get_object(self.name)
+        cal = starship.get_current_calibration()
         return {
             'CFTS_TEST_SPEAKER': self.output,
             f'CFTS_SPEAKER_{self.output}': cal.to_string()
