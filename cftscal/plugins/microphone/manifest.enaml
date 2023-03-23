@@ -2,15 +2,15 @@ import enaml
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.ui.api import ActionItem, Workspace
 
-from cfts.app.cal_settings import MicrophoneSettings
+
+from .settings import MicrophoneCalibrationSettings
+from .view import MicrophoneView
 
 
 def microphone_workspace_factory(workbench):
-    with enaml.imports():
-        from .view import MicrophoneView
     space = Workspace()
     space.window_title = 'Microphone Calibration'
-    space.content = MicrophoneView(settings=MicrophoneSettings())
+    space.content = MicrophoneView(settings=MicrophoneCalibrationSettings())
     return space
 
 

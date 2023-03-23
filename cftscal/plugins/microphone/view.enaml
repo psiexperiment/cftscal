@@ -1,3 +1,5 @@
+import numpy as np
+
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
@@ -5,16 +7,28 @@ from enaml.widgets.api import (
 )
 
 from psi.data.plots_manifest import PGCanvas
-from cfts.calibration import microphone_manager
 
-from cftscal.widgets import (
-    AddItem, CalibratedObjects, MicrophonePlotManager, ObjectCollection,
+from cftscal.objects import microphone_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
 )
+
+
+class MicrophonePlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color, plot = self.create_plot()
+        fh = calibration.load_recording()
+        psd = fh.get_psd(average_seconds=1).iloc[1:]
+        x = np.log10(psd.index.values)
+        y = psd.values
+        plot.setData(x, y)
+        return color, plot
 
 
 enamldef MicrophoneView(Container):
 
-    attr settings = MicrophoneSettings()
+    attr settings
 
     DockArea: area:
         layout = AreaLayout(
@@ -28,7 +42,6 @@ enamldef MicrophoneView(Container):
                 sizes=[150, 900],
             ),
         )
-
         DockItem:
             name = 'settings_mic'
             title = 'Microphone'
@@ -75,16 +88,16 @@ enamldef MicrophoneView(Container):
                     text = 'Pistonphone'
 
                 Field: pistonphone_select:
-                    text := settings.pistonphone
+                    text := settings.pistonphone.name
 
                 FloatField: pistonphone_frequency:
-                    value := settings.pistonphone_frequency
+                    value := settings.pistonphone.frequency
 
                 Label: pistonphone_frequency_label:
                     text = 'Hz @'
 
                 FloatField: pistonphone_level:
-                    value := settings.pistonphone_level
+                    value := settings.pistonphone.level
 
                 Label: pistonphone_level_label:
                     text = 'dB SPL'
@@ -93,8 +106,8 @@ enamldef MicrophoneView(Container):
                     text = 'Microphone'
 
                 ObjectCombo: mic_select:
-                    items << settings.available_microphones
-                    selected := settings.microphone
+                    items = sorted(settings.microphone.available_microphones)
+                    selected := settings.microphone.name
 
                 PushButton: mic_add:
                     text = '+'
@@ -104,14 +117,14 @@ enamldef MicrophoneView(Container):
 
                 ObjectCombo: mic_gain:
                     items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                    selected := settings.microphone_gain
+                    selected := settings.microphone.gain
 
                 Label: mic_gain_label:
                     text = 'dB gain'
 
                 PushButton: mic_cal_start:
                     text = 'Calibrate'
-                    enabled << bool(settings.microphone)
+                    enabled << bool(settings.microphone.name)
                     clicked ::
                         settings.run_mic_cal()
                         mic_tree.collection.update_groups()

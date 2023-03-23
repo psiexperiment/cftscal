@@ -13,7 +13,7 @@ from enaml.core.api import DynamicTemplate, Looper
 from enaml.layout.api import (
     align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout, TabLayout
 )
-from enaml.stdlib.fields import FloatField
+from enaml.stdlib.fields import FloatField, RegexField
 from enaml.stdlib.message_box import question
 from enaml.widgets.api import (
     Action, ActionGroup, Container, Label, Field, Form, MainWindow, Menu, MenuBar,
@@ -22,10 +22,11 @@ from enaml.widgets.api import (
 from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
-from cfts.calibration import (
-    CFTSMicrophoneCalibration, inear_manager, microphone_manager,
-    starship_manager
+from cftscal.objects import (
+    CFTSInEarCalibration, CFTSMicrophoneCalibration, CFTSSpeakerCalibration,
+    inear_manager, microphone_manager, starship_manager
 )
+
 
 enamldef AddItem(PopupView): popup:
 
@@ -48,10 +49,11 @@ enamldef AddItem(PopupView): popup:
 
         Label: label:
             pass
-        Field: field:
-            pass
+        RegexField: field:
+            regex = f'^[\w\d]+$'
         PushButton: pb_ok:
             text = 'OK'
+            enabled << bool(field.text)
             clicked ::
                 items = combo.items[:]
                 items.append(field.text)
@@ -115,6 +117,11 @@ class BasePlotManager:
         self.legend.removeItem(plot)
         self.vb.removeItem(plot)
 
+    def create_plot(self):
+        color = make_color(next(self.color_cycle))
+        pen = pg.mkPen(color, width=2)
+        return color, pg.PlotCurveItem(pen=pen)
+
 
 class StarshipPlotManager(BasePlotManager):
 
@@ -138,20 +145,6 @@ class InEarPlotManager(BasePlotManager):
         cal = calibration.load()
         x = np.log10(cal.frequency[1:])
         y = cal.sensitivity[1:]
-        plot.setData(x, y)
-        return color, plot
-
-
-class MicrophonePlotManager(BasePlotManager):
-
-    def make_plot(self, calibration):
-        color = make_color(next(self.color_cycle))
-        pen = pg.mkPen(color, width=2)
-        plot = pg.PlotCurveItem(pen=pen)
-        fh = calibration.load_recording()
-        psd = fh.get_psd(average_seconds=1).iloc[1:]
-        x = np.log10(psd.index.values)
-        y = psd.values
         plot.setData(x, y)
         return color, plot
 
@@ -187,11 +180,8 @@ class ObjectGroup(Atom):
         self.update_subitems()
 
     def update_subitems(self):
-        print(f'updating subitems for {self.item} {type(self.item)}')
         objects = sorted(self.item.list_calibrations(), reverse=True)
-        print(objects)
         self.subitems = [ObjectNode(item=obj, manager=self.manager) for obj in objects]
-        print(self.subitems)
         return
         subitems = [i for i in self.subitems if i.item in objects]
         for obj in objects:
@@ -246,17 +236,6 @@ class ObjectCollection(Atom):
     def update_groups(self):
         objects = sorted(self.manager.list_objects())
         self.groups = [ObjectGroup(obj, self.plot_manager) for obj in objects]
-        print(self.groups)
-        #groups = [g for g in self.groups if g.item in objects]
-        #for obj in objects:
-        #    for i in groups:
-        #        if obj == i.item:
-        #            i.update_subitems()
-        #            break
-        #    else:
-        #        groups.append(ObjectGroup(obj, self.plot_manager))
-
-        #self.groups = sorted(groups, key=lambda x: x.item)
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
@@ -264,6 +243,16 @@ template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
         text << f'{item.sens:.2f} mV/Pa'
     TreeViewColumn:
         text << item.pistonphone
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):
+    TreeViewColumn:
+        text << item.starship
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):
+    TreeViewColumn:
+        text << item.microphone
 
 
 template CalibratedObjectTemplate(item, MemberType):

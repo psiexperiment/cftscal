@@ -23,8 +23,15 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    'speaker_calibration_golay', 'Speaker calibration (golay)', 'calibration', [
+        {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
+        {'manifest': PATH + 'calibration_mixins.GolayMixin',},
+    ],
+)
+
+ParadigmDescription(
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
-        {'manifest': PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest'},
+        {'manifest':  'cftscal.paradigms.pistonphone_calibration.PistonphoneCalibrationManifest'},
         {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
          'required': True,
          'attrs': {'source_name': 'hw_ai', 'time_span': 8, 'y_label': 'PSD (dB re 1V)'},

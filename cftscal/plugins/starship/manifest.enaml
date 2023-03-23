@@ -1,0 +1,36 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+
+from cftscal.util import list_starship_connections
+from .settings import StarshipSettings
+from .view import StarshipView
+
+
+def starship_workspace_factory(workbench):
+    space = Workspace()
+    space.window_title = 'Starship Calibration'
+    settings = [StarshipSettings(output=s) for s in list_starship_connections()]
+    space.content = StarshipView(settings=settings)
+    return space
+
+
+enamldef StarshipManifest(PluginManifest):
+    id = 'starship'
+
+    Extension:
+        id = 'starship_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/starship'
+            label = 'Starship'
+            shortcut = 'Ctrl+s'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'starship.starship_workspace'}
+
+    Extension:
+        id = 'starship_workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = starship_workspace_factory

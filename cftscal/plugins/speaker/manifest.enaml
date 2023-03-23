@@ -1,0 +1,36 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+
+from ...util import list_speaker_connections
+from .settings import SpeakerCalibrationSettings
+from .view import SpeakerView
+
+
+def speaker_workspace_factory(workbench):
+    space = Workspace()
+    space.window_title = 'Speaker Calibration'
+    settings = SpeakerCalibrationSettings(list_speaker_connections())
+    space.content = SpeakerView(settings=settings)
+    return space
+
+
+enamldef SpeakerManifest(PluginManifest):
+    id = 'speaker'
+
+    Extension:
+        id = 'speaker_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/speaker'
+            label = 'Speaker'
+            shortcut = 'Ctrl+p'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'speaker.speaker_workspace'}
+
+    Extension:
+        id = 'speaker_workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = speaker_workspace_factory
