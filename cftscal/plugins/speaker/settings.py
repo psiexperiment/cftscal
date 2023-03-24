@@ -27,7 +27,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         pathname = CAL_ROOT / 'speaker' / speaker.name / filename
 
         env = microphone.get_env_vars()
-        env.update(speaker.get_env_vars())
+        env.update(speaker.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'speaker_calibration_golay', env)
 
     def run_cal_chirp(self, speaker, microphone):
@@ -36,5 +36,5 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         pathname = CAL_ROOT / 'speaker' / speaker.name / filename
 
         env = microphone.get_env_vars()
-        env.update(speaker.get_env_vars())
+        env.update(speaker.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'speaker_calibration_chirp', env)

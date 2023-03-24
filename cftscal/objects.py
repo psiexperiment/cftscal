@@ -118,7 +118,13 @@ class CalibrationManager:
             objects.append(self.object_class(name, loaders))
         return objects
 
-    def list_names(self, loader_label):
+    def list_names(self, loader_label=None):
+        if loader_label is None:
+            names = []
+            for loader in self.loaders:
+                names.extend(loader.list_names())
+            return names
+
         for loader in self.loaders:
             if loader.label == loader_label:
                 return loader.list_names()

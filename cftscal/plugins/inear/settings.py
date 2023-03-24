@@ -19,8 +19,8 @@ class InEarCalibrationSettings(CalibrationSettings):
             e.save_config()
 
     def run_cal(self, ear):
-        filename = f'{{date_time}}_{ear.ear}_{ear.name}_inear_speaker_calibration_chirp'
+        filename = f'{{date_time}}_{ear.ear}_{ear.name}'
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'inear' / ear.ear / filename
         env = ear.get_env_vars()
-        self._run_cal(pathname, 'inear', env)
+        self._run_cal(pathname, 'iec', env)

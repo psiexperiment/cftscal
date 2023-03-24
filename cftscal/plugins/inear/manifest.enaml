@@ -27,7 +27,7 @@ enamldef InEarManifest(PluginManifest):
             shortcut = 'Ctrl+s'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'inear.inear_workspace'}
+            parameters = {'workspace': 'inear.workspace'}
 
     Extension:
         id = 'workspace'

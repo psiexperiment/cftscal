@@ -21,7 +21,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'microphone' / self.microphone.name / filename
         env = {
-            **self.microphone.get_env_vars(),
+            **self.microphone.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),
         }
         self._run_cal(pathname, 'pistonphone_calibration', env)

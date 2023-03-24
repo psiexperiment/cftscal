@@ -44,6 +44,7 @@ class CalibrationSettings(Atom):
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
             env = {}
+        print(json.dumps(env, indent=2))
         env = {**os.environ, **env}
         args = ['psi', experiment, str(filename)]
         print(' '.join(args))
@@ -59,15 +60,16 @@ class MicrophoneSettings(PersistentSettings):
     def _get_available_microphones(self):
         return sorted(microphone_manager.list_names('CFTS'))
 
-    def get_env_vars(self):
+    def get_env_vars(self, include_cal=True):
         mic = microphone_manager.get_object(self.name)
         env = {
             'CFTS_CAL_MIC_GAIN': str(self.gain),
         }
-        try:
-            env['CFTS_CAL_MIC'] = mic.get_current_calibration().to_string()
-        except IndexError:
-            pass
+        if include_cal:
+            try:
+                env['CFTS_CAL_MIC'] = mic.get_current_calibration().to_string()
+            except IndexError:
+                pass
         return env
 
     def _get_filename(self):
@@ -114,13 +116,15 @@ class SpeakerSettings(PersistentSettings):
         except IndexError:
             return ''
 
-    def get_env_vars(self):
-        speaker = speaker_manager.get_object(self.name)
-        cal = speaker.get_current_calibration()
-        return {
+    def get_env_vars(self, include_cal=True):
+        env = {
             'CFTS_TEST_SPEAKER': self.output,
-            f'CFTS_SPEAKER_{self.output}': cal.to_string()
         }
+        if include_cal:
+            speaker = speaker_manager.get_object(self.name)
+            cal = speaker.get_current_calibration()
+            env[f'CFTS_SPEAKER_{self.output}'] = cal.to_string()
+        return env
 
 
 class StarshipSettings(PersistentSettings):
@@ -142,13 +146,16 @@ class StarshipSettings(PersistentSettings):
         except IndexError:
             return ''
 
-    def get_env_vars(self):
-        starship = starship_manager.get_object(self.name)
-        cal = starship.get_current_calibration()
-        return {
-            'CFTS_TEST_SPEAKER': self.output,
-            f'CFTS_SPEAKER_{self.output}': cal.to_string()
+    def get_env_vars(self, include_cal=True):
+        env = {
+            'CFTS_TEST_STARSHIP': self.output,
+            f'CFTS_STARSHIP_{self.output}_GAIN': str(self.gain),
         }
+        if include_cal:
+            starship = starship_manager.get_object(self.name)
+            cal = starship.get_current_calibration()
+            env[f'CFTS_STARSHIP_{self.output}'] = cal.to_string()
+        return env
 
 
 class InEarSettings(StarshipSettings):
@@ -156,16 +163,11 @@ class InEarSettings(StarshipSettings):
     ear = Str()
     available_ears = Property()
 
+    def _get_available_starships(self):
+        return sorted(starship_manager.list_names())
+
     def _get_available_ears(self):
         return sorted(inear_manager.list_names('CFTS'))
 
     def _get_filename(self):
         return f'inear_{self.output}.json'
-
-    def get_env_vars(self):
-        starship = starship_manager.get_object(self.name)
-        cal = starship.get_current_calibration()
-        return {
-            'CFTS_TEST_SPEAKER': self.output,
-            f'CFTS_SPEAKER_{self.output}': cal.to_string()
-        }

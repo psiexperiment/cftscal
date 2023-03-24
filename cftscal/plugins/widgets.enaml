@@ -24,7 +24,6 @@ from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 from psi.data.plots import make_color
 from cftscal.objects import (
     CFTSInEarCalibration, CFTSMicrophoneCalibration, CFTSSpeakerCalibration,
-    inear_manager, microphone_manager, starship_manager
 )
 
 

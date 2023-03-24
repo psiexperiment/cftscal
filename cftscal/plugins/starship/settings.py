@@ -18,21 +18,21 @@ class StarshipCalibrationSettings(CalibrationSettings):
 
     def save_config(self):
         self.microphone.save_config()
-        for s in self.speakers:
+        for s in self.starships:
             s.save_config()
 
     def run_cal_golay(self, starship, microphone):
-        filename = f'{{date_time}} {starship.name} {microphone.name} pt_calibration_golay'
+        filename = f'{{date_time}}_{starship.name}_{microphone.name}_golay'
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'starship' / starship.name / filename
         env = microphone.get_env_vars()
-        env.update(starship.get_env_vars())
+        env.update(starship.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'pt_calibration_golay', env)
 
     def run_cal_chirp(self, starship, microphone):
-        filename = f'{{date_time}} {starship.name} {microphone.name} pt_calibration_chirp'
+        filename = f'{{date_time}}_{starship.name}_{microphone.name}_chirp'
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'starship' / starship.name / filename
         env = microphone.get_env_vars()
-        env.update(starship.get_env_vars())
+        env.update(starship.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'pt_calibration_chirp', env)
