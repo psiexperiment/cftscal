@@ -26,9 +26,9 @@ enamldef MicrophoneManifest(PluginManifest):
             shortcut = 'Ctrl+m'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'microphone.microphone_workspace'}
+            parameters = {'workspace': 'microphone.workspace'}
 
     Extension:
-        id = 'microphone_workspace'
+        id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = microphone_workspace_factory

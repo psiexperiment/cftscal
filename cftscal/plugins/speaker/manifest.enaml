@@ -28,9 +28,9 @@ enamldef SpeakerManifest(PluginManifest):
             shortcut = 'Ctrl+p'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'speaker.speaker_workspace'}
+            parameters = {'workspace': 'speaker.workspace'}
 
     Extension:
-        id = 'speaker_workspace'
+        id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = speaker_workspace_factory

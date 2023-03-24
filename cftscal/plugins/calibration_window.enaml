@@ -1,0 +1,6 @@
+from enaml.workbench.ui.workbench_window import WorkbenchWindow
+
+
+enamldef CalibrationWindow(WorkbenchWindow):
+
+    initial_size = (1200, 800)

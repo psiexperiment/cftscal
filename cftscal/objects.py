@@ -142,7 +142,6 @@ class CFTSBaseLoader(CalibrationLoader):
 
     def list_names(self):
         names = {}
-        print(self.base_path)
         for path in self.base_path.iterdir():
             yield path.stem
 
@@ -435,13 +434,3 @@ speaker_manager.register('cftscal.objects.CFTSSpeakerLoader')
 
 inear_manager = CalibrationManager(InEar)
 inear_manager.register('cftscal.objects.CFTSInEarLoader')
-
-
-if __name__ == '__main__':
-    starship = starship_manager.get_object('MMM2')
-    print(starship.list_calibrations()[-1].load())
-
-    #print(starships[-1].list_calibrations())
-    #loader = EPLStarshipLoader()
-    #print(loader.list_names())
-    #print(loader.list_calibrations('MMM1'))

@@ -9,12 +9,11 @@ from enaml.widgets.api import (
 
 from psi.data.plots_manifest import PGCanvas
 
-from cftscal.objects import CFTSStarshipLoader, starship_manager
+from cftscal.objects import starship_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
 )
 
-cfts_starship_loader = CFTSStarshipLoader()
 
 
 class StarshipPlotManager(BasePlotManager):
@@ -36,10 +35,9 @@ enamldef StarshipView(Container):
         layout = AreaLayout(
             HSplitLayout(
                 VSplitLayout(
-                    'settings_mic',
-                    TabLayout(*[di.name for di in children if 'output' in di.name]),
+                    'settings',
                     'starship_list',
-                    sizes=[25, 200],
+                    sizes=[25, 900],
                 ),
                 'starship_sens_plot',
                 sizes=[150, 900],
@@ -47,103 +45,120 @@ enamldef StarshipView(Container):
         )
 
         DockItem:
-            name = 'settings_mic'
-            title = 'Microphone'
+            name = f'settings'
+            title = f'Settings'
             closable = False
             stretch = 0
 
             Container:
-                constraints = [
-                    hbox(
-                        mic_label,
-                        hbox(mic_select, mic_gain, spacing=0),
-                        mic_gain_label,
-                        spacer(0),
-                        spacing=5,
-                    ),
-                    align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
-                ]
+                layout_constraints => ():
+                    widgets = self.visible_widgets()
+                    first = []
+                    second = []
+                    for w in widgets:
+                        first.append(w.children[0])
+                        for c in w.children[1:]:
+                            if isinstance(c, Label):
+                                second.append(c)
+                                break
 
-                Label: mic_label:
-                    text = 'Microphone'
-
-                ObjectCombo: mic_select:
-                    items = sorted(settings.microphone.available_microphones)
-                    selected := settings.microphone.name
-
-                ObjectCombo: mic_gain:
-                    items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                    selected := settings.microphone.gain
-
-                Label: mic_gain_label:
-                    text = 'dB gain'
-
-        Looper:
-            iterable << settings.starships
-
-            DockItem:
-                name = f'settings_output_{loop_item.output}'
-                title = f'Output {loop_item.output}'
-                closable = False
-                stretch = 0
-
-                attr starship = loop_item
-                attr mic_settings = settings.microphone
+                    constraints = [
+                        vbox(*widgets),
+                        align('right', *first),
+                        align('left', *second),
+                        align('right', *second),
+                    ]
+                    return constraints
 
                 Container:
+                    share_layout = True
+                    padding = 0
                     constraints = [
                         hbox(
-                            starship_label,
-                            hbox(starship_select, starship_add, starship_gain, spacing=0),
-                            starship_gain_label,
+                            mic_label,
+                            hbox(mic_select, mic_gain, spacing=0),
+                            mic_gain_label,
                             spacer(0),
-                            hbox(golay_start, chirp_start, spacing=0),
                             spacing=5,
                         ),
-                        starship_add.width == 25,
-                        align('v_center', starship_label, starship_select,
-                                starship_add, starship_gain,
-                                starship_gain_label, golay_start,
-                                chirp_start),
+                        align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
                     ]
 
-                    Label: starship_label:
-                        text = 'Starship'
+                    Label: mic_label:
+                        text = 'Microphone'
 
-                    ObjectCombo: starship_select:
-                        items = starship.available_starships
-                        selected := starship.name
+                    ObjectCombo: mic_select:
+                        items = sorted(settings.microphone.available_microphones)
+                        selected := settings.microphone.name
 
-                    PushButton: starship_add:
-                        text = '+'
-                        clicked ::
-                            popup = AddItem(self, combo=starship_select, label='Starship')
-                            popup.show()
+                    ObjectCombo: mic_gain:
+                        items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                        selected := settings.microphone.gain
 
-                    ObjectCombo: starship_gain:
-                        items = [20, 40]
-                        selected := starship.gain
-
-                    Label: starship_gain_label:
+                    Label: mic_gain_label:
                         text = 'dB gain'
 
-                    PushButton: golay_start:
-                        text = 'Golay'
-                        enabled << bool(mic_settings.name) \
-                            and bool(starship.name) \
-                            and '(' not in starship.name
-                        clicked ::
-                            settings.run_cal_golay(starship, mic_settings)
-                            starship_tree.collection.update_groups()
+                Looper:
+                    iterable << settings.starships
 
-                    PushButton: chirp_start:
-                        text = 'Chirp'
-                        enabled << bool(mic_settings.name) \
-                            and bool(starship.name) \
-                            and '(' not in starship.name
-                        clicked ::
-                            settings.run_cal_chirp(starship, mic_settings)
-                            starship_tree.collection.update_groups()
+                    Container:
+                        attr starship = loop_item
+                        attr mic_settings = settings.microphone
+                        padding = 0
+                        share_layout=True
+                        constraints = [
+                            hbox(
+                                starship_label,
+                                hbox(starship_select, starship_add, starship_gain, spacing=0),
+                                starship_gain_label,
+                                spacer(0),
+                                hbox(golay_start, chirp_start, spacing=0),
+                                spacing=5,
+                            ),
+                            starship_add.width == 25,
+                            align('v_center', starship_label, starship_select,
+                                    starship_add, starship_gain,
+                                    starship_gain_label, golay_start,
+                                    chirp_start),
+                        ]
+
+                        Label: starship_label:
+                            text = f'Starship {loop_item.output}'
+
+                        ObjectCombo: starship_select:
+                            items = starship.available_starships
+                            selected := starship.name
+
+                        PushButton: starship_add:
+                            text = '+'
+                            clicked ::
+                                popup = AddItem(self, combo=starship_select, label='Starship')
+                                popup.show()
+
+                        ObjectCombo: starship_gain:
+                            items = [20, 40]
+                            selected := starship.gain
+
+                        Label: starship_gain_label:
+                            text = 'dB gain'
+
+                        PushButton: golay_start:
+                            text = 'Golay'
+                            enabled << bool(mic_settings.name) \
+                                and bool(starship.name) \
+                                and '(' not in starship.name
+                            clicked ::
+                                settings.run_cal_golay(starship, mic_settings)
+                                starship_tree.collection.update_groups()
+
+                        PushButton: chirp_start:
+                            text = 'Chirp'
+                            enabled << bool(mic_settings.name) \
+                                and bool(starship.name) \
+                                and '(' not in starship.name
+                            clicked ::
+                                settings.run_cal_chirp(starship, mic_settings)
+                                starship_tree.collection.update_groups()
 
         DockItem:
             name = 'starship_sens_plot'

@@ -1,6 +1,7 @@
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding, ActionItem, MenuItem, ItemGroup
+from .calibration_window import CalibrationWindow
 
 
 def set_defaults(event):
@@ -24,6 +25,11 @@ enamldef CalibrationManifest(PluginManifest):
         point = 'enaml.workbench.ui.branding'
         Branding:
             title = 'CFTS Calibration'
+
+    Extension:
+        id = 'calibration_window'
+        point = 'enaml.workbench.ui.window_factory'
+        factory = lambda workbench: CalibrationWindow()
 
     Extension:
         id = 'calibration_actions'

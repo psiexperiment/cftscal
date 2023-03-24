@@ -34,7 +34,7 @@ enamldef MicrophoneView(Container):
         layout = AreaLayout(
             HSplitLayout(
                 VSplitLayout(
-                    'settings_mic',
+                    'settings',
                     'mic_list',
                     sizes=[25, 200],
                 ),
@@ -43,8 +43,8 @@ enamldef MicrophoneView(Container):
             ),
         )
         DockItem:
-            name = 'settings_mic'
-            title = 'Microphone'
+            name = 'settings'
+            title = 'Settings'
             closable = False
             stretch = 0
 

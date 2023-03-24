@@ -28,9 +28,9 @@ enamldef StarshipManifest(PluginManifest):
             shortcut = 'Ctrl+s'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'starship.starship_workspace'}
+            parameters = {'workspace': 'starship.workspace'}
 
     Extension:
-        id = 'starship_workspace'
+        id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = starship_workspace_factory

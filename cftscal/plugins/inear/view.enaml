@@ -1,0 +1,141 @@
+import numpy as np
+
+from enaml.core.api import Looper
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, TabLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+)
+
+from psi.data.plots_manifest import PGCanvas
+
+from cftscal.objects import inear_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+)
+
+
+
+class InEarPlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color, plot = self.create_plot()
+        cal = calibration.load()
+        x = np.log10(cal.frequency[1:])
+        y = cal.sensitivity[1:]
+        plot.setData(x, y)
+        return color, plot
+
+
+enamldef InEarView(Container):
+
+    attr settings
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings',
+                    'inear_list',
+                    sizes=[25, 200],
+                ),
+                'inear_sens_plot',
+                sizes=[150, 900],
+            ),
+        )
+
+        DockItem:
+            name = 'settings'
+            title = 'Settings'
+            closable = False
+            stretch = 0
+
+            Container:
+                layout_constraints => ():
+                    widgets = self.visible_widgets()
+                    first = []
+                    for w in widgets:
+                        first.append(w.children[0])
+                    constraints = [
+                        vbox(*widgets),
+                        align('right', *first),
+                    ]
+                    return constraints
+
+                Looper:
+                    iterable << settings.ears
+
+                    Container:
+                        attr ear = loop_item
+                        share_layout = True
+                        padding = 0
+                        constraints = [
+                            hbox(
+                                output_label,
+                                hbox(starship_select, starship_gain, spacing=0),
+                                starship_gain_label,
+                                hbox(ear_select, ear_add, spacing=0),
+                                spacer(0),
+                                cal_start,
+                                spacing=5,
+                            ),
+                            ear_add.width == 25,
+                            align('v_center', output_label,
+                                starship_select, starship_gain,
+                                starship_gain_label, ear_select, ear_add,
+                                cal_start),
+                        ]
+
+                        Label: output_label:
+                            text = f'Output {ear.output}'
+
+                        ObjectCombo: starship_select:
+                            items = ear.available_starships
+                            selected := ear.name
+
+                        ObjectCombo: starship_gain:
+                            items = [20, 40]
+                            selected := ear.gain
+
+                        Label: starship_gain_label:
+                            text = 'dB gain'
+
+                        ObjectCombo: ear_select:
+                            items = ear.available_ears
+                            selected := ear.ear
+
+                        PushButton: ear_add:
+                            text = '+'
+                            clicked ::
+                                popup = AddItem(self, combo=ear_select, label='Ear')
+                                popup.show()
+
+                        PushButton: cal_start:
+                            text = 'Run'
+                            enabled << bool(ear.name) and bool(ear.ear)
+                            clicked ::
+                                settings.run_cal(ear)
+                                inear_tree.collection.update_groups()
+
+        DockItem:
+            name = 'inear_sens_plot'
+            title = 'In-Ear Sensitivity'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: inear_plot:
+                    attr manager = InEarPlotManager()
+                    component << manager.component
+
+        DockItem:
+            name = 'inear_list'
+            title = 'In-Ear Calibrations'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: inear_tree:
+                headers = ['Ear', 'Starship']
+                collection = ObjectCollection(
+                    inear_manager, inear_plot.manager
+                )

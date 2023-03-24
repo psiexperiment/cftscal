@@ -1,0 +1,35 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+from cftscal.util import list_starship_connections
+from .settings import InEarCalibrationSettings
+from .view import InEarView
+
+
+def inear_workspace_factory(workbench):
+    space = Workspace()
+    space.window_title = 'In-Ear Calibration'
+    settings = InEarCalibrationSettings(list_starship_connections())
+    space.content = InEarView(settings=settings)
+    return space
+
+
+enamldef InEarManifest(PluginManifest):
+    id = 'inear'
+
+    Extension:
+        id = 'inear_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/inear'
+            label = 'In-Ear'
+            shortcut = 'Ctrl+s'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'inear.inear_workspace'}
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = inear_workspace_factory

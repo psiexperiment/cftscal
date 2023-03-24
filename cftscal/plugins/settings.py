@@ -8,7 +8,9 @@ from psi import get_config_folder
 from psi.util import get_tagged_values
 
 
-from cftscal.objects import microphone_manager, speaker_manager, starship_manager
+from cftscal.objects import (
+    inear_manager, microphone_manager, speaker_manager, starship_manager
+)
 
 
 class PersistentSettings(Atom):
@@ -139,6 +141,26 @@ class StarshipSettings(PersistentSettings):
             return self.available_starships[0]
         except IndexError:
             return ''
+
+    def get_env_vars(self):
+        starship = starship_manager.get_object(self.name)
+        cal = starship.get_current_calibration()
+        return {
+            'CFTS_TEST_SPEAKER': self.output,
+            f'CFTS_SPEAKER_{self.output}': cal.to_string()
+        }
+
+
+class InEarSettings(StarshipSettings):
+
+    ear = Str()
+    available_ears = Property()
+
+    def _get_available_ears(self):
+        return sorted(inear_manager.list_names('CFTS'))
+
+    def _get_filename(self):
+        return f'inear_{self.output}.json'
 
     def get_env_vars(self):
         starship = starship_manager.get_object(self.name)
