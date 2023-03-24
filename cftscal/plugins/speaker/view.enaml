@@ -1,7 +1,10 @@
 import numpy as np
+from statsmodels.nonparametric.smoothers_lowess import lowess
+from scipy import signal
 
+from atom.api import Str
 from enaml.core.api import Looper
-from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, TabLayout, VSplitLayout
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
@@ -17,12 +20,34 @@ from cftscal.plugins.widgets import (
 
 class SpeakerPlotManager(BasePlotManager):
 
+    def __init__(self):
+        super().__init__()
+        self.set_plot_style('sensitivity')
+        self.set_smoothing_window(100)
+
+    def set_plot_style(self, plot_style):
+        self.plot_style = plot_style
+        self.update_plots()
+
+    def set_smoothing_window(self, smoothing_window):
+        self.smoothing_window = smoothing_window
+        self.update_plots()
+
+    def update_plots(self):
+        for calibration, (_, plot) in self.plots.items():
+            self.update_plot(calibration, plot)
+
+    def update_plot(self, calibration, plot):
+        cal = calibration.load()
+        f = cal.frequency[1:]
+        if self.plot_style == 'sensitivity':
+            y = cal.get_db(f, 1.0)
+        x = np.log10(f)
+        plot.setData(x, y)
+
     def make_plot(self, calibration):
         color, plot = self.create_plot()
-        cal = calibration.load()
-        x = np.log10(cal.frequency[1:])
-        y = cal.sensitivity[1:]
-        plot.setData(x, y)
+        self.update_plot(calibration, plot)
         return color, plot
 
 
@@ -33,105 +58,110 @@ enamldef SpeakerView(Container):
     DockArea: area:
         layout = AreaLayout(
             HSplitLayout(
-                VSplitLayout(
-                    'settings_mic',
-                    TabLayout(*[di.name for di in children if 'output' in di.name]),
-                    'speaker_list',
-                    sizes=[25, 200],
-                ),
+                VSplitLayout('settings', 'speaker_list', sizes=[25, 200]),
                 'speaker_sens_plot',
                 sizes=[150, 900],
             ),
         )
 
         DockItem:
-            name = 'settings_mic'
-            title = 'Microphone'
+            name = 'settings'
+            title = 'Settings'
             closable = False
             stretch = 0
 
             Container:
-                constraints = [
-                    hbox(
-                        mic_label,
-                        hbox(mic_select, mic_gain, spacing=0),
-                        mic_gain_label,
-                        spacer(0),
-                        spacing=5,
-                    ),
-                    align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
-                ]
-
-                Label: mic_label:
-                    text = 'Microphone'
-
-                ObjectCombo: mic_select:
-                    items = sorted(settings.microphone.available_microphones)
-                    selected := settings.microphone.name
-
-                ObjectCombo: mic_gain:
-                    items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                    selected := settings.microphone.gain
-
-                Label: mic_gain_label:
-                    text = 'dB gain'
-
-        Looper:
-            iterable << settings.speakers
-
-            DockItem:
-                name = f'settings_output_{loop_item.output}'
-                title = f'Output {loop_item.output}'
-                closable = False
-                stretch = 0
-
-                attr speaker = loop_item
-                attr mic_settings = settings.microphone
+                layout_constraints => ():
+                    widgets = self.visible_widgets()
+                    first = []
+                    for w in widgets:
+                        first.append(w.children[0])
+                    constraints = [
+                        vbox(*widgets),
+                        align('right', *first),
+                        align('left', *first),
+                    ]
+                    return constraints
 
                 Container:
+                    share_layout = True
+                    padding = 0
                     constraints = [
                         hbox(
-                            speaker_label,
-                            hbox(speaker_select, speaker_add, spacing=0),
+                            mic_label,
+                            hbox(mic_select, mic_gain, spacing=0),
+                            mic_gain_label,
                             spacer(0),
-                            hbox(golay_start, chirp_start, spacing=0),
                             spacing=5,
                         ),
-                        speaker_add.width == 25,
-                        align('v_center', speaker_label, speaker_select,
-                                speaker_add, golay_start, chirp_start),
+                        align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
                     ]
 
-                    Label: speaker_label:
-                        text = 'Speaker'
+                    Label: mic_label:
+                        text = 'Microphone'
 
-                    ObjectCombo: speaker_select:
-                        items = speaker.available_speakers
-                        selected := speaker.name
+                    ObjectCombo: mic_select:
+                        items = sorted(settings.microphone.available_microphones)
+                        selected := settings.microphone.name
 
-                    PushButton: speaker_add:
-                        text = '+'
-                        clicked ::
-                            popup = AddItem(self, combo=speaker_select, label='Speaker')
-                            popup.show()
+                    ObjectCombo: mic_gain:
+                        items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                        selected := settings.microphone.gain
 
-                    PushButton: golay_start:
-                        text = 'Golay'
-                        enabled << bool(mic_settings.name) \
-                            and bool(speaker.name) \
-                            and '(' not in speaker.name
-                        clicked ::
-                            settings.run_cal_golay(speaker, mic_settings)
-                            speaker_tree.collection.update_groups()
+                    Label: mic_gain_label:
+                        text = 'dB gain'
 
-                    PushButton: chirp_start:
-                        text = 'Chirp'
-                        enabled << bool(mic_settings.name) \
-                            and bool(speaker.name) \
-                            and '(' not in speaker.name
-                        clicked ::
-                            settings.run_cal_chirp(speaker, mic_settings)
-                            speaker_tree.collection.update_groups()
+                Looper:
+                    iterable << settings.speakers
+
+                    Container:
+                        attr speaker = loop_item
+                        attr mic_settings = settings.microphone
+                        share_layout = True
+                        padding = 0
+                        constraints = [
+                            hbox(
+                                speaker_label,
+                                hbox(speaker_select, speaker_add, spacing=0),
+                                spacer(0),
+                                hbox(golay_start, chirp_start, spacing=0),
+                                spacing=5,
+                            ),
+                            speaker_add.width == 25,
+                            align('v_center', speaker_label, speaker_select,
+                                    speaker_add, golay_start, chirp_start),
+                        ]
+
+                        Label: speaker_label:
+                            text = f'Speaker {speaker.output}'
+
+                        ObjectCombo: speaker_select:
+                            items = speaker.available_speakers
+                            selected := speaker.name
+
+                        PushButton: speaker_add:
+                            text = '+'
+                            clicked ::
+                                popup = AddItem(self, combo=speaker_select, label='Speaker')
+                                popup.show()
+
+                        PushButton: golay_start:
+                            text = 'Golay'
+                            enabled << bool(mic_settings.name) \
+                                and bool(speaker.name) \
+                                and '(' not in speaker.name
+                            clicked ::
+                                settings.run_cal_golay(speaker, mic_settings)
+                                speaker_tree.collection.update_groups()
+
+                        PushButton: chirp_start:
+                            text = 'Chirp'
+                            enabled << bool(mic_settings.name) \
+                                and bool(speaker.name) \
+                                and '(' not in speaker.name
+                            clicked ::
+                                settings.run_cal_chirp(speaker, mic_settings)
+                                speaker_tree.collection.update_groups()
 
         DockItem:
             name = 'speaker_sens_plot'
@@ -140,6 +170,23 @@ enamldef SpeakerView(Container):
             stretch = 10
 
             Container:
+
+                constraints = [
+                    vbox(
+                        hbox(plot_label, plot_setting, spacer(0)),
+                        speaker_plot,
+                    ),
+                    align('v_center', plot_label, plot_setting),
+                ]
+
+                Label: plot_label:
+                    text = 'Plot'
+
+                ObjectCombo: plot_setting:
+                    items = ['sensitivity', 'SPL @ 1Vrms']
+                    selected ::
+                        speaker_plot.manager.set_plot_style(selected)
+
                 PGCanvas: speaker_plot:
                     attr manager = SpeakerPlotManager()
                     component << manager.component

@@ -1,7 +1,7 @@
 import numpy as np
 
 from enaml.core.api import Looper
-from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, TabLayout, VSplitLayout
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
