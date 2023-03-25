@@ -1,5 +1,4 @@
 import numpy as np
-from statsmodels.nonparametric.smoothers_lowess import lowess
 from scipy import signal
 
 from atom.api import Str
