@@ -59,7 +59,7 @@ def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
 
     for name in epoch_inputs:
         i = controller.get_input(name)
-        output.queue.connect(i.added_queue.append)
+        i.subscribe_to_queue(output.queue)
 
     max_sf = 0
     for setting in context.iter_settings('default', 1):
@@ -528,7 +528,7 @@ def configure_hardware_chirp(epoch_inputs, event):
     for name in epoch_inputs:
         i = controller.get_input(name)
         i.poststim_time = 0
-        output.queue.connect(i.added_queue.append)
+        i.subscribe_to_queue(output.queue)
 
 
 enamldef ChirpMixin(ExperimentManifest): manifest:
@@ -652,4 +652,4 @@ enamldef ToneMixin(ExperimentManifest): manifest:
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 10e-3
-                self.connect(epoch.added_queue.append)
+                epoch.subscribe_to_queue(self.queue)
