@@ -342,6 +342,7 @@ enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'pt_epoch_queue_end'
             command = 'psi.controller.stop'
+            delay = 1
 
         ExperimentAction:
             event = 'experiment_start'
