@@ -62,7 +62,6 @@ class CalibratedObject:
     def list_calibrations(self):
         calibrations = []
         for loader in self.loaders:
-            print(loader)
             calibrations.extend(loader.list_calibrations(self.name))
         return calibrations
 
@@ -257,6 +256,14 @@ class CFTSStarshipCalibration(Calibration):
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+    @property
+    def microphone(self):
+        return self.filename.stem.split('_')[2]
+
+    @property
+    def coupler(self):
+        return self.filename.stem.split('_')[3]
 
     def load(self):
         index_col = ['n_bits', 'output_gain', 'frequency']

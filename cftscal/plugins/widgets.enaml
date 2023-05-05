@@ -23,7 +23,8 @@ from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
 from cftscal.objects import (
-    CFTSInEarCalibration, CFTSMicrophoneCalibration, CFTSSpeakerCalibration,
+    CFTSInEarCalibration, CFTSMicrophoneCalibration, CFTSStarshipCalibration,
+    CFTSSpeakerCalibration,
 )
 
 
@@ -249,6 +250,13 @@ template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):
         text << item.starship
 
 
+template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):
+    TreeViewColumn:
+        text << item.microphone
+    TreeViewColumn:
+        text << item.coupler
+
+
 template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):
     TreeViewColumn:
         text << item.microphone
@@ -300,5 +308,3 @@ enamldef CalibratedObjects(Container):
                         DynamicTemplate:
                             base = CalibratedObjectTemplate
                             args = (loop_item.item, type(loop_item.item))
-
-

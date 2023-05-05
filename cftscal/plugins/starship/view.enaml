@@ -78,10 +78,13 @@ enamldef StarshipView(Container):
                             mic_label,
                             hbox(mic_select, mic_gain, spacing=0),
                             mic_gain_label,
+                            coupler_label,
+                            coupler,
                             spacer(0),
                             spacing=5,
                         ),
-                        align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
+                        align('v_center', mic_label, mic_select, mic_gain,
+                              mic_gain_label, coupler_label, coupler),
                     ]
 
                     Label: mic_label:
@@ -97,6 +100,13 @@ enamldef StarshipView(Container):
 
                     Label: mic_gain_label:
                         text = 'dB gain'
+
+                    Label: coupler_label:
+                        text = 'Coupler'
+
+                    ObjectCombo: coupler:
+                        items = ['tube-2mm', 'tube-0mm', '3D-basic']
+                        selected := settings.calibration_coupler
 
                 Looper:
                     iterable << settings.starships
@@ -178,7 +188,7 @@ enamldef StarshipView(Container):
             stretch = 0
 
             CalibratedObjects: starship_tree:
-                headers = ['Name', 'Microphone']
+                headers = ['Name', 'Microphone', 'Coupler']
                 collection = ObjectCollection(
                     starship_manager, starship_plot.manager
                 )
