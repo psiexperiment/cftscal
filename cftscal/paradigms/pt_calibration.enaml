@@ -18,7 +18,6 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
 
 from psi.controller.api import ExperimentAction
 
-from psiaudio.queue import FIFOSignalQueue
 from psiaudio.util import (psd, psd_freq, db, dbi, golay_pair, summarize_golay,
                            golay_tf, octave_space)
 
