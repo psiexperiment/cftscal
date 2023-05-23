@@ -40,7 +40,7 @@ class CalibrationWorkbench(UIWorkbench):
 def main():
     import argparse
     parser = argparse.ArgumentParser('cfts-cal')
-    parser.add_argument('obj', default='starship')
+    parser.add_argument('obj', nargs='?', default='starship')
     args = parser.parse_args()
 
     with enaml.imports():
