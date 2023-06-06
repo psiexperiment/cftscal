@@ -121,7 +121,10 @@ enamldef Starship(ExperimentManifest): manifest:
                 default = 40
                 scope = 'experiment'
 
-            EnumParameter: output:
-                name = f'{manifest.name}_output'
-                choices = {'primary': '"primary"',
-                            'secondary': '"secondary"'}
+            Conditional:
+                condition = manifest.output_mode == 'select'
+
+                EnumParameter: output:
+                    name = f'{manifest.name}_output'
+                    choices = {'primary': '"primary"',
+                                'secondary': '"secondary"'}
