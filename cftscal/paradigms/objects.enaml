@@ -44,6 +44,34 @@ enamldef Starship(ExperimentManifest): manifest:
 
     If any of these channels are missing, that starship will not be available
     for selection.
+
+    Environment variables are also needed to configure the starship. Here,
+    <side> is set as an attribute on the manifest and <name> is the name as
+    identified in the IO manifest:
+
+    CFTS_<side>_STARSHIP
+        Indicates which starship name to use.
+
+    CFTS_STARSHIP_<name>_GAIN
+        Indicates the current gain setting on the mcirophone amplifier.
+
+    CFTS_STARSHIP_<name>
+        A calibration string (provided by cftscal) that will load the correct
+        calibration when passed to `starship_manager.from_string`.
+
+    Attributes that change the behavior of the plugin.
+
+    output_mode: {'dual', 'select'}
+        If 'dual', then both oututp speakers are made available as outputs
+        named <id>_primary and <id>_secondary. If 'select', then a parameter is
+        added to the GUI that allows the user to select between "primary" and
+        "secondary" outputs and a single output named <id>_output is made
+        available.
+
+    side : string
+        When initializing a starship from environment variables, you can
+        differentiate between starships designed for certain purposes (e.g.,
+        test vs. nontest).
     '''
 
     id = 'starship'
