@@ -72,6 +72,8 @@ enamldef Starship(ExperimentManifest): manifest:
         When initializing a starship from environment variables, you can
         differentiate between starships designed for certain purposes (e.g.,
         test vs. nontest).
+
+
     '''
 
     id = 'starship'
@@ -125,34 +127,58 @@ enamldef Starship(ExperimentManifest): manifest:
                     + getattr(C, f'{manifest.name}') + '_' \
                     + getattr(C, f'{manifest.name}_output')
 
-    Extension:
-        id = manifest.id + '.context'
-        point = 'psi.context.items'
+    Conditional:
+        condition << manifest.output_mode == 'select'
 
-        ContextRow:
-            fmt = [f'{manifest.title}', starship, 'with', gain, 'dB gain'] \
-                if manifest.output_mode == 'dual' \
-                else [f'{manifest.title}', starship, 'with', gain, 'dB gain using', output, 'output']
-            name = f'{manifest.name}_starship_settings'
-            group_name = 'hardware_settings'
+        Extension:
+            id = manifest.id + '.context'
+            point = 'psi.context.items'
 
-            EnumParameter: starship:
-                name = f'{manifest.name}'
-                label = f'{manifest.title}'
-                choices = {k: f'"{v}"' for k, v in list_starship_connections().items()}
-                scope = 'experiment'
+            ContextRow:
+                fmt = [f'{manifest.title}', starship, 'with', gain, 'dB gain'] \
+                    if manifest.output_mode == 'dual' \
+                    else [f'{manifest.title}', starship, 'with', gain, 'dB gain using', output, 'output']
+                name = f'{manifest.name}_starship_settings'
+                group_name = 'hardware_settings'
 
-            Parameter: gain:
-                name = f'{manifest.name}_input_gain'
-                label = f'{manifest.title} input gain (dB)'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
+                EnumParameter: starship:
+                    name = f'{manifest.name}'
+                    label = f'{manifest.title}'
+                    choices = {k: f'"{v}"' for k, v in list_starship_connections().items()}
+                    scope = 'experiment'
 
-            Conditional:
-                condition = manifest.output_mode == 'select'
+                Parameter: gain:
+                    name = f'{manifest.name}_input_gain'
+                    label = f'{manifest.title} input gain (dB)'
+                    dtype = 'float64'
+                    default = 40
+                    scope = 'experiment'
 
                 EnumParameter: output:
                     name = f'{manifest.name}_output'
-                    choices = {'primary': '"primary"',
-                                'secondary': '"secondary"'}
+                    choices = {'primary': '"primary"', 'secondary': '"secondary"'}
+
+    Conditional:
+        condition << manifest.output_mode == 'dual'
+
+        Extension:
+            id = manifest.id + '.context'
+            point = 'psi.context.items'
+
+            ContextRow:
+                fmt = [f'{manifest.title}', starship, 'with', gain, 'dB gain']
+                name = f'{manifest.name}_starship_settings'
+                group_name = 'hardware_settings'
+
+                EnumParameter: starship:
+                    name = f'{manifest.name}'
+                    label = f'{manifest.title}'
+                    choices = {k: f'"{v}"' for k, v in list_starship_connections().items()}
+                    scope = 'experiment'
+
+                Parameter: gain:
+                    name = f'{manifest.name}_input_gain'
+                    label = f'{manifest.title} input gain (dB)'
+                    dtype = 'float64'
+                    default = 40
+                    scope = 'experiment'
