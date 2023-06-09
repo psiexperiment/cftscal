@@ -38,6 +38,15 @@ ParadigmDescription(
     ],
 )
 
+
+ParadigmDescription(
+    'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
+        {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
+        {'manifest': PATH + 'calibration_mixins.ChirpMixin',},
+    ],
+)
+
+
 ParadigmDescription(
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
         {'manifest': PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest'},

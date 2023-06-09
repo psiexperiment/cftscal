@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
+import itertools
 import os
 
 from enaml.application import deferred_call, timed_call
@@ -9,6 +10,7 @@ from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 import numpy as np
+from palettable.colorbrewer import qualitative
 import pandas as pd
 from scipy import signal
 
@@ -16,6 +18,7 @@ from psi.controller.calibration.tone import tone_sens
 from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
                                 QueuedEpochOutput)
+from psi.paradigms.core.io_mixins import QueuedEpochChannelOutput
 
 from psiaudio import util
 from psiaudio.calibration import FlatCalibration, InterpCalibration
@@ -102,9 +105,12 @@ def compute_spl_golay(event):
     ao = controller.get_output('hw_ao')
 
     source = data.find_sink('mic_data').get_source('hw_ai')
+    epoch_info = data.find_sink('cal_data').get_source('epoch')
+
     grouping = ['n_bits', 'output_gain']
-    waveforms = source.get_epochs()
-    log.error(waveforms)
+    duration = epoch_info.iloc[0].loc['epoch_size']
+    waveforms = source.get_epochs(epoch_info, offset=0, duration=duration,
+                                  columns=grouping)
 
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
@@ -113,14 +119,24 @@ def compute_spl_golay(event):
 
     n = n_discard + n_waveforms * n_fft
 
+    waveforms_grouped = waveforms.groupby(grouping)
+    groups = sorted(waveforms_grouped.groups.keys())
+    n_colors = max(3, len(groups))
+    cmap_name = 'Dark2_{}'.format(n_colors)
+    cmap = getattr(qualitative, cmap_name)
+    colors = itertools.cycle(cmap.colors)
+
     vb_spl = data.find_viewbox('spl_result')
     vb_sens = data.find_viewbox('sens_result')
     keys = []
     summaries = []
-    for (n_bits, output_gain), epochs in waveforms.items():
+    for key, color in zip(groups, colors):
+        n_bits, output_gain = key
         a, b = util.golay_pair(n_bits)
+        epochs = waveforms_grouped.get_group(key).values
         mic_a = epochs[n_discard:n]
         mic_b = epochs[n_discard+n:]
+        log.error(mic_a)
         summary = util.summarize_golay(source.fs, a, b, mic_a, mic_b,
                                        n_waveforms)
 
@@ -141,8 +157,8 @@ def compute_spl_golay(event):
             'sens': sens,
         })
 
-        deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
-        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
+        deferred_call(plot_data, vb_spl, summary, 'spl', color=color, log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'sens', color=color, log_x=True)
 
         keys.append((n_bits, output_gain))
         summary = pd.DataFrame(summary).set_index('frequency')
@@ -275,12 +291,12 @@ enamldef GolayMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        QueuedEpochOutput: hw_ao:
+        QueuedEpochChannelOutput: hw_ao:
             name = 'hw_ao'
             label = 'Output'
             auto_decrement = True
             configurable = False
-            target_name = 'system_output'
+            #target_name = 'system_output'
 
     Extension:
         id = manifest.id + '.commands'
@@ -570,9 +586,9 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        QueuedEpochOutput:
+        QueuedEpochChannelOutput:
             name = 'hw_ao'
-            target_name = 'system_output'
+            #target_name = 'system_output'
             label = 'Output'
             token = chirp
             auto_decrement = True
