@@ -75,6 +75,8 @@ class CalibratedObject:
         return self.name
 
     def _get_cmp_key(self, obj):
+        if obj is None:
+            return None
         return obj.name
 
     def __lt__(self, obj):
