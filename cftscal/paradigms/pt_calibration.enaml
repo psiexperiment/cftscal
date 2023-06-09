@@ -70,7 +70,6 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
     keys = []
     for key, color in zip(groups, colors):
         name = '{}'.format(key)
-        log.error(pt_grouped.get_group(key))
         sens_summary = calc_sens(
             pt_source.fs,
             pt_grouped.get_group(key).values,
