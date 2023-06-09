@@ -151,7 +151,8 @@ def compute_spl_golay(event):
 
         # This seems to give the correct answer. I think we assume that the
         # Golay has a RMS of 1 across all frequencies?
-        sens = output_gain-spl-util.db(20e-6)
+        sens = spl - output_gain
+        #sens = output_gain-spl-util.db(20e-6)
         summary.update({
             'spl': spl,
             'sens': sens,
