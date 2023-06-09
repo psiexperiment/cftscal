@@ -312,7 +312,11 @@ class CFTSSpeakerCalibration(Calibration):
 
     @property
     def microphone(self):
-        return self.filename.stem.rsplit('_', 1)[1]
+        return self.filename.stem.split('_')[2]
+
+    @property
+    def method(self):
+        return self.filename.stem.split('_')[3]
 
     def load(self):
         index_col = ['n_bits', 'output_gain', 'frequency']
