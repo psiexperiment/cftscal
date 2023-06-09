@@ -197,7 +197,7 @@ enamldef SpeakerView(Container):
             stretch = 0
 
             CalibratedObjects: speaker_tree:
-                headers = ['Name', 'Microphone']
+                headers = ['Name', 'Microphone', 'Method']
                 collection = ObjectCollection(
                     speaker_manager, speaker_plot.manager
                 )
