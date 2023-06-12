@@ -53,6 +53,7 @@ class CalibrationSettings(Atom):
 
 class MicrophoneSettings(PersistentSettings):
 
+    input_name = Str()
     name = Str()
     gain = Float(20)
     available_microphones = Property()
@@ -61,19 +62,18 @@ class MicrophoneSettings(PersistentSettings):
         return sorted(microphone_manager.list_names('CFTS'))
 
     def get_env_vars(self, include_cal=True):
-        mic = microphone_manager.get_object(self.name)
         env = {
-            'CFTS_CAL_MIC_GAIN': str(self.gain),
+            'CFTS_MICROPHONE': self.input_name,
+            f'CFTS_MICROPHONE_{self.input_name.upper()}_GAIN': str(self.gain),
         }
         if include_cal:
-            try:
-                env['CFTS_CAL_MIC'] = mic.get_current_calibration().to_string()
-            except IndexError:
-                pass
+            mic = microphone_manager.get_object(self.name)
+            cal = mic.get_current_calibration()
+            env[f'CFTS_MICROPHONE_{self.input_name.upper()}'] = cal.to_string()
         return env
 
     def _get_filename(self):
-        return 'microphone.json'
+        return f'microphone_{self.input_name}.json'
 
     def _default_name(self):
         try:

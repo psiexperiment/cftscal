@@ -1,4 +1,4 @@
-from atom.api import Typed
+from atom.api import List, Typed
 
 from psi import get_config
 
@@ -9,19 +9,24 @@ CAL_ROOT = get_config('CAL_ROOT')
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
 
-    microphone = Typed(MicrophoneSettings, ())
+    microphones = List(Typed(MicrophoneSettings, ()))
     pistonphone = Typed(PistonphoneSettings, ())
 
+    def __init__(self, inputs):
+        self.microphones = [MicrophoneSettings(input_name=i) for i in inputs]
+        self.pistonphone = PistonphoneSettings()
+
     def save_config(self):
-        self.microphone.save_config()
+        for m in self.microphones:
+            m.save_config()
         self.pistonphone.save_config()
 
-    def run_mic_cal(self):
-        filename = f'{{date_time}}_{self.microphone.name}_{self.pistonphone.name}'
+    def run_mic_cal(self, microphone):
+        filename = f'{{date_time}}_{microphone.name}_{self.pistonphone.name}'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone' / self.microphone.name / filename
+        pathname = CAL_ROOT / 'microphone' / microphone.name / filename
         env = {
-            **self.microphone.get_env_vars(include_cal=False),
+            **microphone.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),
         }
         self._run_cal(pathname, 'pistonphone_calibration', env)

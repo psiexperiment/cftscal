@@ -45,8 +45,10 @@ class StarshipCalibrationSettings(CalibrationSettings):
         filename = f'{{date_time}}_{starship.name}_{microphone.name}_{self.calibration_coupler}_golay'
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'starship' / starship.name / filename
-        env = microphone.get_env_vars()
-        env.update(starship.get_env_vars(include_cal=False))
+        env = {
+            **microphone.get_env_vars(),
+            **starship.get_env_vars(include_cal=False),
+        }
         self._run_cal(pathname, 'pt_calibration_golay', env)
 
     def run_cal_chirp(self, starship, microphone):

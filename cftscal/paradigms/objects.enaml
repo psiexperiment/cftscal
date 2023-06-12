@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import functools
 import os
 
@@ -9,8 +12,102 @@ from psi.core.enaml.api import ExperimentManifest
 from psi.context.api import ContextRow, EnumParameter, Parameter
 from psi.controller.api import ContinuousInput, ExperimentAction, MUXOutput
 
-from cftscal.objects import starship_manager
-from cftscal.util import list_starship_connections
+from cftscal.objects import microphone_manager, starship_manager
+from cftscal.util import list_microphone_connections, list_starship_connections
+
+
+def initialize_microphone(name, event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    input_name = os.environ[f'CFTS_MICROPHONE']
+    item_microphone = context.get_item(f'{name}_microphone')
+    item_microphone.set_value(input_name)
+    item_microphone.editable = False
+
+    gain = os.environ[f'CFTS_MICROPHONE_{input_name.upper()}_GAIN']
+    item_gain = context.get_item(f'{name}_microphone_input_gain')
+    item_gain.set_value(gain)
+    item_gain.editable = False
+
+    if (name := os.environ.get(f'CFTS_MICROPHONE_{input_name.upper()}', None)):
+        channel = controller.get_channel(f'hw_ai::microphone_{input_name}')
+        channel.calibration = microphone_manager.from_string(name).load()
+    else:
+        raise ValueError('FOO')
+
+
+enamldef Microphone(ExperimentManifest): manifest:
+    '''
+    Defines a microphone. The IO manifest will be scanned for all channels that
+    contain "microphone" in the name. The channels must follow the naming
+    convention:
+
+        * microphone_<name>
+
+    Environment variables are also needed to configure the starship
+
+    CFTS_MICROPHONE
+        Indicates which microphone name to use.
+
+    CFTS_MICROPHONE_<name>_GAIN
+        Indicates the current gain setting on the mcirophone amplifier.
+
+    CFTS_MICROPHONE_<name>
+        A calibration string (provided by cftscal) that will load the correct
+        calibration when passed to `starship_manager.from_string`.
+    '''
+
+    id = 'microphone'
+    title = manifest.id.capitalize().replace('_', ' ')
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.initialize_microphone_settings'
+            handler = functools.partial(initialize_microphone, manifest.name)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.id + '.initialize_microphone_settings'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        ContinuousInput:
+            name = f'{manifest.name}_microphone'
+            source_name = 'hw_ai::' + getattr(C, f'{manifest.name}_microphone')
+            source::
+                channel.gain = getattr(C, f'{manifest.name}_microphone_input_gain')
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextRow:
+            fmt = [f'{manifest.title}', microphone, 'with', gain, 'dB gain']
+            name = f'{manifest.name}_microphone_settings'
+            group_name = 'hardware_settings'
+
+            EnumParameter: microphone:
+                name = f'{manifest.name}_microphone'
+                label = f'{manifest.title}'
+                choices = {k: f'"{v}"' for k, v in list_microphone_connections().items()}
+                scope = 'experiment'
+
+            Parameter: gain:
+                name = f'{manifest.name}_microphone_input_gain'
+                label = f'{manifest.title} input gain (dB)'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
 
 
 def initialize_starship(name, side, event):

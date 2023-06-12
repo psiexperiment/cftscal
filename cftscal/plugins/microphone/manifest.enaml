@@ -3,6 +3,7 @@ from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.ui.api import ActionItem, Workspace
 
 
+from cftscal.util import list_microphone_connections
 from .settings import MicrophoneCalibrationSettings
 from .view import MicrophoneView
 
@@ -10,7 +11,8 @@ from .view import MicrophoneView
 def microphone_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Microphone Calibration'
-    space.content = MicrophoneView(settings=MicrophoneCalibrationSettings())
+    settings = MicrophoneCalibrationSettings(list_microphone_connections())
+    space.content = MicrophoneView(settings=settings)
     return space
 
 

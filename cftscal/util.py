@@ -59,3 +59,33 @@ def list_speaker_connections():
         raise ValueError(NO_SPEAKER_ERROR)
 
     return choices
+
+
+NO_MICROPHONE_ERROR = '''
+No microphone could be found in the IO manifest. To use this plugin, you must
+have an analog input channel named microphone_ID. ID is the name of the
+microphone that will appear in any drop-down selectors where you can select
+which microphone to use (assuming your system is configured for more than one
+microphone).
+'''
+
+
+def list_microphone_connections():
+    '''
+    List all microphones found in the IO Manifest
+    '''
+    choices = {}
+    manifest = load_manifest(f'{get_default_io()}.IOManifest')()
+    for channel in manifest.find_all('microphone', regex=True):
+        # Strip quotation marks off 
+        _, name = channel.name.split('_', 1)
+        choices[name] = channel.name
+
+    if len(choices) == 0:
+        raise ValueError(NO_MICROPHONE_ERROR)
+
+    return choices
+
+
+if __name__ == '__main__':
+    print(list_microphone_connections())

@@ -10,14 +10,17 @@ CAL_ROOT = get_config('CAL_ROOT')
 class SpeakerCalibrationSettings(CalibrationSettings):
 
     speakers = List(Typed(SpeakerSettings))
-    microphone = Typed(MicrophoneSettings)
+    microphones = List(Typed(MicrophoneSettings))
+    selected_microphone = Typed(MicrophoneSettings)
 
-    def __init__(self, outputs):
+    def __init__(self, outputs, inputs):
         self.speakers = [SpeakerSettings(output=o) for o in outputs]
-        self.microphone = MicrophoneSettings()
+        self.microphones = [MicrophoneSettings(input_name=i) for i in inputs]
+        self.selected_microphone = self.microphones[0]
 
     def save_config(self):
-        self.microphone.save_config()
+        for m in self.microphones:
+            m.save_config()
         for s in self.speakers:
             s.save_config()
 

@@ -30,21 +30,6 @@ from psi.token.primitives import Chirp, Cos2Envelope, Tone
 from cftscal.objects import microphone_manager
 
 
-def initialize_golay(event):
-    context = event.workbench.get_plugin('psi.context')
-
-    if (value := os.environ.get('CFTS_CAL_MIC_GAIN', None)):
-        item = context.get_item('cal_microphone_input_gain')
-        item.set_value(value)
-        item.editable = False
-
-    if (value := os.environ.get('CFTS_CAL_MIC', None)):
-        item = context.get_item('cal_mic_sens_mv')
-        cal = microphone_manager.from_string(value)
-        item.set_value(cal.sens)
-        item.editable = False
-
-
 def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
     '''
     Configure hardware and queue for Golay
@@ -136,7 +121,6 @@ def compute_spl_golay(event):
         epochs = waveforms_grouped.get_group(key).values
         mic_a = epochs[n_discard:n]
         mic_b = epochs[n_discard+n:]
-        log.error(mic_a)
         summary = util.summarize_golay(source.fs, a, b, mic_a, mic_b,
                                        n_waveforms)
 
@@ -312,17 +296,9 @@ enamldef GolayMixin(ExperimentManifest): manifest:
             id = 'psi.controller.compute_calibration'
             handler = manifest.cleanup_cb
 
-        Command:
-            id = manifest.id + '.initialize_golay'
-            handler = initialize_golay
-
     Extension:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'plugins_started'
-            command = manifest.id + '.initialize_golay'
 
         ExperimentAction:
             event = 'experiment_prepare'
@@ -397,45 +373,6 @@ enamldef GolayMixin(ExperimentManifest): manifest:
                 label = 'Smoothing window'
                 default = 10
                 scope = 'trial'
-
-        ContextGroup:
-            name = 'validation'
-            label = 'Validation'
-
-            ContextRow:
-                name = 'val_start_end'
-                fmt = ['Validate', val_start, 'to', val_end, 'Hz with', val_oct, 'octave spacing']
-
-                Parameter: val_start:
-                    name = 'validation_start'
-                    default = 500.0
-                    scope = 'experiment'
-
-                Parameter: val_end:
-                    name = 'validation_end'
-                    default = 50000.0
-                    scope = 'experiment'
-
-                Parameter: val_oct:
-                    name = 'validation_octaves'
-                    default = 0.125
-                    scope = 'experiment'
-
-            ContextRow:
-                name = 'val_level_gain'
-                fmt = ['Validate at', val_level, 'dB SPL, skip if output gain greater than', val_safe_gain, 'dB']
-
-                Parameter: val_level:
-                    name = 'validation_level'
-                    label = 'Level to validate (dB SPL)'
-                    default = 80.0
-                    scope = 'experiment'
-
-                Parameter: val_safe_gain:
-                    name = 'safe_gain'
-                    label = 'Skip frequency if gain exceeds this level (dB)'
-                    default = 0
-                    scope = 'experiment'
 
 
 def validate_spl_wrapper(event):
@@ -589,7 +526,6 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
 
         QueuedEpochChannelOutput:
             name = 'hw_ao'
-            #target_name = 'system_output'
             label = 'Output'
             token = chirp
             auto_decrement = True

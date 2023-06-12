@@ -43,15 +43,13 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
-        ChannelInput:
-            name = 'cal_microphone'
-            label = 'Calibration microphone'
+        Input:
+            name = 'hw_ai'
+            source_name = 'cal_microphone'
 
-            Input:
-                name = 'hw_ai'
-
-            ExtractEpochs:
-                name = 'epoch'
+        ExtractEpochs:
+            name = 'epoch'
+            source_name = 'cal_microphone'
 
     Extension:
         id = EXPERIMENT + '.context'
@@ -60,12 +58,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         ContextGroup:
             label = 'Hardware'
             name = 'hardware_settings'
-
-            Parameter:
-                name = 'cal_mic_sens_mv'
-                label = 'Cal. mic. sensitivity (mV/Pa)'
-                default = 0.0
-                scope = 'experiment'
 
         OrderedContextMeta: epoch_group:
             name = 'epoch_group'

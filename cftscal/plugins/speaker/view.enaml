@@ -83,29 +83,37 @@ enamldef SpeakerView(Container):
                     return constraints
 
                 Container:
+                    attr microphone << settings.selected_microphone
                     share_layout = True
                     padding = 0
                     constraints = [
                         hbox(
                             mic_label,
+                            mic_out_select,
                             hbox(mic_select, mic_gain, spacing=0),
                             mic_gain_label,
                             spacer(0),
                             spacing=5,
                         ),
-                        align('v_center', mic_label, mic_select, mic_gain, mic_gain_label),
+                        align('v_center', mic_label, mic_out_select,
+                              mic_select, mic_gain, mic_gain_label),
                     ]
 
                     Label: mic_label:
                         text = 'Microphone'
 
+                    ObjectCombo: mic_out_select:
+                        items = sorted(settings.microphones)
+                        selected := settings.selected_microphone
+                        to_string = lambda m: m.input_name
+
                     ObjectCombo: mic_select:
-                        items = sorted(settings.microphone.available_microphones)
-                        selected := settings.microphone.name
+                        items = sorted(microphone.available_microphones)
+                        selected := microphone.name
 
                     ObjectCombo: mic_gain:
                         items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                        selected := settings.microphone.gain
+                        selected := microphone.gain
 
                     Label: mic_gain_label:
                         text = 'dB gain'
@@ -115,7 +123,7 @@ enamldef SpeakerView(Container):
 
                     Container:
                         attr speaker = loop_item
-                        attr mic_settings = settings.microphone
+                        attr mic_settings << settings.selected_microphone
                         share_layout = True
                         padding = 0
                         constraints = [

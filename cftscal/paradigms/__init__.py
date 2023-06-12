@@ -12,6 +12,13 @@ selectable_starship_mixin = {
 }
 
 
+selectable_microphone_mixin = {
+    'manifest': PATH + 'objects.Microphone',
+    'required': True,
+    'attrs': {'id': 'cal', 'title': 'Microphone'},
+}
+
+
 ParadigmDescription(
     'pt_calibration_chirp', 'Probe tube calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
@@ -35,6 +42,8 @@ ParadigmDescription(
     'speaker_calibration_golay', 'Speaker calibration (golay)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
         {'manifest': PATH + 'calibration_mixins.GolayMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
+        selectable_microphone_mixin,
     ],
 )
 
@@ -43,6 +52,8 @@ ParadigmDescription(
     'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
         {'manifest': PATH + 'calibration_mixins.ChirpMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
+        selectable_microphone_mixin,
     ],
 )
 
