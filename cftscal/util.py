@@ -102,10 +102,7 @@ def list_amplifier_connections():
     '''
     choices = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
-    for channel in manifest.find_all('amplifier', regex=True):
-        # Strip quotation marks off 
-        _, name = channel.name.split('_', 1)
-        choices[name] = channel.label
+    choices = {c.label: c.name for c in manifest.find_all('amplifier', regex=True)}
 
     if len(choices) == 0:
         raise ValueError(NO_AMPLIFIER_ERROR)

@@ -5,6 +5,12 @@ PATH = 'cftscal.paradigms.'
 CORE_PATH = 'psi.paradigms.core.'
 
 
+amplifier_input_mixin = {
+    'manifest': PATH + 'objects.AmplifierInput',
+    'required': True,
+}
+
+
 selectable_starship_mixin = {
     'manifest': PATH + 'objects.Starship',
     'required': True,
@@ -101,6 +107,8 @@ ParadigmDescription(
 
 ParadigmDescription(
     'input_amplifier_calibration', 'Input Amplifier calibration', 'ear', [
+        amplifier_input_mixin,
+
         {'manifest': PATH + 'input_amplifier_calibration.InputAmplifierCalibrationManifest'},
         {
             'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',

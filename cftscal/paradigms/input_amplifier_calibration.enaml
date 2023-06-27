@@ -11,8 +11,6 @@ from psi.controller.api import (
 from psi.data.api import GroupedEpochAveragePlot, EpochTimeContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, TextStore
 
-from .objects import DecimatedAmplifierInput
-
 
 EXPERIMENT = 'input_amplifier_calibration'
 
@@ -55,22 +53,19 @@ enamldef InputAmplifierCalibrationManifest(ControllerManifest):
         id = EXPERIMENT + '.monitor.io'
         point = 'psi.controller.io'
 
-        DecimatedAmplifierInput:
-            target_fs = 12.5e3
-            force_active = True
+        AutoThreshold:
+            source_name = 'amplifier_input'
+            baseline = 1
+            Edges:
+                debounce = 25
+                detect = 'both'
+                Coroutine:
+                    coroutine = partial(notify_queue, extract.added_queue)
 
-            AutoThreshold:
-                baseline = 1
-                Edges:
-                    debounce = 25
-                    detect = 'both'
-                    Coroutine:
-                        coroutine = partial(notify_queue, extract.added_queue)
-
-            ExtractEpochs: extract:
-                name = 'crp'
-                prestim_time = 0.1
-                epoch_size = 0.5
+        ExtractEpochs: extract:
+            name = 'crp'
+            prestim_time = 0.1
+            epoch_size = 0.5
 
     Extension:
         id = EXPERIMENT + '.monitor.sinks'
