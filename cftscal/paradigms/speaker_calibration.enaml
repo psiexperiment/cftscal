@@ -27,6 +27,8 @@ EXPERIMENT = 'base_speaker_calibration'
 
 enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
+    attr mic_source_name = 'cal_microphone'
+
     Extension:
         id = EXPERIMENT + '.data'
         point = 'psi.data.sinks'
@@ -45,11 +47,11 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
         Input:
             name = 'hw_ai'
-            source_name = 'cal_microphone'
+            source_name = manifest.mic_source_name
 
         ExtractEpochs:
             name = 'epoch'
-            source_name = 'cal_microphone'
+            source_name = manifest.mic_source_name
 
     Extension:
         id = EXPERIMENT + '.context'

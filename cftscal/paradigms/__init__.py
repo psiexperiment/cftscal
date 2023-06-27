@@ -89,7 +89,10 @@ ParadigmDescription(
 ParadigmDescription(
     'iec', 'In-ear speaker calibration (chirp)', 'ear', [
         selectable_starship_mixin,
-        {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
+        {
+            'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',
+            'attrs': {'mic_source_name': 'system_microphone'},
+        },
         {'manifest': PATH + 'calibration_mixins.ChirpMixin'},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin'},
     ]

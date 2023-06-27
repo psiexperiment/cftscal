@@ -18,7 +18,6 @@ from psi.controller.calibration.tone import tone_sens
 from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
                                 QueuedEpochOutput)
-from psi.paradigms.core.io_mixins import QueuedEpochChannelOutput
 
 from psiaudio import util
 from psiaudio.calibration import FlatCalibration, InterpCalibration
@@ -26,8 +25,6 @@ from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
-
-from cftscal.objects import microphone_manager
 
 
 def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
@@ -276,12 +273,12 @@ enamldef GolayMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        QueuedEpochChannelOutput: hw_ao:
+        QueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             label = 'Output'
             auto_decrement = True
             configurable = False
-            #target_name = 'system_output'
+            target_name = 'system_output'
 
     Extension:
         id = manifest.id + '.commands'
@@ -524,11 +521,12 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        QueuedEpochChannelOutput:
+        QueuedEpochOutput:
             name = 'hw_ao'
             label = 'Output'
             token = chirp
             auto_decrement = True
+            target_name = 'system_output'
 
     Extension:
         id = manifest.id + '.commands'
@@ -595,7 +593,7 @@ enamldef ToneMixin(ExperimentManifest): manifest:
             configurable = False
             auto_decrement = True
             token = tone_pip
-            target_name << 'system_output'
+            target_name = 'system_output'
             target ::
                 if C.level_as_attenuation:
                     log.debug('Setting output to use attenuation values')
