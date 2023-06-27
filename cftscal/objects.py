@@ -343,6 +343,41 @@ class CFTSSpeakerLoader(CFTSBaseLoader):
 
 
 ################################################################################
+# Amplifier calibration management
+################################################################################
+class Amplifier(CalibratedObject):
+    pass
+
+
+class CFTSAmplifierCalibration(Calibration):
+
+    def __init__(self, name, filename):
+        self.label = 'CFTS'
+        self.name = name
+        self.filename = Path(filename)
+        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
+
+    @property
+    def datetime(self):
+        datestr, _ = self.filename.stem.split('_', 1)
+        return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+    @property
+    def gain(self):
+        sens_file = self.filename / 'amplifier_gain.json'
+        gain = json.loads(sens_file.read_text())
+        return gain['gain (linear)']
+
+    def load_recording(self):
+        return AmplifierCalibration(self.filename)
+
+
+class CFTSAmplifierLoader(CFTSBaseLoader):
+    subfolder = 'amplifier'
+    cal_class = CFTSAmplifierCalibration
+
+
+################################################################################
 # Microphone calibration management
 ################################################################################
 class Microphone(CalibratedObject):
@@ -441,6 +476,9 @@ class CFTSInEarLoader(CFTSBaseLoader):
 ################################################################################
 # Basic cal registration
 ################################################################################
+amplifier_manager = CalibrationManager(Amplifier)
+amplifier_manager.register('cftscal.objects.CFTSAmplifierLoader')
+
 microphone_manager = CalibrationManager(Microphone)
 microphone_manager.register('cftscal.objects.CFTSMicrophoneLoader')
 

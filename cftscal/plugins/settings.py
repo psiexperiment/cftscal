@@ -2,14 +2,15 @@ import json
 import os
 import subprocess
 
-from atom.api import Atom, Float, List, Property, Str
+from atom.api import Atom, Enum, Float, List, Property, Str
 
 from psi import get_config_folder
 from psi.util import get_tagged_values
 
 
 from cftscal.objects import (
-    inear_manager, microphone_manager, speaker_manager, starship_manager
+    amplifier_manager, inear_manager, microphone_manager, speaker_manager,
+    starship_manager
 )
 
 
@@ -171,3 +172,35 @@ class InEarSettings(StarshipSettings):
 
     def _get_filename(self):
         return f'inear_{self.output}.json'
+
+
+class AmplifierSettings(PersistentSettings):
+
+    input_name = Str()
+    name = Str()
+    gain = Float(50000)
+    freq_lb = Float(100)
+    freq_ub = Float(10000)
+    filt_60Hz = Enum('input', 'output')
+    cal_amplitude = Float(100e-6)
+
+    available_amplifiers = Property()
+
+    def _get_available_amplifiers(self):
+        return sorted(amplifier_manager.list_names('CFTS'))
+
+    def get_env_vars(self, include_cal=True):
+        env = {
+            'CFTS_AMPLIFIER': self.input_name,
+            f'CFTS_{self.input_name.upper()}_GAIN': self.gain,
+            f'CFTS_{self.input_name.upper()}_CAL_AMPLITUDE': self.cal_amplitude,
+        }
+
+    def _get_filename(self):
+        return f'microphone_{self.input_name}.json'
+
+    def _default_name(self):
+        try:
+            return self.available_amplifiers[0]
+        except IndexError:
+            return ''

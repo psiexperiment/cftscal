@@ -1,0 +1,135 @@
+import numpy as np
+
+from enaml.core.api import Looper
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+)
+
+from psi.data.plots_manifest import PGCanvas
+
+from cftscal.objects import amplifier_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+)
+
+
+class AmplifierPlotManager(BasePlotManager):
+
+    def make_plot(self, calibration):
+        color, plot = self.create_plot()
+        fh = calibration.load_recording()
+        psd = fh.get_psd(average_seconds=1).iloc[1:]
+        x = np.log10(psd.index.values)
+        y = psd.values
+        plot.setData(x, y)
+        return color, plot
+
+
+enamldef AmplifierView(Container):
+
+    attr settings
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings',
+                    'amp_list',
+                    sizes=[25, 200],
+                ),
+                'amp_gain_plot',
+                sizes=[150, 900],
+            ),
+        )
+        DockItem:
+            name = 'settings'
+            title = 'Settings'
+            closable = False
+            stretch = 0
+
+            Container:
+                layout_constraints => ():
+                    widgets = self.visible_widgets()
+                    first = []
+                    for w in widgets:
+                        first.append(w.children[0])
+
+                    constraints = [
+                        vbox(*widgets),
+                        align('right', *first),
+                    ]
+                    return constraints
+
+                Looper:
+                    iterable << settings.amplifiers
+
+                    Container:
+                        share_layout = True
+                        padding = 0
+                        constraints = [
+                            hbox(
+                                amp_label,
+                                hbox(amp_select, amp_add, amp_gain, spacing=0),
+                                amp_gain_label,
+                                spacer(0),
+                                amp_cal_start,
+                                spacing=5,
+                            ),
+                            align('v_center', amp_label, amp_select, amp_add,
+                                    amp_gain, amp_gain_label, amp_cal_start),
+                            amp_add.width == 25,
+                        ]
+
+                        attr amplifier = loop_item
+
+                        Label: amp_label:
+                            text = 'Amplifier'
+
+                        ObjectCombo: amp_select:
+                            items = sorted(amplifier.available_amplifiers)
+                            selected := amplifier.name
+
+                        PushButton: amp_add:
+                            text = '+'
+                            clicked ::
+                                popup = AddItem(self, combo=amp_select, label='Amplifier')
+                                popup.show()
+
+                        ObjectCombo: amp_gain:
+                            items = [10, 50, 100]
+                            selected := amplifier.gain
+
+                        Label: amp_gain_label:
+                            text = 'x gain'
+
+                        PushButton: amp_cal_start:
+                            text = 'Calibrate'
+                            enabled << bool(amplifier.name)
+                            clicked ::
+                                settings.run_amp_cal(amplifier)
+                                amp_tree.collection.update_groups()
+
+        DockItem:
+            name = 'amp_gain_plot'
+            title = 'Amplifier Sensitivity'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: amplifier_plot:
+                    attr manager = AmplifierPlotManager()
+                    component << manager.component
+
+        DockItem:
+            name = 'amp_list'
+            title = 'Amplifier Calibrations'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: amp_tree:
+                headers = ['Name', 'Gain']
+                collection = ObjectCollection(
+                    amplifier_manager, amplifier_plot.manager
+                )

@@ -9,8 +9,11 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.core.enaml.api import ExperimentManifest
-from psi.context.api import ContextRow, EnumParameter, Parameter
-from psi.controller.api import ContinuousInput, ExperimentAction, MUXOutput
+from psi.context.api import BoolParameter, ContextRow, EnumParameter, Parameter
+from psi.controller.api import (
+    ContinuousInput, DecimateTo, ExperimentAction, IIRFilter, MUXOutput
+)
+from psi.paradigms.core.io_mixins import ChannelInput, ChannelInputManifest
 
 from cftscal.objects import microphone_manager, starship_manager
 from cftscal.util import list_microphone_connections, list_starship_connections
@@ -279,3 +282,91 @@ enamldef Starship(ExperimentManifest): manifest:
                     dtype = 'float64'
                     default = 40
                     scope = 'experiment'
+
+
+enamldef InputAmplifierFilter(IIRFilter):
+    N = 2
+    btype = 'bandpass'
+    ftype = 'butter'
+    passthrough = not C.digital_filter
+    f_highpass = C.digital_highpass
+    f_lowpass = C.digital_lowpass
+
+
+enamldef BaseAmplifierInput(ChannelInput):
+    label = 'Amplifier'
+    name = 'input_amplifier'
+    show_gain_setting = False
+
+
+enamldef AmplifierInput(BaseAmplifierInput): base:
+    InputAmplifierFilter:
+        name = f'{base.name}_filtered'
+
+
+enamldef DecimatedAmplifierInput(BaseAmplifierInput): base:
+    '''
+    This makes it easier to use the InputAmplifierInput with various assays
+    (e.g., ABR vs.  EFR) that require different filtering parameters.
+    '''
+    alias target_fs: dec.target_fs
+    DecimateTo: dec:
+        name = f'{base.name}_dec'
+        InputAmplifierFilter:
+            name = f'{base.name}_filtered'
+
+
+enamldef BaseAmplifierInputManifest(ChannelInputManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.input_amplifier.context'
+        point = 'psi.context.items'
+
+        ContextRow:
+            fmt = ['Amplifier filter', hp, 'to', lp, 'Hz at', gain, '✕ gain']
+            group_name = 'hardware_settings'
+
+            Parameter: hp:
+                name = 'amplifier_highpass'
+                label = 'Amplifier highpass filter cutoff'
+                default = 10
+                scope = 'experiment'
+
+            Parameter: lp:
+                name = 'amplifier_lowpass'
+                label = 'Amplifier lowpass filter cutoff'
+                default = 10e3
+                scope = 'experiment'
+                group_name = 'hardware_settings'
+
+            Parameter: gain:
+                name = 'amplifier_gain'
+                label = 'Amplifier gain'
+                default = 100e3
+                scope = 'experiment'
+                group_name = 'hardware_settings'
+
+        ContextRow:
+            name = 'digital_filter_settings'
+            fmt << ['Digital filter?', filt_on] \
+                if filt_on.expression == 'False' else \
+                ['Digital filter?', filt_on, 'from', filt_hp, 'to', filt_lp, 'Hz']
+            group_name = 'acquisition'
+
+            BoolParameter: filt_on:
+                name = 'digital_filter'
+                label = 'Digital filter?'
+                scope = 'experiment'
+                default = True
+
+            Parameter: filt_hp:
+                name = 'digital_highpass'
+                label = 'Digital highpass filter cutoff'
+                default = 300
+                scope = 'experiment'
+
+            Parameter: filt_lp:
+                name = 'digital_lowpass'
+                label = 'Digital lowpass filter cutoff'
+                default = 3000
+                scope = 'experiment'

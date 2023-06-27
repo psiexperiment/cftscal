@@ -94,3 +94,23 @@ ParadigmDescription(
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin'},
     ]
 )
+
+
+ParadigmDescription(
+    'input_amplifier_calibration', 'Input Amplifier calibration', 'ear', [
+        {'manifest': PATH + 'input_amplifier_calibration.InputAmplifierCalibrationManifest'},
+        {
+            'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
+            'required': True,
+            'attrs': {
+                'id': 'input_amplifier_view_mixin',
+                'name': 'input_amplifier_filtered_view',
+                'title': 'Input amplifier display',
+                'time_span': 2,
+                'time_delay': 0.125,
+                'source_name': 'input_amplifier_filtered',
+                'y_label': 'EEG (V)'
+            },
+        },
+    ],
+)

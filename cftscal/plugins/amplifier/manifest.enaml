@@ -1,0 +1,36 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+
+from cftscal.util import list_amplifier_connections
+from .settings import AmplifierCalibrationSettings
+from .view import AmplifierView
+
+
+def amplifier_workspace_factory(workbench):
+    space = Workspace()
+    space.window_title = 'Amplifier Calibration'
+    settings = AmplifierCalibrationSettings(list_amplifier_connections())
+    space.content = AmplifierView(settings=settings)
+    return space
+
+
+enamldef AmplifierManifest(PluginManifest):
+    id = 'amplifier'
+
+    Extension:
+        id = 'amplifier_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/amplifier'
+            label = 'Amplifier'
+            shortcut = 'Ctrl+m'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'amplifier.workspace'}
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = amplifier_workspace_factory

@@ -45,12 +45,14 @@ def main():
 
     with enaml.imports():
         from .plugins.manifest import CalibrationManifest
+        from .plugins.amplifier.manifest import AmplifierManifest
         from .plugins.microphone.manifest import MicrophoneManifest
         from .plugins.starship.manifest import StarshipManifest
         from .plugins.speaker.manifest import SpeakerManifest
         from .plugins.inear.manifest import InEarManifest
 
     workbench = CalibrationWorkbench()
+    workbench.register(AmplifierManifest())
     workbench.register(CalibrationManifest())
     workbench.register(MicrophoneManifest())
     workbench.register(StarshipManifest())
