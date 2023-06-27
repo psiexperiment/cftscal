@@ -50,7 +50,7 @@ enamldef AddItem(PopupView): popup:
         Label: label:
             pass
         RegexField: field:
-            regex = f'^[\w\d]+$'
+            regex = f'^[\w\d-]+$'
         PushButton: pb_ok:
             text = 'OK'
             enabled << bool(field.text)
