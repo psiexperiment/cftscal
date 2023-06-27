@@ -494,21 +494,25 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
-        Parameter:
-            name = 'hw_ao_iti_duration'
-            label = 'Intertrial interval (s)'
-            compact_label = 'ITI'
-            default = 0.001
-            scope = 'experiment'
+        ContextRow:
+            fmt = ['Average', averages, 'trials with', iti, 's ITI']
             group_name = 'hardware_settings'
 
-        Parameter:
-            name = 'hw_ao_averages'
-            label = 'Averages'
-            compact_label = 'N'
-            default = 32
-            scope = 'experiment'
-            group_name = 'hardware_settings'
+            Parameter: iti:
+                name = 'hw_ao_iti_duration'
+                label = 'Intertrial interval (s)'
+                compact_label = 'ITI'
+                default = 0.001
+                scope = 'experiment'
+                group_name = 'hardware_settings'
+
+            Parameter: averages:
+                name = 'hw_ao_averages'
+                label = 'Averages'
+                compact_label = 'N'
+                default = 32
+                scope = 'experiment'
+                group_name = 'hardware_settings'
 
     Extension:
         id = manifest.id + '.tokens'
