@@ -13,7 +13,8 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
     pistonphone = Typed(PistonphoneSettings, ())
 
     def __init__(self, inputs):
-        self.microphones = [MicrophoneSettings(input_name=i) for i in inputs]
+        self.microphones = [MicrophoneSettings(name=k, input_name=v) \
+                            for k, v in inputs.items()]
         self.pistonphone = PistonphoneSettings()
 
     def save_config(self):

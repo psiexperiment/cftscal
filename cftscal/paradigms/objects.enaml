@@ -18,7 +18,7 @@ from psi.paradigms.core.io_mixins import ChannelInput, ChannelInputManifest
 from cftscal.objects import microphone_manager, starship_manager
 from cftscal.util import (
     list_microphone_connections, list_starship_connections,
-    list_amplifier_connections,
+    list_input_amplifier_connections,
 )
 
 
@@ -285,26 +285,34 @@ enamldef Starship(ExperimentManifest): manifest:
                     scope = 'experiment'
 
 
-def initialize_amplifier_input(name, event):
+def initialize_input_amplifier(name, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    #input_name = os.environ[f'CFTS_AMPLIFIER_INPUT']
-    input_name = 'Grass P511'
-    item_amplifier_input = context.get_item(f'{name}_amplifier_input')
-    item_amplifier_input.set_value(input_name)
-    item_amplifier_input.editable = False
+    input_name = os.environ[f'CFTS_INPUT_AMPLIFIER']
+    item_input_amplifier = context.get_item(f'{name}')
+    item_input_amplifier.expression = f'"{input_name}"'
+    item_input_amplifier.editable = False
 
-    #gain = os.environ[f'CFTS_MICROPHONE_{input_name.upper()}_GAIN']
-    gain = '50e3'
-    item_gain = context.get_item(f'{name}_amplifier_input_gain')
+    gain = os.environ[f'CFTS_INPUT_AMPLIFIER_{input_name.upper()}_GAIN']
+    item_gain = context.get_item(f'{name}_gain')
     item_gain.set_value(gain)
     item_gain.editable = False
 
+    freq_lb = os.environ[f'CFTS_INPUT_AMPLIFIER_{input_name.upper()}_FREQ_LB']
+    item_freq_lb = context.get_item(f'{name}_highpass')
+    item_freq_lb.set_value(freq_lb)
+    item_freq_lb.editable = False
 
-enamldef AmplifierInput(ExperimentManifest): manifest:
+    freq_ub = os.environ[f'CFTS_INPUT_AMPLIFIER_{input_name.upper()}_FREQ_UB']
+    item_freq_ub = context.get_item(f'{name}_lowpass')
+    item_freq_ub.set_value(freq_ub)
+    item_freq_ub.editable = False
 
-    id = 'amplifier_input'
+
+enamldef InputAmplifier(ExperimentManifest): manifest:
+
+    id = 'input_amplifier'
     title = manifest.id.capitalize().replace('_', ' ')
     attr target_fs
 
@@ -313,8 +321,8 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.initialize_amplifier_input_settings'
-            handler = functools.partial(initialize_amplifier_input,
+            id = manifest.id + '.initialize_input_amplifier_settings'
+            handler = functools.partial(initialize_input_amplifier,
                                         manifest.name)
 
     Extension:
@@ -323,7 +331,7 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
 
         ExperimentAction:
             event = 'plugins_started'
-            command = manifest.id + '.initialize_amplifier_input_settings'
+            command = manifest.id + '.initialize_input_amplifier_settings'
 
     Extension:
         id = manifest.id + '.io'
@@ -334,9 +342,9 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = f'{manifest.name}'
-                source_name = 'hw_ai::' + getattr(C, f'{manifest.name}_amplifier_input')
+                source_name = 'hw_ai::' + getattr(C, f'{manifest.name}')
                 #source::
-                #    channel.gain = getattr(C, f'{manifest.name}_amplifier_input_gain')
+                #    channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
 
                 DecimateTo:
                     name = f'{manifest.name}_dec'
@@ -356,9 +364,9 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = f'{manifest.name}'
-                source_name = 'hw_ai::' + getattr(C, f'{manifest.name}_amplifier_input')
+                source_name = 'hw_ai::' + getattr(C, f'{manifest.name}')
                 #source::
-                    #channel.gain = getattr(C, f'{manifest.name}_amplifier_input_gain')
+                    #channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
 
                 IIRFilter:
                     N = 2
@@ -374,18 +382,18 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
         point = 'psi.context.items'
 
         ContextRow:
-            fmt = [f'{manifest.title}', microphone, 'with', gain, '✕ gain']
-            name = f'{manifest.name}_amplifier_input_settings'
+            fmt = [f'{manifest.title}', input_amplifier, 'with', gain, '✕ gain']
+            name = f'{manifest.name}_input_amplifier_settings'
             group_name = 'hardware_settings'
 
-            EnumParameter: microphone:
-                name = f'{manifest.name}_amplifier_input'
+            EnumParameter: input_amplifier:
+                name = f'{manifest.name}'
                 label = f'{manifest.title}'
-                choices = {k: f'"{v}"' for k, v in list_amplifier_connections().items()}
+                choices = {k: f'"{v}"' for k, v in list_input_amplifier_connections().items()}
                 scope = 'experiment'
 
             Parameter: gain:
-                name = f'{manifest.name}_amplifier_input_gain'
+                name = f'{manifest.name}_gain'
                 dtype = 'float64'
                 default = 50e3
                 scope = 'experiment'
@@ -395,13 +403,13 @@ enamldef AmplifierInput(ExperimentManifest): manifest:
             group_name = 'hardware_settings'
 
             Parameter: hp:
-                name = 'amplifier_highpass'
+                name = f'{manifest.name}_highpass'
                 label = 'Amplifier highpass filter cutoff'
                 default = 10
                 scope = 'experiment'
 
             Parameter: lp:
-                name = 'amplifier_lowpass'
+                name = f'{manifest.name}_lowpass'
                 label = 'Amplifier lowpass filter cutoff'
                 default = 10e3
                 scope = 'experiment'

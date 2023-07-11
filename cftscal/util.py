@@ -79,7 +79,7 @@ def list_microphone_connections():
     for channel in manifest.find_all('microphone', regex=True):
         # Strip quotation marks off 
         _, name = channel.name.split('_', 1)
-        choices[name] = channel.label
+        choices[channel.label] = channel.name
 
     if len(choices) == 0:
         raise ValueError(NO_MICROPHONE_ERROR)
@@ -87,24 +87,43 @@ def list_microphone_connections():
     return choices
 
 
-NO_AMPLIFIER_ERROR = '''
-No amplifier could be found in the IO manifest. To use this plugin, you must
-have an analog input channel named amplifier_ID. ID is the name of the
+NO_INPUT_AMPLIFIER_ERROR = '''
+No input amplifier could be found in the IO manifest. To use this plugin, you
+must have an analog input channel named amplifier_ID. ID is the name of the
 amplifier that will appear in any drop-down selectors where you can select
 which amplifier to use (assuming your system is configured for more than one
 amplifier).
 '''
 
 
-def list_amplifier_connections():
+def list_input_amplifier_connections():
     '''
-    List all amplifiers found in the IO Manifest
+    List all input amplifiers found in the IO Manifest
     '''
     choices = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
     choices = {c.label: c.name for c in manifest.find_all('amplifier', regex=True)}
 
     if len(choices) == 0:
-        raise ValueError(NO_AMPLIFIER_ERROR)
+        raise ValueError(NO_INPUT_AMPLIFIER_ERROR)
 
     return choices
+
+
+if __name__ == '__main__':
+    try:
+        print(list_starship_connections())
+    except:
+        pass
+    try:
+        print(list_speaker_connections())
+    except:
+        pass
+    try:
+        print(list_microphone_connections())
+    except:
+        pass
+    try:
+        print(list_input_amplifier_connections())
+    except:
+        pass

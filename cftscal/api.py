@@ -1,5 +1,5 @@
 from .util import (
-    list_amplifier_connections,
+    list_input_amplifier_connections,
     list_microphone_connections,
     list_speaker_connections,
     list_starship_connections

@@ -15,7 +15,7 @@ from cftscal.plugins.widgets import (
 )
 
 
-class AmplifierPlotManager(BasePlotManager):
+class InputAmplifierPlotManager(BasePlotManager):
 
     def make_plot(self, calibration):
         color, plot = self.create_plot()
@@ -27,7 +27,7 @@ class AmplifierPlotManager(BasePlotManager):
         return color, plot
 
 
-enamldef AmplifierView(Container):
+enamldef InputAmplifierView(Container):
 
     attr settings
 
@@ -63,29 +63,41 @@ enamldef AmplifierView(Container):
                     return constraints
 
                 Looper:
-                    iterable << settings.amplifiers
+                    iterable << settings.input_amplifiers
 
                     Container:
                         share_layout = True
                         padding = 0
                         constraints = [
-                            hbox(
-                                amp_label,
-                                hbox(amp_select, amp_add, amp_gain, spacing=0),
-                                amp_gain_label,
-                                spacer(0),
-                                amp_cal_start,
-                                spacing=5,
+                            vbox(
+                                hbox(
+                                    amp_label,
+                                    hbox(amp_select, amp_add, amp_gain, spacing=0),
+                                    amp_gain_x_label,
+                                    amp_gain_mult,
+                                    amp_gain_label,
+                                    spacer(0),
+                                    amp_cal_start,
+                                    spacing=5,
+                                ),
+                                hbox(amp_freq_lb, amp_freq_lb_label,
+                                     amp_freq_ub, amp_freq_ub_label,
+                                     amp_filt_60Hz,
+                                     spacer(0)),
                             ),
                             align('v_center', amp_label, amp_select, amp_add,
-                                    amp_gain, amp_gain_label, amp_cal_start),
+                                  amp_gain, amp_gain_x_label, amp_gain_mult,
+                                  amp_gain_label, amp_cal_start),
+                            align('v_center', amp_freq_lb, amp_freq_lb_label,
+                                  amp_freq_ub, amp_freq_ub_label, amp_filt_60Hz),
+                            align('left', amp_select, amp_freq_lb),
                             amp_add.width == 25,
                         ]
 
                         attr amplifier = loop_item
 
                         Label: amp_label:
-                            text = 'Amplifier'
+                            text = 'Input Amplifier'
 
                         ObjectCombo: amp_select:
                             items = sorted(amplifier.available_amplifiers)
@@ -94,15 +106,42 @@ enamldef AmplifierView(Container):
                         PushButton: amp_add:
                             text = '+'
                             clicked ::
-                                popup = AddItem(self, combo=amp_select, label='Amplifier')
+                                popup = AddItem(self, combo=amp_select, label='Input Amplifier')
                                 popup.show()
 
-                        ObjectCombo: amp_gain:
-                            items = [10, 50, 100]
-                            selected := amplifier.gain
+                        Label: amp_gain_x_label:
+                            text = 'x'
 
                         Label: amp_gain_label:
-                            text = 'x gain'
+                            text = 'gain'
+
+                        ObjectCombo: amp_gain:
+                            items = [5, 10, 20, 50, 100, 200]
+                            selected := amplifier.gain
+
+                        ObjectCombo: amp_gain_mult:
+                            items = [10, 1000]
+                            selected := amplifier.gain_mult
+
+                        Label: amp_freq_lb_label:
+                            text = 'Hz to'
+
+                        ObjectCombo: amp_freq_lb:
+                            items = [0, 0.1, 0.3, 1, 3, 10, 30, 100, 300]
+                            selected := amplifier.freq_lb
+
+                        Label: amp_freq_ub_label:
+                            text = 'kHz with 60 Hz filter on'
+
+                        ObjectCombo: amp_freq_ub:
+                            items = [0.03, 0.1, 0.3, 1, 3, 10]
+                            selected ::
+                                amplifier.freq_ub = selected * 1e3
+                            selected << amplifier.freq_ub * 1e-3
+
+                        ObjectCombo: amp_filt_60Hz:
+                            items = ['input', 'output']
+                            selected := amplifier.filt_60Hz
 
                         PushButton: amp_cal_start:
                             text = 'Calibrate'
@@ -113,18 +152,18 @@ enamldef AmplifierView(Container):
 
         DockItem:
             name = 'amp_gain_plot'
-            title = 'Amplifier Sensitivity'
+            title = 'Input Amplifier Sensitivity'
             closable = False
             stretch = 10
 
             Container:
                 PGCanvas: amplifier_plot:
-                    attr manager = AmplifierPlotManager()
+                    attr manager = InputAmplifierPlotManager()
                     component << manager.component
 
         DockItem:
             name = 'amp_list'
-            title = 'Amplifier Calibrations'
+            title = 'Input Amplifier Calibrations'
             closable = False
             stretch = 0
 

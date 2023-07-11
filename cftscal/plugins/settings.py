@@ -174,30 +174,41 @@ class InEarSettings(StarshipSettings):
         return f'inear_{self.output}.json'
 
 
-class AmplifierSettings(PersistentSettings):
+class InputAmplifierSettings(PersistentSettings):
 
     input_name = Str()
     name = Str()
-    gain = Float(50000)
-    freq_lb = Float(100)
+    gain = Float(50)
+    gain_mult = Enum(10, 1000)
+    freq_lb = Float(10)
     freq_ub = Float(10000)
     filt_60Hz = Enum('input', 'output')
+    # Choices are 10 20 50 100 200 500 uV or 1 2 5 10 20 50 mV
     cal_amplitude = Float(100e-6)
+    total_gain = Property()
 
     available_amplifiers = Property()
+
+    def _get_total_gain(self):
+        return self.gain * self.gain_mult
 
     def _get_available_amplifiers(self):
         return sorted(amplifier_manager.list_names('CFTS'))
 
     def get_env_vars(self, include_cal=True):
-        env = {
-            'CFTS_AMPLIFIER': self.input_name,
-            f'CFTS_{self.input_name.upper()}_GAIN': self.gain,
-            f'CFTS_{self.input_name.upper()}_CAL_AMPLITUDE': self.cal_amplitude,
+        return {
+            'CFTS_INPUT_AMPLIFIER': self.input_name,
+            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_GAIN': str(self.total_gain),
+            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_CAL_AMPLITUDE': str(self.cal_amplitude),
+            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_LB': str(self.freq_lb),
+            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_UB': str(self.freq_ub),
+            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FILT_60Hz': self.filt_60Hz,
         }
 
     def _get_filename(self):
-        return f'microphone_{self.input_name}.json'
+        return f'{{date_time}}_{self.name}_{self.cal_amplitude*1e6}uV' \
+            f'_{self.total_gain}x_{self.freq_lb}-{self.freq_ub}Hz' \
+            f'-filt-60Hz-{self.filt_60Hz}'
 
     def _default_name(self):
         try:

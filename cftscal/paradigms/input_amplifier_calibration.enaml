@@ -54,7 +54,7 @@ enamldef InputAmplifierCalibrationManifest(ControllerManifest):
         point = 'psi.controller.io'
 
         AutoThreshold:
-            source_name = 'amplifier_input'
+            source_name = 'input_amplifier'
             baseline = 1
             Edges:
                 debounce = 25
@@ -63,6 +63,7 @@ enamldef InputAmplifierCalibrationManifest(ControllerManifest):
                     coroutine = partial(notify_queue, extract.added_queue)
 
         ExtractEpochs: extract:
+            source_name = 'input_amplifier'
             name = 'crp'
             prestim_time = 0.1
             epoch_size = 0.5

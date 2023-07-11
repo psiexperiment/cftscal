@@ -5,8 +5,8 @@ PATH = 'cftscal.paradigms.'
 CORE_PATH = 'psi.paradigms.core.'
 
 
-amplifier_input_mixin = {
-    'manifest': PATH + 'objects.AmplifierInput',
+input_amplifier_mixin = {
+    'manifest': PATH + 'objects.InputAmplifier',
     'required': True,
 }
 
@@ -107,7 +107,7 @@ ParadigmDescription(
 
 ParadigmDescription(
     'input_amplifier_calibration', 'Input Amplifier calibration', 'ear', [
-        amplifier_input_mixin,
+        input_amplifier_mixin,
 
         {'manifest': PATH + 'input_amplifier_calibration.InputAmplifierCalibrationManifest'},
         {
