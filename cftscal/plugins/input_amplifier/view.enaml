@@ -9,7 +9,7 @@ from enaml.widgets.api import (
 
 from psi.data.plots_manifest import PGCanvas
 
-from cftscal.objects import amplifier_manager
+from cftscal.objects import input_amplifier_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
 )
@@ -100,7 +100,7 @@ enamldef InputAmplifierView(Container):
                             text = 'Input Amplifier'
 
                         ObjectCombo: amp_select:
-                            items = sorted(amplifier.available_amplifiers)
+                            items = sorted(amplifier.available_input_amplifiers)
                             selected := amplifier.name
 
                         PushButton: amp_add:
@@ -157,7 +157,7 @@ enamldef InputAmplifierView(Container):
             stretch = 10
 
             Container:
-                PGCanvas: amplifier_plot:
+                PGCanvas: input_amplifier_plot:
                     attr manager = InputAmplifierPlotManager()
                     component << manager.component
 
@@ -170,5 +170,5 @@ enamldef InputAmplifierView(Container):
             CalibratedObjects: amp_tree:
                 headers = ['Name', 'Gain']
                 collection = ObjectCollection(
-                    amplifier_manager, amplifier_plot.manager
+                    input_amplifier_manager, input_amplifier_plot.manager
                 )

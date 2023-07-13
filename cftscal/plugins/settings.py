@@ -9,7 +9,7 @@ from psi.util import get_tagged_values
 
 
 from cftscal.objects import (
-    amplifier_manager, inear_manager, microphone_manager, speaker_manager,
+    input_amplifier_manager, inear_manager, microphone_manager, speaker_manager,
     starship_manager
 )
 
@@ -187,13 +187,13 @@ class InputAmplifierSettings(PersistentSettings):
     cal_amplitude = Float(100e-6)
     total_gain = Property()
 
-    available_amplifiers = Property()
+    available_input_amplifiers = Property()
 
     def _get_total_gain(self):
         return self.gain * self.gain_mult
 
-    def _get_available_amplifiers(self):
-        return sorted(amplifier_manager.list_names('CFTS'))
+    def _get_available_input_amplifiers(self):
+        return sorted(input_amplifier_manager.list_names('CFTS'))
 
     def get_env_vars(self, include_cal=True):
         return {
@@ -212,6 +212,6 @@ class InputAmplifierSettings(PersistentSettings):
 
     def _default_name(self):
         try:
-            return self.available_amplifiers[0]
+            return self.available_input_amplifiers[0]
         except IndexError:
             return ''

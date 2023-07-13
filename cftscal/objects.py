@@ -345,11 +345,11 @@ class CFTSSpeakerLoader(CFTSBaseLoader):
 ################################################################################
 # Amplifier calibration management
 ################################################################################
-class Amplifier(CalibratedObject):
+class InputAmplifier(CalibratedObject):
     pass
 
 
-class CFTSAmplifierCalibration(Calibration):
+class CFTSInputAmplifierCalibration(Calibration):
 
     def __init__(self, name, filename):
         self.label = 'CFTS'
@@ -369,12 +369,12 @@ class CFTSAmplifierCalibration(Calibration):
         return gain['gain (linear)']
 
     def load_recording(self):
-        return AmplifierCalibration(self.filename)
+        raise NotImplementedError
 
 
-class CFTSAmplifierLoader(CFTSBaseLoader):
-    subfolder = 'amplifier'
-    cal_class = CFTSAmplifierCalibration
+class CFTSInputAmplifierLoader(CFTSBaseLoader):
+    subfolder = 'input_amplifier'
+    cal_class = CFTSInputAmplifierCalibration
 
 
 ################################################################################
@@ -476,8 +476,8 @@ class CFTSInEarLoader(CFTSBaseLoader):
 ################################################################################
 # Basic cal registration
 ################################################################################
-amplifier_manager = CalibrationManager(Amplifier)
-amplifier_manager.register('cftscal.objects.CFTSAmplifierLoader')
+input_amplifier_manager = CalibrationManager(InputAmplifier)
+input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
 microphone_manager = CalibrationManager(Microphone)
 microphone_manager.register('cftscal.objects.CFTSMicrophoneLoader')
