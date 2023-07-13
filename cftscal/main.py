@@ -12,7 +12,7 @@ CORE_PLUGIN = 'enaml.workbench.core'
 
 class CalibrationWorkbench(UIWorkbench):
 
-    def run(self, obj):
+    def run(self, obj=None):
         """
         Run the calibration workbench application.  This method will load the
         core and ui plugins and start the main application event loop. This is
@@ -29,10 +29,11 @@ class CalibrationWorkbench(UIWorkbench):
         core = self.get_plugin(CORE_PLUGIN)
 
         ui.show_window()
-        deferred_call(core.invoke_command,
-                      'enaml.workbench.ui.select_workspace',
-                      {'workspace': f'{obj}.workspace'}
-                      )
+        if obj is not None:
+            deferred_call(core.invoke_command,
+                        'enaml.workbench.ui.select_workspace',
+                        {'workspace': f'{obj}.workspace'}
+                        )
 
         ui.start_application()
         self.unregister(UI_PLUGIN)
