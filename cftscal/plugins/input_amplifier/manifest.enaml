@@ -33,7 +33,7 @@ enamldef InputAmplifierManifest(PluginManifest):
         ActionItem:
             path = '/workspace/amplifier'
             label = 'Input Amplifier'
-            shortcut = 'Ctrl+m'
+            shortcut = 'Ctrl+a'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
             parameters = {'workspace': 'input_amplifier.workspace'}

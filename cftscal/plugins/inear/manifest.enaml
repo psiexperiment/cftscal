@@ -32,7 +32,7 @@ enamldef InEarManifest(PluginManifest):
         ActionItem:
             path = '/workspace/inear'
             label = 'In-Ear'
-            shortcut = 'Ctrl+s'
+            shortcut = 'Ctrl+i'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
             parameters = {'workspace': 'inear.workspace'}
