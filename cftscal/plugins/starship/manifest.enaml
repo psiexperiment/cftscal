@@ -8,6 +8,14 @@ from .settings import StarshipCalibrationSettings
 from .view import StarshipView
 
 
+def available():
+    try:
+        list_starship_connections()
+        return True
+    except:
+        return False
+
+
 def starship_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Starship Calibration'

@@ -7,6 +7,14 @@ from .settings import InEarCalibrationSettings
 from .view import InEarView
 
 
+def available():
+    try:
+        list_starship_connections()
+        return True
+    except:
+        return False
+
+
 def inear_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'In-Ear Calibration'

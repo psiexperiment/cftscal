@@ -8,6 +8,15 @@ from .settings import SpeakerCalibrationSettings
 from .view import SpeakerView
 
 
+def available():
+    try:
+        list_speaker_connections()
+        list_microphone_connections()
+        return True
+    except:
+        return False
+
+
 def speaker_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Speaker Calibration'

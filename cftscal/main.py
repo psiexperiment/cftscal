@@ -1,3 +1,5 @@
+import importlib
+
 import enaml
 from enaml.application import Application, deferred_call
 from enaml.workbench.ui.api import UIWorkbench
@@ -52,10 +54,23 @@ def main():
         from .plugins.inear.manifest import InEarManifest
 
     workbench = CalibrationWorkbench()
-    workbench.register(InputAmplifierManifest())
     workbench.register(CalibrationManifest())
-    workbench.register(MicrophoneManifest())
-    workbench.register(StarshipManifest())
-    workbench.register(SpeakerManifest())
-    workbench.register(InEarManifest())
+
+    to_register = [
+        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        ('cftscal.plugins.microphone.manifest', 'MicrophoneManifest'),
+        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
+        ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
+        ('cftscal.plugins.inear.manifest', 'InEarManifest')
+    ]
+
+    with enaml.imports():
+        for module_name, class_name in to_register:
+            try:
+                module = importlib.import_module(module_name)
+                if getattr(module, 'available')():
+                    workbench.register(getattr(module, class_name)())
+            except ModuleNotFoundError as e:
+                print(f'Could not load {module_name}.{class_name} plugin')
+
     workbench.run(args.obj)

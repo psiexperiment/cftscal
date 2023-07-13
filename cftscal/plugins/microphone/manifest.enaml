@@ -8,6 +8,14 @@ from .settings import MicrophoneCalibrationSettings
 from .view import MicrophoneView
 
 
+def available():
+    try:
+        list_microphone_connections()
+        return True
+    except:
+        return False
+
+
 def microphone_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Microphone Calibration'
