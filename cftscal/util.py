@@ -18,7 +18,7 @@ def list_starship_connections():
     '''
     starships = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
-    for channel in manifest.find_all('starship', regex=True):
+    for channel in manifest.find_all('^starship_', regex=True):
         # Strip quotation marks off 
         _, starship_id, starship_output = channel.name.split('_')
         starships.setdefault(starship_id, []).append(starship_output)
@@ -50,10 +50,8 @@ def list_speaker_connections():
     '''
     choices = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
-    for channel in manifest.find_all('speaker', regex=True):
-        # Strip quotation marks off 
-        _, name = channel.name.split('_', 1)
-        choices[name] = channel.name
+    for channel in manifest.find_all('^speaker_', regex=True):
+        choices[channel.label] = channel.name.split('_', 1)[1]
 
     if len(choices) == 0:
         raise ValueError(NO_SPEAKER_ERROR)
@@ -76,10 +74,9 @@ def list_microphone_connections():
     '''
     choices = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
-    for channel in manifest.find_all('microphone', regex=True):
+    for channel in manifest.find_all('^microphone_', regex=True):
         # Strip quotation marks off 
-        _, name = channel.name.split('_', 1)
-        choices[channel.label] = channel.name
+        choices[channel.label] = channel.name.split('_', 1)[1]
 
     if len(choices) == 0:
         raise ValueError(NO_MICROPHONE_ERROR)
@@ -102,7 +99,8 @@ def list_input_amplifier_connections():
     '''
     choices = {}
     manifest = load_manifest(f'{get_default_io()}.IOManifest')()
-    choices = {c.label: c.name for c in manifest.find_all('amplifier', regex=True)}
+    for channel in manifest.find_all('^amplifier_', regex=True):
+        choices[channel.label] = channel.name.split('_', 1)[1]
 
     if len(choices) == 0:
         raise ValueError(NO_INPUT_AMPLIFIER_ERROR)
