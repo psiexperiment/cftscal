@@ -112,7 +112,16 @@ class PistonphoneSettings(PersistentSettings):
 
 class SpeakerSettings(PersistentSettings):
 
-    output = Str()
+    #: Name of output as defined in IO manifest
+    output_name = Str()
+
+    #: Label of output as defined in IO manifest
+    output_label = Str()
+
+    #: Name of the actual speaker. This is not necessarily the same as the
+    #: channel in the IO manifest. For example, one can connect a different
+    #: speaker to the same channel, so the name may indicate which of
+    #: several speakers available in the lab that is currently connected.
     name = Str()
     available_speakers = Property()
 
@@ -120,7 +129,7 @@ class SpeakerSettings(PersistentSettings):
         return sorted(speaker_manager.list_names('CFTS'))
 
     def _get_filename(self):
-        return f'speaker_{self.output}.json'
+        return f'speaker_{self.output_name}.json'
 
     def _default_name(self):
         try:
@@ -130,12 +139,12 @@ class SpeakerSettings(PersistentSettings):
 
     def get_env_vars(self, include_cal=True):
         env = {
-            'CFTS_TEST_SPEAKER': self.output,
+            f'CFTS_SPEAKER': self.output_name,
         }
         if include_cal:
             speaker = speaker_manager.get_object(self.name)
             cal = speaker.get_current_calibration()
-            env[f'CFTS_SPEAKER_{self.output}'] = cal.to_string()
+            env[f'CFTS_SPEAKER_{self.output_name.upper()}'] = cal.to_string()
         return env
 
 

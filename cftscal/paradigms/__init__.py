@@ -25,6 +25,13 @@ selectable_microphone_mixin = {
 }
 
 
+selectable_speaker_mixin = {
+    'manifest': PATH + 'objects.Speaker',
+    'required': True,
+    'attrs': {'id': 'system', 'title': 'Speaker'},
+}
+
+
 ParadigmDescription(
     'pt_calibration_chirp', 'Probe tube calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
@@ -50,6 +57,7 @@ ParadigmDescription(
         {'manifest': PATH + 'calibration_mixins.GolayMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
         selectable_microphone_mixin,
+        selectable_speaker_mixin,
     ],
 )
 
@@ -60,6 +68,7 @@ ParadigmDescription(
         {'manifest': PATH + 'calibration_mixins.ChirpMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
         selectable_microphone_mixin,
+        selectable_speaker_mixin,
     ],
 )
 
