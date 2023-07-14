@@ -111,19 +111,20 @@ def list_input_amplifier_connections():
 
 
 if __name__ == '__main__':
+    print(f'Looking for connections in {get_default_io()}')
     try:
         print(list_starship_connections())
-    except:
+    except ValueError:
         pass
     try:
         print(list_speaker_connections())
-    except:
+    except ValueError:
         pass
     try:
         print(list_microphone_connections())
-    except:
+    except ValueError:
         pass
     try:
         print(list_input_amplifier_connections())
-    except:
+    except ValueError:
         pass
