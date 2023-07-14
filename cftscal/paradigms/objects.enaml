@@ -87,7 +87,7 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         ContinuousInput:
             name = f'{manifest.name}_microphone'
-            source_name = 'hw_ai::' + getattr(C, f'{manifest.name}_microphone')
+            source_name = 'hw_ai::microphone_' + getattr(C, f'{manifest.name}_microphone')
             source::
                 channel.gain = getattr(C, f'{manifest.name}_microphone_input_gain')
 
@@ -342,7 +342,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = f'{manifest.name}'
-                source_name = 'hw_ai::' + getattr(C, f'amplifier_{manifest.name}')
+                source_name = 'hw_ai::amplifier_' + getattr(C, f'amplifier_{manifest.name}')
                 #source::
                 #    channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
 
@@ -364,7 +364,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = f'{manifest.name}'
-                source_name = 'hw_ai::' + getattr(C, f'{manifest.name}')
+                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.name}')
                 #source::
                     #channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
 

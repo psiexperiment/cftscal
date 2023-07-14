@@ -113,10 +113,20 @@ def initialize_settings(event):
         item.set_value(freq)
         item.editable = False
 
-    if (gain := os.environ.get('CFTS_CAL_MIC_GAIN', None)):
-        item = context.get_item('input_gain')
-        item.set_value(gain)
-        item.editable = False
+
+def configure_hardware(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    input_channel = controller.get_input('hw_ai').channel
+    sample_duration = context.get_value('sample_duration')
+    input_channel.calibration = FlatCalibration.unity()
+    input_channel.samples = round(sample_duration * input_channel.fs)
+
+    controller.register_action(
+        '{}_end'.format(input_channel.engine.name),
+        'psi.controller.stop'
+    )
 
 
 enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
@@ -139,49 +149,15 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'hw_ai'
-            source_name = C.input_channel
-            source ::
-                # Since there's no output, disable the start trigger on the
-                # input channel.  TODO: Perhaps make the engine smarter in the
-                # future to handle these sort of edge-cases?
-                channel.calibration = FlatCalibration.unity()
-                channel.samples = round(C.sample_duration * channel.fs)
-                channel.gain = C.input_gain
-                complete_event = '{}_end'.format(channel.engine.name)
-                complete_action = 'psi.controller.stop'
-                controller = workbench.get_plugin('psi.controller')
-                controller.register_action(complete_event, complete_action)
+            source_name = 'cal_microphone'
 
     Extension:
         id = 'context'
         point = 'psi.context.items'
 
         ContextGroup:
-            name = 'input'
+            name = 'hardware_settings'
             label = 'Input'
-
-            Parameter:
-                name = 'input_gain'
-                label = 'input gain (dB)'
-                compact_label = 'ai_gain'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_range'
-                label = 'Expected input range (Vpp)'
-                compact_label = 'ai_range'
-                dtype = 'float64'
-                default = 10
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'input_channel'
-                label = 'Input channel'
-                compact_label = 'ai'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
 
             Parameter:
                 name = 'sample_duration'
@@ -218,6 +194,10 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
             id = manifest.id + '.initialize_settings'
             handler = initialize_settings
 
+        Command:
+            id = manifest.id + '.configure_hardware'
+            handler = configure_hardware
+
     Extension: actions:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -234,6 +214,11 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.controller.calculate_sens'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 9
 
     Extension:
         id = 'result_view'

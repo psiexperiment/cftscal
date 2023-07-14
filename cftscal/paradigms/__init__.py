@@ -75,6 +75,7 @@ ParadigmDescription(
          'required': True,
          'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)'}
          },
+        selectable_microphone_mixin,
     ]
 )
 
