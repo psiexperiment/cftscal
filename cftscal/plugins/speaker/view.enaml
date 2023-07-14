@@ -105,7 +105,7 @@ enamldef SpeakerView(Container):
                     ObjectCombo: mic_out_select:
                         items = sorted(settings.microphones)
                         selected := settings.selected_microphone
-                        to_string = lambda m: m.input_name
+                        to_string = lambda m: m.input_label
 
                     ObjectCombo: mic_select:
                         items = sorted(microphone.available_microphones)

@@ -54,9 +54,20 @@ class CalibrationSettings(Atom):
 
 class MicrophoneSettings(PersistentSettings):
 
+    #: Name of input as defined in IO manifest
     input_name = Str()
+
+    #: Label of input as defined in IO manifest
+    input_label = Str()
+
+    #: Name of the actual microphone. This is not necessarily the same as the
+    #: channel in the IO manifest. For example, one can connect a different
+    #: microphone to the same channel, so the name may indicate which of
+    #: several microphones available in the lab is currently connected.
     name = Str()
+
     gain = Float(20)
+
     available_microphones = Property()
 
     def _get_available_microphones(self):

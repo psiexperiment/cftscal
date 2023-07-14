@@ -15,7 +15,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
 
     def __init__(self, outputs, inputs):
         self.speakers = [SpeakerSettings(output=o) for o in outputs]
-        self.microphones = [MicrophoneSettings(input_name=i) for i in inputs]
+        self.microphones = [MicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
         self.selected_microphone = self.microphones[0]
 
     def save_config(self):
