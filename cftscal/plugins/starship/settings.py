@@ -12,16 +12,19 @@ CAL_ROOT = get_config('CAL_ROOT')
 class StarshipCalibrationSettings(CalibrationSettings):
 
     starships = List(Typed(StarshipSettings))
-    microphone = Typed(MicrophoneSettings)
+    microphones = List(Typed(MicrophoneSettings))
+    selected_microphone = Typed(MicrophoneSettings)
     calibration_coupler = Str()
 
-    def __init__(self, outputs):
+    def __init__(self, outputs, inputs):
         self.starships = [StarshipSettings(output=o) for o in outputs]
-        self.microphone = MicrophoneSettings()
+        self.microphones = [MicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
+        self.selected_microphone = self.microphones[0]
         self.load_config()
 
     def save_config(self):
-        self.microphone.save_config()
+        for m in self.microphones:
+            m.save_config()
         for s in self.starships:
             s.save_config()
         file = get_config_folder() / 'cfts' / 'calibration' / \

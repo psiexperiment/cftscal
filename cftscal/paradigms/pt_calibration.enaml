@@ -292,11 +292,9 @@ enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
             ExtractEpochs:
                 name = 'pt_epoch'
 
-        ChannelInput:
-            name = 'cal_microphone'
-            label = 'Calibration microphone'
-            ExtractEpochs:
-                name = 'cal_epoch'
+        ExtractEpochs:
+            name = 'cal_epoch'
+            source_name = 'cal_microphone'
 
     Extension:
         id = 'context'

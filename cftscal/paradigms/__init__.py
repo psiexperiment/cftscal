@@ -38,6 +38,7 @@ ParadigmDescription(
         {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
         selectable_starship_mixin,
+        selectable_microphone_mixin,
     ],
 )
 
@@ -47,6 +48,7 @@ ParadigmDescription(
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
         selectable_starship_mixin,
+        selectable_microphone_mixin,
     ],
 )
 
