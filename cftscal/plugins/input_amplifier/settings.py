@@ -20,8 +20,10 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             a.save_config()
 
     def run_amp_cal(self, input_amplifier):
-        filename = input_amplifier._get_filename()
-        pathname = CAL_ROOT / 'input_amplifier' / input_amplifier.name / filename
+        pathname = CAL_ROOT / \
+            'input_amplifier' / \
+            input_amplifier.name / \
+            input_amplifier.calibration_filename
         env = {
             **input_amplifier.get_env_vars(include_cal=False),
         }

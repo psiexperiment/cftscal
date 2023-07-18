@@ -5,7 +5,7 @@ import subprocess
 from atom.api import Atom, Enum, Float, List, Property, Str
 
 from psi import get_config_folder
-from psi.util import get_tagged_values
+from psi.util import get_tagged_members, get_tagged_values
 
 
 from cftscal.objects import (
@@ -16,20 +16,21 @@ from cftscal.objects import (
 
 class PersistentSettings(Atom):
 
-    filename = Property()
+    settings_filename = Property()
+    calibration_filename = Property()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.load_config()
 
     def save_config(self):
-        file = get_config_folder() / 'cfts' / 'calibration' / self.filename
+        file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
         file.parent.mkdir(exist_ok=True, parents=True)
-        config = {m: getattr(self, m) for m in self.members()}
+        config = get_tagged_values(self, 'persist')
         file.write_text(json.dumps(config, indent=2))
 
     def load_config(self):
-        file = get_config_folder() / 'cfts' / 'calibration' / self.filename
+        file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
         if not file.exists():
             return
         config = json.loads(file.read_text())
@@ -84,7 +85,7 @@ class MicrophoneSettings(PersistentSettings):
             env[f'CFTS_MICROPHONE_{self.input_name.upper()}'] = cal.to_string()
         return env
 
-    def _get_filename(self):
+    def _get_settings_filename(self):
         return f'microphone_{self.input_name}.json'
 
     def _default_name(self):
@@ -100,7 +101,7 @@ class PistonphoneSettings(PersistentSettings):
     frequency = Float(1e3)
     level = Float(114)
 
-    def _get_filename(self):
+    def _get_settings_filename(self):
         return 'pistonphone.json'
 
     def get_env_vars(self):
@@ -128,7 +129,7 @@ class SpeakerSettings(PersistentSettings):
     def _get_available_speakers(self):
         return sorted(speaker_manager.list_names('CFTS'))
 
-    def _get_filename(self):
+    def _get_settings_filename(self):
         return f'speaker_{self.output_name}.json'
 
     def _default_name(self):
@@ -158,7 +159,7 @@ class StarshipSettings(PersistentSettings):
     def _get_available_starships(self):
         return sorted(starship_manager.list_names('CFTS'))
 
-    def _get_filename(self):
+    def _get_settings_filename(self):
         return f'starship_{self.output}.json'
 
     def _default_name(self):
@@ -190,7 +191,7 @@ class InEarSettings(StarshipSettings):
     def _get_available_ears(self):
         return sorted(inear_manager.list_names('CFTS'))
 
-    def _get_filename(self):
+    def _get_settings_filename(self):
         return f'inear_{self.output}.json'
 
 
@@ -209,6 +210,9 @@ class InputAmplifierSettings(PersistentSettings):
 
     available_input_amplifiers = Property()
 
+    def _get_settings_filename(self):
+        return f'input_amplifier_{self.input_name}.json'
+
     def _get_total_gain(self):
         return self.gain * self.gain_mult
 
@@ -225,7 +229,7 @@ class InputAmplifierSettings(PersistentSettings):
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FILT_60Hz': self.filt_60Hz,
         }
 
-    def _get_filename(self):
+    def _get_calibration_filename(self):
         return f'{{date_time}}_{self.name}_{self.cal_amplitude*1e6}uV' \
             f'_{self.total_gain}x_{self.freq_lb}-{self.freq_ub}Hz' \
             f'-filt-60Hz-{self.filt_60Hz}'
