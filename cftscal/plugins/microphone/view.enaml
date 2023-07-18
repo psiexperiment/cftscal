@@ -51,14 +51,14 @@ enamldef MicrophoneView(Container):
 
             Container:
                 layout_constraints => ():
+                    # For some reason aligning right edge of first widget
+                    # (label) does not produce nicely-aligned widgets, so we
+                    # align the left edge of second widget.
                     widgets = self.visible_widgets()
-                    first = []
-                    for w in widgets:
-                        first.append(w.children[0])
-
+                    second = [w.children[1] for w in widgets]
                     constraints = [
                         vbox(*widgets),
-                        align('right', *first),
+                        align('left', *second),
                     ]
                     return constraints
 
