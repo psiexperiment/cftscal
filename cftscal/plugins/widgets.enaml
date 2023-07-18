@@ -23,8 +23,8 @@ from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
 from cftscal.objects import (
-    CFTSInEarCalibration, CFTSMicrophoneCalibration, CFTSStarshipCalibration,
-    CFTSSpeakerCalibration,
+    CFTSInEarCalibration, CFTSInputAmplifierCalibration,
+    CFTSMicrophoneCalibration, CFTSStarshipCalibration, CFTSSpeakerCalibration,
 )
 
 
@@ -72,15 +72,9 @@ class BasePlotManager:
     def __init__(self):
         component = pg.GraphicsLayout()
         component.setSpacing(10)
-        y_axis = pg.AxisItem('left')
-        y_axis.setLabel('Sensitivity (dB re 1Vrms)')
-        y_axis.setGrid(64)
+        y_axis = self.make_y_axis()
+        x_axis = self.make_x_axis()
         component.addItem(y_axis, 0, 0)
-
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(64)
-        x_axis.setLabel('Frequency', units='Hz')
-        x_axis.setLogMode(True)
         component.addItem(x_axis, 1, 1)
 
         vb = pg.ViewBox()
@@ -95,10 +89,21 @@ class BasePlotManager:
         self.legend = legend
         self.component = component
         self.vb = vb
-
         self.color_cycle = iter(Tableau_20.colors)
-
         self.plots = {}
+
+    def make_y_axis(self):
+        y_axis = pg.AxisItem('left')
+        y_axis.setLabel('Sensitivity (dB re 1Vrms)')
+        y_axis.setGrid(64)
+        return y_axis
+
+    def make_x_axis(self):
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Frequency', units='Hz')
+        x_axis.setLogMode(True)
+        return x_axis
 
     def plot(self, calibration):
         if calibration not in self.plots:
@@ -262,6 +267,11 @@ template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):
         text << item.microphone
     TreeViewColumn:
         text << item.method
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSInputAmplifierCalibration):
+    TreeViewColumn:
+        text << f'{item.measured_gain:.0f}'
 
 
 template CalibratedObjectTemplate(item, MemberType):

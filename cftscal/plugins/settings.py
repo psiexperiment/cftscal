@@ -202,8 +202,6 @@ class InputAmplifierSettings(PersistentSettings):
     freq_lb = Float(10).tag(persist=True)
     freq_ub = Float(10000).tag(persist=True)
     filt_60Hz = Enum('input', 'output').tag(persist=True)
-    # Choices are 10 20 50 100 200 500 uV or 1 2 5 10 20 50 mV
-    cal_amplitude = Float(100e-6).tag(persist=True)
     total_gain = Property()
 
     available_input_amplifiers = Property()
@@ -221,14 +219,13 @@ class InputAmplifierSettings(PersistentSettings):
         return {
             'CFTS_INPUT_AMPLIFIER': self.input_name,
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_GAIN': str(self.total_gain),
-            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_CAL_AMPLITUDE': str(self.cal_amplitude),
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_LB': str(self.freq_lb),
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_UB': str(self.freq_ub),
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FILT_60Hz': self.filt_60Hz,
         }
 
     def _get_calibration_filename(self):
-        return f'{{date_time}}_{self.name}_{self.cal_amplitude*1e6}uV' \
+        return f'{{date_time}}_{self.name}' \
             f'_{self.total_gain}x_{self.freq_lb}-{self.freq_ub}Hz' \
             f'-filt-60Hz-{self.filt_60Hz}'
 

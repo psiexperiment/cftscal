@@ -1,5 +1,7 @@
 import numpy as np
 
+import pyqtgraph as pg
+
 from enaml.core.api import Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
@@ -17,13 +19,17 @@ from cftscal.plugins.widgets import (
 
 class InputAmplifierPlotManager(BasePlotManager):
 
+    def make_x_axis(self):
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(0.1)
+        x_axis.setLabel('Time', units='sec')
+        return x_axis
+
     def make_plot(self, calibration):
         color, plot = self.create_plot()
         fh = calibration.load_recording()
-        psd = fh.get_psd(average_seconds=1).iloc[1:]
-        x = np.log10(psd.index.values)
-        y = psd.values
-        plot.setData(x, y)
+        waveform = fh.cal_signal
+        plot.setData(waveform.index.values, waveform['amplitude'].values)
         return color, plot
 
 
@@ -168,7 +174,7 @@ enamldef InputAmplifierView(Container):
             stretch = 0
 
             CalibratedObjects: amp_tree:
-                headers = ['Name', 'Gain']
+                headers = ['Name', 'Meas. Gain']
                 collection = ObjectCollection(
                     input_amplifier_manager, input_amplifier_plot.manager
                 )

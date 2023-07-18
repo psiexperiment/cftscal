@@ -10,6 +10,7 @@ import pandas as pd
 from psi import get_config
 from psiaudio.calibration import FlatCalibration, InterpCalibration
 
+from psidata.api import Recording
 from cftsdata.microphone_calibration import MicrophoneCalibration
 
 
@@ -363,13 +364,13 @@ class CFTSInputAmplifierCalibration(Calibration):
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
 
     @property
-    def gain(self):
+    def measured_gain(self):
         sens_file = self.filename / 'amplifier_gain.json'
         gain = json.loads(sens_file.read_text())
-        return gain['gain (linear)']
+        return gain['gain mean (linear)']
 
     def load_recording(self):
-        raise NotImplementedError
+        return Recording(self.filename)
 
 
 class CFTSInputAmplifierLoader(CFTSBaseLoader):
