@@ -11,6 +11,7 @@ from .view import StarshipView
 def available():
     try:
         list_starship_connections()
+        list_microphone_connections()
         return True
     except:
         return False

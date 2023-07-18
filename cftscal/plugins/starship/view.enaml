@@ -117,7 +117,7 @@ enamldef StarshipView(Container):
 
                     Container:
                         attr starship = loop_item
-                        attr mic_settings = settings.selected_microphone
+                        attr mic_settings << settings.selected_microphone
                         padding = 0
                         share_layout=True
                         constraints = [
