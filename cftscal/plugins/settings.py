@@ -34,11 +34,9 @@ class PersistentSettings(Atom):
         if not file.exists():
             return
         config = json.loads(file.read_text())
-        for k, v in config.items():
-            try:
-                setattr(self, k, v)
-            except Exception as e:
-                pass
+        for name in get_tagged_members(self, 'persist'):
+            if name in config:
+                setattr(self, name, config[name])
 
 
 class CalibrationSettings(Atom):
@@ -65,9 +63,9 @@ class MicrophoneSettings(PersistentSettings):
     #: channel in the IO manifest. For example, one can connect a different
     #: microphone to the same channel, so the name may indicate which of
     #: several microphones available in the lab is currently connected.
-    name = Str()
+    name = Str().tag(persist=True)
 
-    gain = Float(20)
+    gain = Float(20).tag(persist=True)
 
     available_microphones = Property()
 
@@ -97,9 +95,9 @@ class MicrophoneSettings(PersistentSettings):
 
 class PistonphoneSettings(PersistentSettings):
 
-    name = Str()
-    frequency = Float(1e3)
-    level = Float(114)
+    name = Str().tag(persist=True)
+    frequency = Float(1e3).tag(persist=True)
+    level = Float(114).tag(persist=True)
 
     def _get_settings_filename(self):
         return 'pistonphone.json'
@@ -123,7 +121,7 @@ class SpeakerSettings(PersistentSettings):
     #: channel in the IO manifest. For example, one can connect a different
     #: speaker to the same channel, so the name may indicate which of
     #: several speakers available in the lab that is currently connected.
-    name = Str()
+    name = Str().tag(persist=True)
     available_speakers = Property()
 
     def _get_available_speakers(self):
@@ -152,8 +150,8 @@ class SpeakerSettings(PersistentSettings):
 class StarshipSettings(PersistentSettings):
 
     output = Str()
-    name = Str()
-    gain = Float(40)
+    name = Str().tag(persist=True)
+    gain = Float(40).tag(persist=True)
     available_starships = Property()
 
     def _get_available_starships(self):
@@ -182,7 +180,7 @@ class StarshipSettings(PersistentSettings):
 
 class InEarSettings(StarshipSettings):
 
-    ear = Str()
+    ear = Str().tag(persist=True)
     available_ears = Property()
 
     def _get_available_starships(self):
@@ -198,14 +196,14 @@ class InEarSettings(StarshipSettings):
 class InputAmplifierSettings(PersistentSettings):
 
     input_name = Str()
-    name = Str()
-    gain = Float(50)
-    gain_mult = Enum(10, 1000)
-    freq_lb = Float(10)
-    freq_ub = Float(10000)
-    filt_60Hz = Enum('input', 'output')
+    name = Str().tag(persist=True)
+    gain = Float(50).tag(persist=True)
+    gain_mult = Enum(10, 1000).tag(persist=True)
+    freq_lb = Float(10).tag(persist=True)
+    freq_ub = Float(10000).tag(persist=True)
+    filt_60Hz = Enum('input', 'output').tag(persist=True)
     # Choices are 10 20 50 100 200 500 uV or 1 2 5 10 20 50 mV
-    cal_amplitude = Float(100e-6)
+    cal_amplitude = Float(100e-6).tag(persist=True)
     total_gain = Property()
 
     available_input_amplifiers = Property()
