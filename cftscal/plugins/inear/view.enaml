@@ -15,16 +15,22 @@ from cftscal.plugins.widgets import (
 )
 
 
-
 class InEarPlotManager(BasePlotManager):
 
     def make_plot(self, calibration):
         color, plot = self.create_plot()
-        cal = calibration.load()
-        x = np.log10(cal.frequency[1:])
-        y = cal.sensitivity[1:]
+        _, noise_plot = self.create_plot(color=color, line='dot')
+        fh = calibration.load_recording()
+
+        # Sort by index. Plot minimum level and maximum level
+        spl = fh.get_average_psd().iloc[:, 1:].sort_index()
+        x = np.log10(spl.columns.values)
+        y = spl.iloc[-1].values
         plot.setData(x, y)
-        return color, plot
+        y = spl.iloc[0].values
+        noise_plot.setData(x, y)
+
+        return color, [plot, noise_plot]
 
 
 enamldef InEarView(Container):

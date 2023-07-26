@@ -11,7 +11,7 @@ from psi import get_config
 from psiaudio.calibration import FlatCalibration, InterpCalibration
 
 from psidata.api import Recording
-from cftsdata.microphone_calibration import MicrophoneCalibration
+from cftsdata.api import InearCalibration, MicrophoneCalibration
 
 
 @total_ordering
@@ -453,6 +453,9 @@ class CFTSInEarCalibration(Calibration):
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+    def load_recording(self):
+        return InearCalibration(self.filename)
 
     def load(self):
         index_col = ['hw_ao_chirp_level', 'frequency']

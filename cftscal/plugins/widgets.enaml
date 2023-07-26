@@ -15,6 +15,7 @@ from enaml.layout.api import (
 )
 from enaml.stdlib.fields import FloatField, RegexField
 from enaml.stdlib.message_box import question
+from enaml.qt import QtCore
 from enaml.widgets.api import (
     Action, ActionGroup, Container, Label, Field, Form, MainWindow, Menu, MenuBar,
     ObjectCombo, PopupView, PushButton, DockArea, DockItem,
@@ -107,24 +108,30 @@ class BasePlotManager:
 
     def plot(self, calibration):
         if calibration not in self.plots:
-            color, plot = self.make_plot(calibration)
+            color, plots = self.make_plot(calibration)
+            if not isinstance(plots, (list, tuple)):
+                plots = [plots]
             color = Color(color.red(), color.green(), color.blue(), color.alpha())
-            self.plots[calibration] = color, plot
-        color, plot = self.plots[calibration]
-        self.legend.addItem(plot, str(calibration))
-        self.vb.addItem(plot)
+            self.plots[calibration] = color, plots
+        color, plots = self.plots[calibration]
+        self.legend.addItem(plots[0], str(calibration))
+        for plot in plots:
+            self.vb.addItem(plot)
         return color
 
     def remove(self, calibration):
         if calibration not in self.plots:
             return
-        _, plot = self.plots[calibration]
-        self.legend.removeItem(plot)
-        self.vb.removeItem(plot)
+        _, plots = self.plots[calibration]
+        self.legend.removeItem(plots[0])
+        for plot in plots:
+            self.vb.removeItem(plot)
 
-    def create_plot(self):
-        color = make_color(next(self.color_cycle))
-        pen = pg.mkPen(color, width=2)
+    def create_plot(self, color=None, width=2, line='solid'):
+        if color is None:
+            color = make_color(next(self.color_cycle))
+        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
+        pen = pg.mkPen(color, width=width, style=linestyle)
         return color, pg.PlotCurveItem(pen=pen)
 
 
