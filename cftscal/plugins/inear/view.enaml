@@ -1,10 +1,11 @@
 import numpy as np
 
+from atom.api import Bool
 from enaml.core.api import Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+    CheckBox, Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton, VGroup,
 )
 
 from psi.data.plots_manifest import PGCanvas
@@ -17,9 +18,10 @@ from cftscal.plugins.widgets import (
 
 class InEarPlotManager(BasePlotManager):
 
+    show_noise_floor = Bool(False)
+
     def make_plot(self, calibration):
         color, plot = self.create_plot()
-        _, noise_plot = self.create_plot(color=color, line='dot')
         fh = calibration.load_recording()
 
         # Sort by index. Plot minimum level and maximum level
@@ -27,10 +29,18 @@ class InEarPlotManager(BasePlotManager):
         x = np.log10(spl.columns.values)
         y = spl.iloc[-1].values
         plot.setData(x, y)
+
+        _, noise_plot = self.create_plot(color=color, line='dot')
         y = spl.iloc[0].values
         noise_plot.setData(x, y)
+        noise_plot.setVisible(self.show_noise_floor)
 
         return color, [plot, noise_plot]
+
+    def _observe_noise_floor(self, event):
+        for _, plots in self.plots.values():
+            plots[1].setVisible(self.show_noise_floor)
+            plots[1].invalidate()
 
 
 enamldef InEarView(Container):
@@ -140,8 +150,15 @@ enamldef InEarView(Container):
             closable = False
             stretch = 0
 
-            CalibratedObjects: inear_tree:
-                headers = ['Ear', 'Starship']
-                collection = ObjectCollection(
-                    inear_manager, inear_plot.manager
-                )
+            VGroup:
+                CheckBox:
+                    text = 'Show noise floor?'
+                    checked << inear_plot.manager.show_noise_floor
+                    checked ::
+                        inear_plot.manager.show_noise_floor = checked
+
+                CalibratedObjects: inear_tree:
+                    headers = ['Ear', 'Starship']
+                    collection = ObjectCollection(
+                        inear_manager, inear_plot.manager
+                    )

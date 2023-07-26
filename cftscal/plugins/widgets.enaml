@@ -3,7 +3,7 @@ import shutil
 from palettable.tableau import Tableau_20
 import pyqtgraph as pg
 
-from atom.api import Atom, Bool, Float, List, Value
+from atom.api import Atom, Bool, Dict, Float, List, Typed, Value
 import enaml
 with enaml.imports():
     from psi.data.plots_manifest import PGCanvas
@@ -68,7 +68,13 @@ enamldef AddItem(PopupView): popup:
                 popup.close()
 
 
-class BasePlotManager:
+class BasePlotManager(Atom):
+
+    legend = Typed(pg.LegendItem)
+    component = Typed(pg.GraphicsLayout)
+    vb = Typed(pg.ViewBox)
+    color_cycle = Value()
+    plots = Dict()
 
     def __init__(self):
         component = pg.GraphicsLayout()
