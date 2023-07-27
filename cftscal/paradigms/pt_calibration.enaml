@@ -46,6 +46,10 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
     core = workbench.get_plugin('enaml.workbench.core')
     context = workbench.get_plugin('psi.context')
     data = workbench.get_plugin('psi.data')
+    controller = workbench.get_plugin('psi.controller')
+
+    cal_mic_cal = controller.get_input('cal_microphone').calibration
+    cal_mic_sens = cal_mic_cal.to_mv_pa() * 1e-3
 
     pt_source = data.find_sink('mic_data').get_source('pt_microphone')
     cal_source = data.find_sink('mic_data').get_source('cal_microphone')
@@ -71,13 +75,14 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
     for key, color in zip(groups, colors):
         name = '{}'.format(key)
         sens_summary = calc_sens(
-            pt_source.fs,
-            pt_grouped.get_group(key).values,
-            cal_grouped.get_group(key).values,
-            color,
-            context,
-            data,
-            name
+            fs=pt_source.fs,
+            pt_waveform=pt_grouped.get_group(key).values,
+            cal_waveform=cal_grouped.get_group(key).values,
+            color=color,
+            context=context,
+            data=data,
+            name=name,
+            cal_mic_sens=cal_mic_sens,
         )
         sens_summary = pd.DataFrame(sens_summary)
         sens_summary.set_index('frequency', inplace=True)
@@ -106,9 +111,8 @@ def calculate_sens_golay(event):
 
 
 def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
-                               data, name):
+                               data, name, cal_mic_sens):
 
-    cal_mic_sens = context.get_value('cal_mic_sens_mv') * 1e-3
     smoothing_window = context.get_value('smoothing_window')
 
     freq = psd_freq(pt_waveform, fs)
@@ -154,12 +158,11 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
 
 
 def calculate_group_sens_golay(fs, pt_waveform, cal_waveform, color, context,
-                               data, name):
+                               data, name, cal_mic_sens):
     n_bits = context.get_value('n_bits')
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
     n_discard = context.get_value('discard')
-    cal_mic_sens = context.get_value('cal_mic_sens_mv') * 1e-3
     smoothing_window = context.get_value('smoothing_window')
 
     a, b = golay_pair(n_bits)
@@ -217,16 +220,12 @@ def validate_sens(event, sens):
     data = event.workbench.get_plugin('psi.data')
     core = event.workbench.get_plugin('enaml.workbench.core')
 
-    cal_channel = context.get_value('cal_microphone_channel')
-    cal_mic_sens_mv = context.get_value('cal_mic_sens_mv')
-    cal_mic_sens = cal_mic_sens_mv*1e-3
-
     ao = controller.get_output('system_output').channel
     pt_ai = controller.get_input('system_microphone').channel
-    pt_ai.calibration = FlatCalibration.from_mv_pa(cal_mic_sens_mv)
+    pt_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
 
-    cal_ai = controller.get_channel(cal_channel)
-    cal_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
+    cal_ai = controller.get_input('cal_microphone').channel
+    cal_mic_sens = cal_ai.calibration.to_mv_pa() * 1e-3
 
     validation_level = context.get_value('validation_level')
     safe_gain = context.get_value('safe_gain')
@@ -242,8 +241,9 @@ def validate_sens(event, sens):
         return
 
     # TODO: NEED TO ORDER CHANNELS!
+    engines = [ao.engine, cal_ai.engine, pt_ai.engine]
     ai_channels = [cal_ai.name, pt_ai.name]
-    result = tone_sens(ao.engine,
+    result = tone_sens(engines,
                        frequencies,
                        gains=-30,
                        ao_channel_name=ao.name,
@@ -303,21 +303,6 @@ enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'hardware_settings'
             label = 'Hardware'
-
-            Parameter:
-                name = 'cal_mic_sens_mv'
-                label = 'Cal. mic. sensitivity (mV/Pa)'
-                default = 0.0
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_range'
-                label = 'Expected input range (Vpp)'
-                compact_label = 'ai_range'
-                dtype = 'float64'
-                default = 10
-                scope = 'experiment'
-
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'

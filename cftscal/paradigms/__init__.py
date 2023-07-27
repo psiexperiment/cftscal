@@ -47,6 +47,7 @@ ParadigmDescription(
     'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
         selectable_starship_mixin,
         selectable_microphone_mixin,
     ],
@@ -68,7 +69,9 @@ ParadigmDescription(
     'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
         {'manifest': PATH + 'calibration_mixins.ChirpMixin',},
-        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',
+         'attrs': {'show_toolbar_button': False}
+         },
         selectable_microphone_mixin,
         selectable_speaker_mixin,
     ],

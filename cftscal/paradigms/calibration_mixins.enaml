@@ -6,6 +6,7 @@ import itertools
 import os
 
 from enaml.application import deferred_call, timed_call
+from enaml.core.api import Conditional
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -404,6 +405,7 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
 
     id = 'tone_validate'
     required = True
+    attr show_toolbar_button = True
 
     Extension:
         id = manifest.id + '.items'
@@ -448,17 +450,20 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
                     default = 0
                     scope = 'experiment'
 
-    Extension:
-        id = manifest.id + '.toolbar'
-        point = 'psi.experiment.toolbar'
+    Conditional:
+        condition << manifest.show_toolbar_button
 
-        ToolBar:
-            Action:
-                text = 'Validate'
-                enabled << controller.experiment_state == 'stopped'
-                triggered ::
-                    core = workbench.get_plugin('enaml.workbench.core')
-                    core.invoke_command('psi.calibration.validate')
+        Extension:
+            id = manifest.id + '.toolbar'
+            point = 'psi.experiment.toolbar'
+
+            ToolBar:
+                Action:
+                    text = 'Validate'
+                    enabled << controller.experiment_state == 'stopped'
+                    triggered ::
+                        core = workbench.get_plugin('enaml.workbench.core')
+                        core.invoke_command('psi.calibration.validate')
 
     Extension:
         id = manifest.id + '.commands'
