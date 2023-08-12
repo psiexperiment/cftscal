@@ -437,8 +437,6 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
             ContinuousInput:
                 name = f'{manifest.name}'
                 source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.name}')
-                #source::
-                    #channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
 
                 IIRFilter:
                     N = 2
