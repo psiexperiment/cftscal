@@ -1,5 +1,4 @@
-from psi.application import get_default_io
-from psi.core.enaml.api import load_manifest
+from psi.application import get_default_io, load_io_manifest
 
 
 NO_STARSHIP_ERROR = '''
@@ -17,7 +16,7 @@ def list_starship_connections():
     List all starships found in the IO Manifest
     '''
     starships = {}
-    manifest = load_manifest(f'{get_default_io()}.IOManifest')()
+    manifest = load_io_manifest ()()
     for channel in manifest.find_all('^starship_', regex=True):
         # Strip quotation marks off 
         _, starship_id, starship_output = channel.name.split('_')
@@ -49,7 +48,7 @@ def list_speaker_connections():
     List all speakers found in the IO Manifest
     '''
     choices = {}
-    manifest = load_manifest(f'{get_default_io()}.IOManifest')()
+    manifest = load_io_manifest()()
     for channel in manifest.find_all('^speaker_', regex=True):
         choices[channel.label] = channel.name.split('_', 1)[1]
 
@@ -73,7 +72,7 @@ def list_microphone_connections():
     List all microphones found in the IO Manifest
     '''
     choices = {}
-    manifest = load_manifest(f'{get_default_io()}.IOManifest')()
+    manifest = load_io_manifest()()
     for channel in manifest.find_all('^microphone_', regex=True):
         # Strip quotation marks off 
         choices[channel.label] = channel.name.split('_', 1)[1]
@@ -98,7 +97,7 @@ def list_input_amplifier_connections():
     List all input amplifiers found in the IO Manifest
     '''
     choices = {}
-    manifest = load_manifest(f'{get_default_io()}.IOManifest')()
+    manifest = load_io_manifest()()
     for channel in manifest.find_all('^amplifier_', regex=True):
         choices[channel.label] = channel.name.split('_', 1)[1]
 
