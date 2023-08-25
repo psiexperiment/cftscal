@@ -1,6 +1,7 @@
 [project]
 name = "cftscal"
 description = "Paradigms for running calibrations required for CFTS"
+readme = "README.md"
 requires-python = ">=3.7"
 license = {file = "LICENSE.txt"}
 authors = [
