@@ -37,7 +37,7 @@ class InEarPlotManager(BasePlotManager):
 
         return color, [plot, noise_plot]
 
-    def _observe_noise_floor(self, event):
+    def _observe_show_noise_floor(self, event):
         for _, plots in self.plots.values():
             plots[1].setVisible(self.show_noise_floor)
             plots[1].invalidate()
