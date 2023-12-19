@@ -2,6 +2,7 @@ import datetime as dt
 from functools import cached_property, total_ordering
 import importlib
 import json
+import os
 from pathlib import Path
 import re
 
@@ -12,6 +13,8 @@ from psiaudio.calibration import FlatCalibration, InterpCalibration
 
 from psidata.api import Recording
 from cftsdata.api import InearCalibration, MicrophoneCalibration
+
+CAL_ROOT = Path(get_config('CAL_ROOT', os.environ['CAL_ROOT']))
 
 
 @total_ordering
@@ -145,7 +148,7 @@ class CFTSBaseLoader(CalibrationLoader):
 
     def __init__(self):
         self.label = 'CFTS'
-        self.base_path = get_config('CAL_ROOT') / self.subfolder
+        self.base_path = CAL_ROOT / self.subfolder
         self.base_path.mkdir(exist_ok=True)
 
     def list_names(self):
