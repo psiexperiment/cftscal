@@ -3,7 +3,7 @@ import shutil
 from palettable.tableau import Tableau_20
 import pyqtgraph as pg
 
-from atom.api import Atom, Bool, Dict, Float, List, Typed, Value
+from atom.api import Atom, Bool, Dict, Float, List, Tuple, Typed, Value
 import enaml
 with enaml.imports():
     from psi.data.plots_manifest import PGCanvas
@@ -76,7 +76,20 @@ class BasePlotManager(Atom):
     color_cycle = Value()
     plots = Dict()
 
-    def __init__(self):
+    def _default_color_cycle(self):
+        return iter(Tableau_20.colors)
+
+    def _default_legend(self):
+        legend = pg.LegendItem()
+        legend.setParentItem(self.vb)
+        return legend
+
+    def _default_vb(self):
+        vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        return vb
+
+    def _default_component(self):
         component = pg.GraphicsLayout()
         component.setSpacing(10)
         y_axis = self.make_y_axis()
@@ -84,20 +97,14 @@ class BasePlotManager(Atom):
         component.addItem(y_axis, 0, 0)
         component.addItem(x_axis, 1, 1)
 
-        vb = pg.ViewBox()
-        vb.setBackgroundColor('w')
-        y_axis.linkToView(vb)
-        x_axis.linkToView(vb)
-        component.addItem(vb, 0, 1)
+        y_axis.linkToView(self.vb)
+        x_axis.linkToView(self.vb)
+        component.addItem(self.vb, 0, 1)
 
-        legend = pg.LegendItem()
-        legend.setParentItem(vb)
+        return component
 
-        self.legend = legend
-        self.component = component
-        self.vb = vb
-        self.color_cycle = iter(Tableau_20.colors)
-        self.plots = {}
+    def _default_plots(self):
+        return {}
 
     def make_y_axis(self):
         y_axis = pg.AxisItem('left')
@@ -112,23 +119,35 @@ class BasePlotManager(Atom):
         x_axis.setLogMode(True)
         return x_axis
 
-    def plot(self, calibration):
-        if calibration not in self.plots:
-            color, plots = self.make_plot(calibration)
-            if not isinstance(plots, (list, tuple)):
-                plots = [plots]
+    def get_plot_id(self, calibration):
+        return calibration
+
+    def create_empty_plots(self):
+        color, plot = self.create_plot()
+        return color, [plot]
+
+    def get_plots(self, plot_id):
+        if plot_id not in self.plots:
+            color, plots = self.create_empty_plots()
+            # Convert to Enaml color for highlight in object tree 
             color = Color(color.red(), color.green(), color.blue(), color.alpha())
-            self.plots[calibration] = color, plots
-        color, plots = self.plots[calibration]
-        self.legend.addItem(plots[0], str(calibration))
-        for plot in plots:
-            self.vb.addItem(plot)
-        return color
+            self.plots[plot_id] = color, plots
+            self.legend.addItem(plots[0], str(plot_id))
+            for plot in plots:
+                self.vb.addItem(plot)
+        return self.plots[plot_id]
+
+    def plot(self, calibration):
+        return self._update(calibration, remove=False)
 
     def remove(self, calibration):
-        if calibration not in self.plots:
+        plot_id = self.get_plot_id(calibration)
+        if plot_id not in self.plots:
             return
-        _, plots = self.plots[calibration]
+        return self._update(calibration, remove=True)
+
+    def remove_plots(self, plot_id):
+        _, plots = self.plots.pop(plot_id)
         self.legend.removeItem(plots[0])
         for plot in plots:
             self.vb.removeItem(plot)
@@ -142,19 +161,6 @@ class BasePlotManager(Atom):
 
 
 class StarshipPlotManager(BasePlotManager):
-
-    def make_plot(self, calibration):
-        color = make_color(next(self.color_cycle))
-        pen = pg.mkPen(color, width=2)
-        plot = pg.PlotCurveItem(pen=pen)
-        cal = calibration.load()
-        x = np.log10(cal.frequency[1:])
-        y = cal.sensitivity[1:]
-        plot.setData(x, y)
-        return color, plot
-
-
-class InEarPlotManager(BasePlotManager):
 
     def make_plot(self, calibration):
         color = make_color(next(self.color_cycle))
