@@ -160,19 +160,6 @@ class BasePlotManager(Atom):
         return color, pg.PlotCurveItem(pen=pen)
 
 
-class StarshipPlotManager(BasePlotManager):
-
-    def make_plot(self, calibration):
-        color = make_color(next(self.color_cycle))
-        pen = pg.mkPen(color, width=2)
-        plot = pg.PlotCurveItem(pen=pen)
-        cal = calibration.load()
-        x = np.log10(cal.frequency[1:])
-        y = cal.sensitivity[1:]
-        plot.setData(x, y)
-        return color, plot
-
-
 ################################################################################
 # Organize list of calibrated objects and calibrations for each object
 ################################################################################

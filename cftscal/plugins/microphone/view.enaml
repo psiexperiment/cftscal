@@ -17,14 +17,19 @@ from cftscal.plugins.widgets import (
 
 class MicrophonePlotManager(BasePlotManager):
 
-    def make_plot(self, calibration):
-        color, plot = self.create_plot()
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+        color, plots = self.get_plots(plot_id)
+
         fh = calibration.load_recording()
         psd = fh.get_psd(average_seconds=1).iloc[1:]
         x = np.log10(psd.index.values)
         y = psd.values
-        plot.setData(x, y)
-        return color, plot
+        plots[0].setData(x, y)
+        return color
 
 
 enamldef MicrophoneView(Container):

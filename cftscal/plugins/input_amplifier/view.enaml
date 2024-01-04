@@ -25,12 +25,17 @@ class InputAmplifierPlotManager(BasePlotManager):
         x_axis.setLabel('Time', units='sec')
         return x_axis
 
-    def make_plot(self, calibration):
-        color, plot = self.create_plot()
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+
+        color, plots = self.get_plots(plot_id)
         fh = calibration.load_recording()
         waveform = fh.cal_signal
-        plot.setData(waveform.index.values, waveform['amplitude'].values)
-        return color, plot
+        plots[0].setData(waveform.index.values, waveform['amplitude'].values)
+        return color
 
 
 enamldef InputAmplifierView(Container):

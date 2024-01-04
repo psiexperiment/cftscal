@@ -15,16 +15,21 @@ from cftscal.plugins.widgets import (
 )
 
 
-
 class StarshipPlotManager(BasePlotManager):
 
-    def make_plot(self, calibration):
-        color, plot = self.create_plot()
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+
+        color, plots = self.get_plots(plot_id)
+
         cal = calibration.load()
         x = np.log10(cal.frequency[1:])
         y = cal.sensitivity[1:]
-        plot.setData(x, y)
-        return color, plot
+        plots[0].setData(x, y)
+        return color
 
 
 enamldef StarshipView(Container):
