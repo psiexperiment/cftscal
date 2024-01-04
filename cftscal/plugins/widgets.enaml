@@ -170,6 +170,30 @@ class InEarPlotManager(BasePlotManager):
 ################################################################################
 # Organize list of calibrated objects and calibrations for each object
 ################################################################################
+class MultiPlotManager(Atom):
+    '''
+    Allow multiple plot managers to receive notifications
+    '''
+    managers = Tuple()
+
+    def __init__(self, *managers):
+        super().__init__(managers=managers)
+
+    def plot(self, calibration):
+        results = []
+        for manager in self.managers:
+            result = manager.plot(calibration)
+            results.append(result)
+        return results[0]
+
+    def remove(self, calibration):
+        results = []
+        for manager in self.managers:
+            result = manager.remove(calibration)
+            results.append(result)
+        return results[0]
+
+
 class ObjectNode(Atom):
     selected = Bool(False)
     item = Value()
