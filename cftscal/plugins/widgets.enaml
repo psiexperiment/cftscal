@@ -200,15 +200,6 @@ class ObjectGroup(Atom):
     def update_subitems(self):
         objects = sorted(self.item.list_calibrations(), reverse=True)
         self.subitems = [ObjectNode(item=obj, manager=self.manager) for obj in objects]
-        return
-        subitems = [i for i in self.subitems if i.item in objects]
-        for obj in objects:
-            for i in subitems:
-                if obj == i.item:
-                    break
-            else:
-                subitems.append(ObjectNode(item=obj, manager=self.manager))
-        self.subitems = sorted(subitems, key =lambda x: x.item, reverse=True)
 
     def _observe_subitems(self, event):
         for i in self.subitems:
