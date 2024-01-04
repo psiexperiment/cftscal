@@ -1,41 +1,136 @@
+import time
 import numpy as np
 
-from atom.api import Bool
+from atom.api import Bool, Dict, Int, Float, List, observe, Typed, Value
+from enaml.application import deferred_call
 from enaml.core.api import Looper
-from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.layout.api import (
+    align, hbox, spacer, vbox, AreaLayout, HSplitLayout, TabLayout,
+    VSplitLayout
+)
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    CheckBox, Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton, VGroup,
+    Action, CheckBox, Container, DockArea, DockItem, Field, HGroup, Label,
+    ObjectCombo, PushButton, VGroup,
 )
+import pyqtgraph as pg
 
 from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import inear_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, BasePlotManager, CalibratedObjects, MultiPlotManager,
+    ObjectCollection,
 )
+
+
+class InEarDeltaPlotManager(BasePlotManager):
+
+    #: Settings for the delta plot
+    psd = Dict()
+    psd_freq = Value()
+    plot_freq = Float()
+    plot_freq_i = Int()
+
+    def update_selected_frequency(self, event):
+        self.plot_freq = event['value']
+        for plot_id in self.plots:
+            self.redraw_plots(plot_id)
+
+    def _observe_plot_freq(self, event):
+        if self.psd_freq is None:
+            return
+        self.plot_freq_i = int(np.argmin(np.abs(self.psd_freq - self.plot_freq)))
+
+    def make_x_axis(self):
+        x_axis = pg.DateAxisItem('bottom')
+        x_axis.setLabel('Time')
+        return x_axis
+
+    def get_plot_id(self, calibration):
+        return calibration.starship
+
+    def _update(self, calibration, remove=False):
+        if remove:
+            del self.psd[calibration.datetime]
+        else:
+            fh = calibration.load_recording()
+            psd = fh.get_average_psd().iloc[:, 1:].sort_index().iloc[-1]
+            if self.psd_freq is None:
+                self.psd_freq = psd.index.values
+            self.psd[calibration.datetime] = psd
+        plot_id = self.get_plot_id(calibration)
+        return self.redraw_plots(plot_id)
+
+    def redraw_plots(self, plot_id):
+        x, y = [], []
+        for c, psd in self.psd.items():
+            x.append(time.mktime(c.timetuple()))
+            y.append(psd.iloc[self.plot_freq_i])
+
+        if len(x) == 0:
+            self.remove_plots(plot_id)
+            return None
+
+        x = np.array(x)
+        y = np.array(y)
+        i = np.argsort(x)
+        color, plots = self.get_plots(plot_id)
+        plots[0].setData(x[i], y[i])
+        return color
 
 
 class InEarPlotManager(BasePlotManager):
 
+    #: Show noise floor on the PSD plot?
     show_noise_floor = Bool(False)
+    selected_frequency = Float(16000)
+    freq_line = Value()
 
-    def make_plot(self, calibration):
-        color, plot = self.create_plot()
+    def _default_freq_line(self):
+        pen = pg.mkPen('black', width=2)
+        line = pg.InfiniteLine(1, 90, pen=pen, movable=True)
+        def update_position():
+            nonlocal line
+            nonlocal self
+            self.selected_frequency = 10 ** line.value()
+
+        line.sigPositionChanged.connect(update_position)
+        self.vb.addItem(line)
+        return line
+
+    def _observe_selected_frequency(self, event):
+        deferred_call(self.freq_line.setValue, np.log10(self.selected_frequency))
+
+    def create_empty_plots(self):
+        # Create two plots, one solid, one dashed. Both should be same color.
+        # Dashed is used to show thenoise floor when "show_noise_floor" is
+        # checked.
+        color, spl_plot = self.create_plot()
+        _, noise_plot = self.create_plot(color=color, line='dot')
+        return color, [spl_plot, noise_plot]
+
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+
+        color, plots = self.get_plots(plot_id)
+
         fh = calibration.load_recording()
 
         # Sort by index. Plot minimum level and maximum level
         spl = fh.get_average_psd().iloc[:, 1:].sort_index()
         x = np.log10(spl.columns.values)
         y = spl.iloc[-1].values
-        plot.setData(x, y)
+        plots[0].setData(x, y)
 
-        _, noise_plot = self.create_plot(color=color, line='dot')
+        # Plot noise floor and then set visibility
         y = spl.iloc[0].values
-        noise_plot.setData(x, y)
-        noise_plot.setVisible(self.show_noise_floor)
-
-        return color, [plot, noise_plot]
+        plots[1].setData(x, y)
+        plots[1].setVisible(self.show_noise_floor)
+        return color
 
     def _observe_show_noise_floor(self, event):
         for _, plots in self.plots.values():
@@ -46,6 +141,12 @@ class InEarPlotManager(BasePlotManager):
 enamldef InEarView(Container):
 
     attr settings
+    attr plot_manager = InEarPlotManager()
+    attr delta_plot_manager = InEarDeltaPlotManager()
+
+    initialized ::
+        plot_manager.observe('selected_frequency',
+                             delta_plot_manager.update_selected_frequency)
 
     DockArea: area:
         layout = AreaLayout(
@@ -55,7 +156,10 @@ enamldef InEarView(Container):
                     'inear_list',
                     sizes=[25, 200],
                 ),
-                'inear_sens_plot',
+                TabLayout(
+                    'inear_sens_plot',
+                    'inear_delta_plot',
+                ),
                 sizes=[150, 900],
             ),
         )
@@ -140,9 +244,25 @@ enamldef InEarView(Container):
             stretch = 10
 
             Container:
-                PGCanvas: inear_plot:
-                    attr manager = InEarPlotManager()
-                    component << manager.component
+                VGroup:
+                    padding = 0
+                    HGroup:
+                        Label:
+                            text = 'Selected frequency (Hz)'
+                        FloatField:
+                            value := plot_manager.selected_frequency
+                    PGCanvas: inear_plot:
+                        component << plot_manager.component
+
+        DockItem:
+            name = 'inear_delta_plot'
+            title = 'Δ In-Ear Sensitivity'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: inear_delta_plot:
+                    component << delta_plot_manager.component
 
         DockItem:
             name = 'inear_list'
@@ -153,12 +273,17 @@ enamldef InEarView(Container):
             VGroup:
                 CheckBox:
                     text = 'Show noise floor?'
-                    checked << inear_plot.manager.show_noise_floor
+                    checked << plot_manager.show_noise_floor
                     checked ::
-                        inear_plot.manager.show_noise_floor = checked
+                        plot_manager.show_noise_floor = checked
 
                 CalibratedObjects: inear_tree:
+                    padding = 0
                     headers = ['Ear', 'Starship']
                     collection = ObjectCollection(
-                        inear_manager, inear_plot.manager
+                        inear_manager,
+                        MultiPlotManager(
+                            plot_manager,
+                            delta_plot_manager,
+                        )
                     )
