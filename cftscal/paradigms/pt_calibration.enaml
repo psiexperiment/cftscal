@@ -18,8 +18,8 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
 
 from psi.controller.api import ExperimentAction
 
-from psiaudio.util import (psd, psd_freq, db, dbi, golay_pair, summarize_golay,
-                           golay_tf, octave_space)
+from psiaudio.util import (phase, psd, psd_freq, db, dbi, golay_pair,
+                           summarize_golay, golay_tf, octave_space)
 
 from psi.controller.api import (ControllerManifest, ExtractEpochs, Input,
                                 QueuedEpochOutput)
@@ -118,7 +118,15 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
     freq = psd_freq(pt_waveform, fs)
     pt_psd = np.mean(psd(pt_waveform, fs), axis=0)
     cal_psd = np.mean(psd(cal_waveform, fs), axis=0)
-    sens = db(pt_psd) + db(cal_mic_sens) - db(cal_psd)
+    pt_phase = np.mean(phase(pt_waveform, fs), axis=0)
+    cal_phase = np.mean(phase(cal_waveform, fs), axis=0)
+
+    # divide cal mic volts by cal mic sens (in V/Pa) to get pascals
+    pa = db(cal_psd) - db(cal_mic_sens)
+    # cal units should be dB(Pa/20e-6/V)
+    sens = pa - db(20e-6) - db(pt_psd)
+
+    d_phase = pt_phase - cal_phase
 
     if smoothing_window > 0:
         w = signal.hamming(smoothing_window)
@@ -138,7 +146,7 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
     sens_summary = {
         'frequency': freq,
         'sens': sens,
-        #'phase': phase,
+        'phase': d_phase,
     }
 
     def plot_data(data=data, pt_summary=pt_summary, cal_summary=cal_summary,
@@ -397,4 +405,4 @@ enamldef PTGolayMixin(GolayMixin): manifest:
 enamldef PTChirpMixin(ChirpMixin): manifest:
 
     extract_epoch_inputs = ['pt_epoch', 'cal_epoch']
-    #cleanup_cb = calculate_sens_golay
+    cleanup_cb = calculate_sens_chirp

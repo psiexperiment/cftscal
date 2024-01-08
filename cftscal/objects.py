@@ -271,7 +271,31 @@ class CFTSStarshipCalibration(Calibration):
     def coupler(self):
         return self.filename.stem.split('_')[3]
 
+    @property
+    def stimulus(self):
+        return self.filename.stem.split('_')[-1]
+
     def load(self):
+        if self.stimulus == 'golay':
+            return self.load_golay()
+        elif self.stimulus == 'chirp':
+            return self.load_chirp()
+
+    def load_chirp(self):
+        index_col = ['hw_ao_chirp_level', 'frequency']
+        sens = pd.read_csv(self.filename / 'chirp_sens.csv', index_col=index_col)
+        output_gain = float(sens.index.unique('hw_ao_chirp_level').max())
+        s = sens.loc[output_gain]
+        attrs ={
+            'calibration_file': str(self.filename),
+            'name': self.name,
+            'string': self.to_string(),
+            'class': self.qualname,
+            'output_gain': output_gain,
+        }
+        return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
+
+    def load_golay(self):
         index_col = ['n_bits', 'output_gain', 'frequency']
         sens = pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
         n_bits = int(sens.index.unique('n_bits').max())

@@ -281,6 +281,8 @@ template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):
         text << item.microphone
     TreeViewColumn:
         text << item.coupler
+    TreeViewColumn:
+        text << item.stimulus
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):

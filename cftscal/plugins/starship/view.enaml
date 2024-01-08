@@ -197,7 +197,7 @@ enamldef StarshipView(Container):
             stretch = 0
 
             CalibratedObjects: starship_tree:
-                headers = ['Name', 'Microphone', 'Coupler']
+                headers = ['Name', 'Microphone', 'Coupler', 'Stimulus']
                 collection = ObjectCollection(
                     starship_manager, starship_plot.manager
                 )

@@ -519,6 +519,13 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
                 scope = 'experiment'
                 group_name = 'hardware_settings'
 
+        Parameter:
+            name = 'smoothing_window'
+            label = 'Smoothing window'
+            default = 10
+            scope = 'trial'
+            group_name = 'hardware_settings'
+
     Extension:
         id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
