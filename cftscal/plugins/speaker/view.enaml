@@ -160,23 +160,6 @@ enamldef SpeakerView(Container):
             stretch = 10
 
             Container:
-
-                constraints = [
-                    vbox(
-                        hbox(plot_label, plot_setting, spacer(0)),
-                        speaker_plot,
-                    ),
-                    align('v_center', plot_label, plot_setting),
-                ]
-
-                Label: plot_label:
-                    text = 'Plot'
-
-                ObjectCombo: plot_setting:
-                    items = ['sensitivity', 'SPL @ 1Vrms']
-                    selected ::
-                        speaker_plot.manager.set_plot_style(selected)
-
                 PGCanvas: speaker_plot:
                     attr manager = SpeakerPlotManager()
                     component << manager.component
