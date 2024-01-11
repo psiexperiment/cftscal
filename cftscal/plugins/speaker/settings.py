@@ -1,10 +1,12 @@
+from pathlib import Path
+
 from atom.api import List, Typed
 
 from psi import get_config
 
 from ..settings import CalibrationSettings, MicrophoneSettings, SpeakerSettings
 
-CAL_ROOT = get_config('CAL_ROOT')
+CAL_ROOT = Path(get_config('CAL_ROOT'))
 
 
 class SpeakerCalibrationSettings(CalibrationSettings):
