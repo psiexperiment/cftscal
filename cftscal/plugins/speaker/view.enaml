@@ -19,35 +19,18 @@ from cftscal.plugins.widgets import (
 
 class SpeakerPlotManager(BasePlotManager):
 
-    def __init__(self):
-        super().__init__()
-        self.set_plot_style('sensitivity')
-        self.set_smoothing_window(100)
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+        color, plots = self.get_plots(plot_id)
 
-    def set_plot_style(self, plot_style):
-        self.plot_style = plot_style
-        self.update_plots()
-
-    def set_smoothing_window(self, smoothing_window):
-        self.smoothing_window = smoothing_window
-        self.update_plots()
-
-    def update_plots(self):
-        for calibration, (_, plot) in self.plots.items():
-            self.update_plot(calibration, plot)
-
-    def update_plot(self, calibration, plot):
         cal = calibration.load()
-        f = cal.frequency[1:]
-        if self.plot_style == 'sensitivity':
-            y = cal.get_db(f, 1.0)
-        x = np.log10(f)
-        plot.setData(x, y)
-
-    def make_plot(self, calibration):
-        color, plot = self.create_plot()
-        self.update_plot(calibration, plot)
-        return color, plot
+        x = cal.frequency[1:]
+        y = cal.get_db(x, 1.0)
+        plots[0].setData(np.log10(x), y)
+        return color
 
 
 enamldef SpeakerView(Container):
