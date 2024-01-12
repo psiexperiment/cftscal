@@ -129,8 +129,7 @@ ParadigmDescription(
             'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
             'required': True,
             'attrs': {
-                'id': 'input_amplifier_view_mixin',
-                'name': 'input_amplifier_filtered_view',
+                'id': 'input_amplifier_filtered_view',
                 'title': 'Input amplifier display',
                 'time_span': 2,
                 'time_delay': 0.125,

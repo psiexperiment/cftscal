@@ -64,7 +64,7 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_speaker_settings'
-            handler = functools.partial(initialize_speaker, manifest.name)
+            handler = functools.partial(initialize_speaker, manifest.id)
 
     Extension:
         id = manifest.id + '.actions'
@@ -79,15 +79,15 @@ enamldef Speaker(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         MUXOutput:
-            name = f'{manifest.name}_output'
-            target_name = 'hw_ao::speaker_' + getattr(C, f'{manifest.name}_speaker')
+            name = f'{manifest.id}_output'
+            target_name = 'hw_ao::speaker_' + getattr(C, f'{manifest.id}_speaker')
 
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
         EnumParameter:
-            name = f'{manifest.name}_speaker'
+            name = f'{manifest.id}_speaker'
             label = f'{manifest.title}'
             choices = {k: f'"{v}"' for k, v in list_speaker_connections().items()}
             scope = 'experiment'
@@ -143,7 +143,7 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_microphone_settings'
-            handler = functools.partial(initialize_microphone, manifest.name)
+            handler = functools.partial(initialize_microphone, manifest.id)
 
     Extension:
         id = manifest.id + '.actions'
@@ -158,10 +158,10 @@ enamldef Microphone(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         ContinuousInput:
-            name = f'{manifest.name}_microphone'
-            source_name = 'hw_ai::microphone_' + getattr(C, f'{manifest.name}_microphone')
+            name = f'{manifest.id}_microphone'
+            source_name = 'hw_ai::microphone_' + getattr(C, f'{manifest.id}_microphone')
             source::
-                channel.gain = getattr(C, f'{manifest.name}_microphone_input_gain')
+                channel.gain = getattr(C, f'{manifest.id}_microphone_input_gain')
 
     Extension:
         id = manifest.id + '.context'
@@ -169,17 +169,17 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         ContextRow:
             fmt = [f'{manifest.title}', microphone, 'with', gain, 'dB gain']
-            name = f'{manifest.name}_microphone_settings'
+            name = f'{manifest.id}_microphone_settings'
             group_name = 'hardware_settings'
 
             EnumParameter: microphone:
-                name = f'{manifest.name}_microphone'
+                name = f'{manifest.id}_microphone'
                 label = f'{manifest.title}'
                 choices = {k: f'"{v}"' for k, v in list_microphone_connections().items()}
                 scope = 'experiment'
 
             Parameter: gain:
-                name = f'{manifest.name}_microphone_input_gain'
+                name = f'{manifest.id}_microphone_input_gain'
                 label = f'{manifest.title} input gain (dB)'
                 dtype = 'float64'
                 default = 40
@@ -260,7 +260,7 @@ enamldef Starship(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_starship_settings'
-            handler = functools.partial(initialize_starship, manifest.name, manifest.side)
+            handler = functools.partial(initialize_starship, manifest.id, manifest.side)
 
     Extension:
         id = manifest.id + '.actions'
@@ -275,30 +275,30 @@ enamldef Starship(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         ContinuousInput:
-            name = f'{manifest.name}_microphone'
-            source_name = 'hw_ai::' + getattr(C, f'{manifest.name}') + '_microphone'
+            name = f'{manifest.id}_microphone'
+            source_name = 'hw_ai::' + getattr(C, f'{manifest.id}') + '_microphone'
             source::
-                channel.gain = getattr(C, f'{manifest.name}_input_gain')
+                channel.gain = getattr(C, f'{manifest.id}_input_gain')
 
         Conditional:
             condition = manifest.output_mode == 'dual'
 
             MUXOutput:
-                name = f'{manifest.name}_primary'
-                target_name = 'hw_ao::' + getattr(C, f'{manifest.name}') + '_primary'
+                name = f'{manifest.id}_primary'
+                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + '_primary'
 
             MUXOutput:
-                name = f'{manifest.name}_secondary'
-                target_name = 'hw_ao::' + getattr(C, f'{manifest.name}') + '_secondary'
+                name = f'{manifest.id}_secondary'
+                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + '_secondary'
 
         Conditional:
             condition = manifest.output_mode == 'select'
 
             MUXOutput:
-                name = f'{manifest.name}_output'
+                name = f'{manifest.id}_output'
                 target_name = 'hw_ao::' \
-                    + getattr(C, f'{manifest.name}') + '_' \
-                    + getattr(C, f'{manifest.name}_output')
+                    + getattr(C, f'{manifest.id}') + '_' \
+                    + getattr(C, f'{manifest.id}_output')
 
     Conditional:
         condition << manifest.output_mode == 'select'
@@ -311,24 +311,24 @@ enamldef Starship(ExperimentManifest): manifest:
                 fmt = [f'{manifest.title}', starship, 'with', gain, 'dB gain'] \
                     if manifest.output_mode == 'dual' \
                     else [f'{manifest.title}', starship, 'with', gain, 'dB gain using', output, 'output']
-                name = f'{manifest.name}_starship_settings'
+                name = f'{manifest.id}_starship_settings'
                 group_name = 'hardware_settings'
 
                 EnumParameter: starship:
-                    name = f'{manifest.name}'
+                    name = f'{manifest.id}'
                     label = f'{manifest.title}'
                     choices = {k: f'"{v}"' for k, v in list_starship_connections().items()}
                     scope = 'experiment'
 
                 Parameter: gain:
-                    name = f'{manifest.name}_input_gain'
+                    name = f'{manifest.id}_input_gain'
                     label = f'{manifest.title} input gain (dB)'
                     dtype = 'float64'
                     default = 40
                     scope = 'experiment'
 
                 EnumParameter: output:
-                    name = f'{manifest.name}_output'
+                    name = f'{manifest.id}_output'
                     choices = {'primary': '"primary"', 'secondary': '"secondary"'}
 
     Conditional:
@@ -340,17 +340,17 @@ enamldef Starship(ExperimentManifest): manifest:
 
             ContextRow:
                 fmt = [f'{manifest.title}', starship, 'with', gain, 'dB gain']
-                name = f'{manifest.name}_starship_settings'
+                name = f'{manifest.id}_starship_settings'
                 group_name = 'hardware_settings'
 
                 EnumParameter: starship:
-                    name = f'{manifest.name}'
+                    name = f'{manifest.id}'
                     label = f'{manifest.title}'
                     choices = {k: f'"{v}"' for k, v in list_starship_connections().items()}
                     scope = 'experiment'
 
                 Parameter: gain:
-                    name = f'{manifest.name}_input_gain'
+                    name = f'{manifest.id}_input_gain'
                     label = f'{manifest.title} input gain (dB)'
                     dtype = 'float64'
                     default = 40
@@ -360,6 +360,11 @@ enamldef Starship(ExperimentManifest): manifest:
 def initialize_input_amplifier(name, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+
+    if 'CFTS_INPUT_AMPLIFIER' not in os.environ:
+        log.warning('No input amplifier specified in environment variable')
+        # User has to manually-configure the input amplifier now.
+        return
 
     input_name = os.environ[f'CFTS_INPUT_AMPLIFIER']
     item_input_amplifier = context.get_item(f'{name}')
@@ -395,7 +400,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
         Command:
             id = manifest.id + '.initialize_input_amplifier_settings'
             handler = functools.partial(initialize_input_amplifier,
-                                        manifest.name)
+                                        manifest.id)
 
     Extension:
         id = manifest.id + '.actions'
@@ -413,13 +418,13 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
             condition << manifest.target_fs is not None
 
             ContinuousInput:
-                name = f'{manifest.name}'
-                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.name}')
+                name = f'{manifest.id}'
+                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.id}')
                 #source::
-                #    channel.gain = getattr(C, f'{manifest.name}_input_amplifier_gain')
+                #    channel.gain = getattr(C, f'{manifest.id}_input_amplifier_gain')
 
                 DecimateTo:
-                    name = f'{manifest.name}_dec'
+                    name = f'{manifest.id}_dec'
                     target_fs << manifest.target_fs
 
                     IIRFilter:
@@ -429,14 +434,14 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
                         passthrough = not C.digital_filter
                         f_highpass = C.digital_highpass
                         f_lowpass = C.digital_lowpass
-                        name = f'{manifest.name}_filtered'
+                        name = f'{manifest.id}_filtered'
 
         Conditional:
             condition << manifest.target_fs is None
 
             ContinuousInput:
-                name = f'{manifest.name}'
-                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.name}')
+                name = manifest.id
+                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.id}')
 
                 IIRFilter:
                     N = 2
@@ -445,7 +450,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
                     passthrough = not C.digital_filter
                     f_highpass = C.digital_highpass
                     f_lowpass = C.digital_lowpass
-                    name = f'{manifest.name}_filtered'
+                    name = f'{manifest.id}_filtered'
 
     Extension:
         id = manifest.id + '.input_amplifier.context'
@@ -453,17 +458,17 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
         ContextRow:
             fmt = [f'{manifest.title}', input_amplifier, 'with', gain, '✕ gain']
-            name = f'{manifest.name}_input_amplifier_settings'
+            name = f'{manifest.id}_input_amplifier_settings'
             group_name = 'hardware_settings'
 
             EnumParameter: input_amplifier:
-                name = f'{manifest.name}'
+                name = f'{manifest.id}'
                 label = f'{manifest.title}'
                 choices = {k: f'"{v}"' for k, v in list_input_amplifier_connections().items()}
                 scope = 'experiment'
 
             Parameter: gain:
-                name = f'{manifest.name}_gain'
+                name = f'{manifest.id}_gain'
                 dtype = 'float64'
                 default = 50e3
                 scope = 'experiment'
@@ -473,13 +478,13 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
             group_name = 'hardware_settings'
 
             Parameter: hp:
-                name = f'{manifest.name}_highpass'
+                name = f'{manifest.id}_highpass'
                 label = 'Amplifier highpass filter cutoff'
                 default = 10
                 scope = 'experiment'
 
             Parameter: lp:
-                name = f'{manifest.name}_lowpass'
+                name = f'{manifest.id}_lowpass'
                 label = 'Amplifier lowpass filter cutoff'
                 default = 10e3
                 scope = 'experiment'
