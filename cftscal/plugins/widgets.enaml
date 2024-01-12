@@ -36,6 +36,7 @@ enamldef AddItem(PopupView): popup:
     arrow_size = 20
     arrow_edge = 'top'
     alias label: label.text
+    alias regex: field.regex
 
     Container:
         constraints = [
