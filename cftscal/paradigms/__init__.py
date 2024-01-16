@@ -108,7 +108,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'iec', 'In-ear speaker calibration (chirp)', 'ear', [
+    'iec', 'In-ear speaker calibration (chirp)', 'calibration', [
         selectable_starship_mixin,
         {
             'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',
@@ -121,7 +121,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'input_amplifier_calibration', 'Input Amplifier calibration', 'ear', [
+    'input_amplifier_calibration', 'Input Amplifier calibration', 'calibration', [
         input_amplifier_mixin,
 
         {'manifest': PATH + 'input_amplifier_calibration.InputAmplifierCalibrationManifest'},
