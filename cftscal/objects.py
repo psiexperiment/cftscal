@@ -10,6 +10,7 @@ import pandas as pd
 
 from psi import get_config
 from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio import util
 
 from psidata.api import Recording
 from cftsdata.api import InearCalibration, MicrophoneCalibration
@@ -434,6 +435,10 @@ class CFTSMicrophoneCalibration(Calibration):
         sens_file = self.filename / 'microphone_sensitivity.json'
         cal = json.loads(sens_file.read_text())
         return cal['mic sens overall (mV/Pa)']
+
+    @property
+    def sens_db(self):
+        return util.db(self.sens)
 
     def load(self):
         sens_file = self.filename / 'microphone_sensitivity.json'

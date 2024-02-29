@@ -269,6 +269,8 @@ template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
     TreeViewColumn:
         text << f'{item.sens:.2f} mV/Pa'
     TreeViewColumn:
+        text << f'{item.sens_db:.2f} dB(mV/Pa)'
+    TreeViewColumn:
         text << item.pistonphone
 
 

@@ -175,7 +175,7 @@ enamldef MicrophoneView(Container):
             stretch = 0
 
             CalibratedObjects: mic_tree:
-                headers = ['Name', 'Sens', 'Pistonphone']
+                headers = ['Name', 'Sens', 'Sens (dB)', 'Pistonphone']
                 collection = ObjectCollection(
                     microphone_manager, microphone_plot.manager
                 )
