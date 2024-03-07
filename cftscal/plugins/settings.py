@@ -184,10 +184,11 @@ class InEarSettings(StarshipSettings):
     available_ears = Property()
 
     def _get_available_starships(self):
-        return sorted(starship_manager.list_names())
+        choices = set(starship_manager.list_names() + inear_manager.list_names())
+        return sorted(choices)
 
     def _get_available_ears(self):
-        return sorted(inear_manager.list_names('CFTS'))
+        return sorted(inear_manager.get_property('ear'))
 
     def _get_settings_filename(self):
         return f'inear_{self.output}.json'

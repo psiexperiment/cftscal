@@ -1,3 +1,11 @@
+'''
+`CalibratedObject` is a named object that can have one or more calibrations
+(e.g., as we recalibrate over time) associated with it. Since we may have
+multiple calibration systems (e.g., the EPL CFTS vs cftscal), each
+`CalibratedObject` can have one or more subclasses of `CalibrationLoader`
+registered. Each `CalibrationLoader` will provide a list of calibrations for
+that object that were done with that calibration system.
+'''
 import datetime as dt
 from functools import cached_property, total_ordering
 import importlib
@@ -49,7 +57,6 @@ class Calibration:
         _, name, filename = string.split('::')
         return cls(name, filename)
 
-    @property
     def datetime(self):
         raise NotImplementedError
 
@@ -95,7 +102,16 @@ class CalibratedObject:
 
 
 class CalibrationLoader:
-    pass
+    '''
+    Provide a list of all calibrated object names and the calibrations
+    associated with each object.
+    '''
+
+    def list_names(self):
+        raise NotImplementedError
+
+    def list_calibrations(self, name):
+        raise NotImplementedError
 
 
 class CalibrationManager:
@@ -144,6 +160,13 @@ class CalibrationManager:
         klass = getattr(module, class_name)
         return klass.from_string(string)
 
+    def get_property(self, prop_name):
+        values = set()
+        for obj in self.list_objects():
+            for cal in obj.list_calibrations():
+                values.add(getattr(cal, prop_name))
+        return values
+
 
 class CFTSBaseLoader(CalibrationLoader):
 
@@ -153,7 +176,6 @@ class CFTSBaseLoader(CalibrationLoader):
         self.base_path.mkdir(exist_ok=True)
 
     def list_names(self):
-        names = {}
         for path in self.base_path.iterdir():
             yield path.stem
 
@@ -511,6 +533,19 @@ class CFTSInEarCalibration(Calibration):
 class CFTSInEarLoader(CFTSBaseLoader):
     subfolder = 'inear'
     cal_class = CFTSInEarCalibration
+
+    def list_names(self):
+        self.names = {}
+        for path in self.base_path.iterdir():
+            for subpath in path.iterdir():
+                name = subpath.stem.rsplit('_', 1)[1]
+                cal = self.cal_class(name, subpath)
+                self.names.setdefault(name, []).append(cal)
+        for name in sorted(self.names.keys()):
+            yield name
+
+    def list_calibrations(self, name):
+        return self.names[name]
 
 
 ################################################################################

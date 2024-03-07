@@ -276,7 +276,7 @@ template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
 
 template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):
     TreeViewColumn:
-        text << item.starship
+        text << item.ear
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):

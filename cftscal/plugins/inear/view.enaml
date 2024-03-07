@@ -279,7 +279,7 @@ enamldef InEarView(Container):
 
                 CalibratedObjects: inear_tree:
                     padding = 0
-                    headers = ['Ear', 'Starship']
+                    headers = ['Starship', 'Ear']
                     collection = ObjectCollection(
                         inear_manager,
                         MultiPlotManager(
