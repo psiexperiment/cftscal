@@ -187,7 +187,7 @@ class EPLStarshipCalibration(Calibration):
             return (None, None, None, None)
         return obj.name, obj.datetime, obj.smoothed, obj.label
 
-    @property
+    @cached_property
     def datetime(self):
         with self.filename.open() as fh:
             for line in fh:
@@ -195,7 +195,7 @@ class EPLStarshipCalibration(Calibration):
                     break
         return dt.datetime.strptime(line[6:].strip(), '%m/%d/%Y %I:%M:%S %p')
 
-    @property
+    @cached_property
     def smoothed(self):
         with self.filename.open() as fh:
             for line in fh:
@@ -259,20 +259,20 @@ class CFTSStarshipCalibration(Calibration):
         self.filename = Path(filename)
         self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
-    @property
+    @cached_property
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
 
-    @property
+    @cached_property
     def microphone(self):
         return self.filename.stem.split('_')[2]
 
-    @property
+    @cached_property
     def coupler(self):
         return self.filename.stem.split('_')[3]
 
-    @property
+    @cached_property
     def stimulus(self):
         return self.filename.stem.split('_')[-1]
 
@@ -336,16 +336,16 @@ class CFTSSpeakerCalibration(Calibration):
         self.filename = Path(filename)
         self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
-    @property
+    @cached_property
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
 
-    @property
+    @cached_property
     def microphone(self):
         return self.filename.stem.split('_')[2]
 
-    @property
+    @cached_property
     def method(self):
         return self.filename.stem.split('_')[3]
 
@@ -386,12 +386,12 @@ class CFTSInputAmplifierCalibration(Calibration):
         self.filename = Path(filename)
         self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
-    @property
+    @cached_property
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
 
-    @property
+    @cached_property
     def measured_gain(self):
         sens_file = self.filename / 'amplifier_gain.json'
         gain = json.loads(sens_file.read_text())
@@ -421,22 +421,22 @@ class CFTSMicrophoneCalibration(Calibration):
         self.filename = Path(filename)
         self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
-    @property
+    @cached_property
     def pistonphone(self):
         return self.filename.stem.rsplit('_', 1)[1]
 
-    @property
+    @cached_property
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
 
-    @property
+    @cached_property
     def sens(self):
         sens_file = self.filename / 'microphone_sensitivity.json'
         cal = json.loads(sens_file.read_text())
         return cal['mic sens overall (mV/Pa)']
 
-    @property
+    @cached_property
     def sens_db(self):
         return util.db(self.sens)
 
@@ -480,6 +480,10 @@ class CFTSInEarCalibration(Calibration):
     @cached_property
     def starship(self):
         return self.filename.stem.rsplit('_', 1)[1]
+
+    @cached_property
+    def ear(self):
+        return self.filename.stem.split('_', 2)[1]
 
     @cached_property
     def datetime(self):
