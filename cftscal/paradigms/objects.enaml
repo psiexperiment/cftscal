@@ -211,9 +211,9 @@ enamldef Starship(ExperimentManifest): manifest:
     speakers. The IO manifest will be scanned for all channels that contain
     "starship" in the name. The channels must follow the naming convention:
 
-        * starship_<name>_primary
-        * starship_<name>_secondary
-        * starship_<name>_microphone
+        * starship_<id>_primary
+        * starship_<id>_secondary
+        * starship_<id>_microphone
 
     If any of these channels are missing, that starship will not be available
     for selection.
@@ -246,13 +246,19 @@ enamldef Starship(ExperimentManifest): manifest:
         differentiate between starships designed for certain purposes (e.g.,
         test vs. nontest).
 
-
+    swap_outputs : bool
+        If True, swap the primary and secondary outputs when output_mode is set
+        to 'dual'.  This means that the <id>_primary output is linked to
+        starship_<id>_secondary channel and <id>_secondary output is linked to
+        starship_<id>_primary channel. Has no effect when output_mode is set to
+        'select'.
     '''
 
     id = 'starship'
     title = manifest.id.capitalize().replace('_', ' ')
     attr output_mode = 'dual'
     attr side = 'test'
+    attr swap_outputs = False
 
     Extension:
         id = manifest.id + '.commands'
@@ -285,11 +291,13 @@ enamldef Starship(ExperimentManifest): manifest:
 
             MUXOutput:
                 name = f'{manifest.id}_primary'
-                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + '_primary'
+                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + \
+                    ('_primary' if not manifest.swap_outputs else '_secondary')
 
             MUXOutput:
                 name = f'{manifest.id}_secondary'
-                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + '_secondary'
+                target_name = 'hw_ao::' + getattr(C, f'{manifest.id}') + \
+                    ('_secondary' if not manifest.swap_outputs else '_primary')
 
         Conditional:
             condition = manifest.output_mode == 'select'
