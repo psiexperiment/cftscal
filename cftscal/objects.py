@@ -256,7 +256,8 @@ class EPLStarshipLoader(CalibrationLoader):
     def list_names(self):
         names = set()
         for calfile in self.base_path.glob('*_ProbeTube*.calib'):
-            name = calfile.stem.split('_', 1)[0]
+
+            name = calfile.stem.rsplit('.', 1)[0].rsplit('_', 1)[0]
             names.add(f'{name} (EPL)')
         return names
 
@@ -264,7 +265,7 @@ class EPLStarshipLoader(CalibrationLoader):
         if name.endswith(' (EPL)'):
             name, _ = name.rsplit(' ', 1)
         calibrations = []
-        for filename in self.base_path.glob(f'{name}*_ProbeTube*.calib'):
+        for filename in self.base_path.glob(f'{name}_ProbeTube*.calib'):
             calibration = EPLStarshipCalibration(name, filename)
             calibrations.append(calibration)
         return calibrations
