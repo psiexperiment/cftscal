@@ -155,7 +155,14 @@ class BasePlotManager(Atom):
 
     def create_plot(self, color=None, width=2, line='solid'):
         if color is None:
-            color = make_color(next(self.color_cycle))
+            try:
+                color = make_color(next(self.color_cycle))
+            except StopIteration:
+                # We have exhausted the color cycle. Just start over again at
+                # the beginning.
+                self.color_cycle = self._default_color_cycle()
+                color = make_color(next(self.color_cycle))
+
         linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
         pen = pg.mkPen(color, width=width, style=linestyle)
         return color, pg.PlotCurveItem(pen=pen)
