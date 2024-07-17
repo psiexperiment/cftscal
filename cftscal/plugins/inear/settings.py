@@ -4,7 +4,7 @@ from psi import get_config
 
 from ..settings import CalibrationSettings, InEarSettings
 
-CAL_ROOT = get_config('CAL_ROOT')
+from cftscal import CAL_ROOT
 
 
 class InEarCalibrationSettings(CalibrationSettings):

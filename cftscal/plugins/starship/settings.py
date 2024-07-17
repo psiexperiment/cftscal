@@ -6,7 +6,7 @@ from psi import get_config, get_config_folder
 
 from ..settings import CalibrationSettings, MicrophoneSettings, StarshipSettings
 
-CAL_ROOT = get_config('CAL_ROOT')
+from cftscal import CAL_ROOT
 
 
 class StarshipCalibrationSettings(CalibrationSettings):

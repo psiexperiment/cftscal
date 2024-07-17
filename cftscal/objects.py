@@ -16,14 +16,13 @@ import re
 
 import pandas as pd
 
-from psi import get_config
 from psiaudio.calibration import FlatCalibration, InterpCalibration
 from psiaudio import util
 
 from psidata.api import Recording
 from cftsdata.api import InearCalibration, MicrophoneCalibration
 
-CAL_ROOT = Path(get_config('CAL_ROOT', os.environ['CAL_ROOT']))
+from . import CAL_ROOT
 
 
 @total_ordering

@@ -6,7 +6,7 @@ from psi import get_config
 
 from ..settings import CalibrationSettings, MicrophoneSettings, SpeakerSettings
 
-CAL_ROOT = Path(get_config('CAL_ROOT'))
+from cftscal import CAL_ROOT
 
 
 class SpeakerCalibrationSettings(CalibrationSettings):
