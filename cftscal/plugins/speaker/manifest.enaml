@@ -20,11 +20,14 @@ def available():
 def speaker_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Speaker Calibration'
-    settings = SpeakerCalibrationSettings(
-        list_speaker_connections(),
-        list_microphone_connections(),
-    )
-    space.content = SpeakerView(settings=settings)
+    try:
+        settings = SpeakerCalibrationSettings(
+            list_speaker_connections(),
+            list_microphone_connections(),
+        )
+        space.content = SpeakerView(settings=settings)
+    except:
+        space.content = SpeakerView()
     return space
 
 

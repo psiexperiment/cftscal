@@ -2,7 +2,7 @@ import numpy as np
 from scipy import signal
 
 from atom.api import Str
-from enaml.core.api import Looper
+from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
@@ -52,106 +52,116 @@ enamldef SpeakerView(Container):
             closable = False
             stretch = 0
 
-            Container:
-                layout_constraints => ():
-                    widgets = self.visible_widgets()
-                    first = []
-                    for w in widgets:
-                        first.append(w.children[0])
-                    constraints = [
-                        vbox(*widgets),
-                        align('right', *first),
-                        align('left', *first),
-                    ]
-                    return constraints
+            Conditional:
+                condition << settings is None
 
                 Container:
-                    attr microphone << settings.selected_microphone
-                    share_layout = True
-                    padding = 0
-                    constraints = [
-                        hbox(
-                            mic_label,
-                            mic_out_select,
-                            hbox(mic_select, mic_gain, spacing=0),
-                            mic_gain_label,
-                            spacer(0),
-                            spacing=5,
-                        ),
-                        align('v_center', mic_label, mic_out_select,
-                              mic_select, mic_gain, mic_gain_label),
-                    ]
+                    Label:
+                        text = 'No speakers found on system. View mode only.'
 
-                    Label: mic_label:
-                        text = 'Microphone'
+            Conditional:
+                condition << settings is not None
 
-                    ObjectCombo: mic_out_select:
-                        items = sorted(settings.microphones)
-                        selected := settings.selected_microphone
-                        to_string = lambda m: m.input_label
-
-                    ObjectCombo: mic_select:
-                        items = sorted(microphone.available_microphones)
-                        selected := microphone.name
-
-                    ObjectCombo: mic_gain:
-                        items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                        selected := microphone.gain
-
-                    Label: mic_gain_label:
-                        text = 'dB gain'
-
-                Looper:
-                    iterable << settings.speakers
+                Container:
+                    layout_constraints => ():
+                        widgets = self.visible_widgets()
+                        first = []
+                        for w in widgets:
+                            first.append(w.children[0])
+                        constraints = [
+                            vbox(*widgets),
+                            align('right', *first),
+                            align('left', *first),
+                        ]
+                        return constraints
 
                     Container:
-                        attr speaker = loop_item
-                        attr mic_settings << settings.selected_microphone
+                        attr microphone << settings.selected_microphone
                         share_layout = True
                         padding = 0
                         constraints = [
                             hbox(
-                                speaker_label,
-                                hbox(speaker_select, speaker_add, spacing=0),
+                                mic_label,
+                                mic_out_select,
+                                hbox(mic_select, mic_gain, spacing=0),
+                                mic_gain_label,
                                 spacer(0),
-                                hbox(golay_start, chirp_start, spacing=0),
                                 spacing=5,
                             ),
-                            speaker_add.width == 25,
-                            align('v_center', speaker_label, speaker_select,
-                                    speaker_add, golay_start, chirp_start),
+                            align('v_center', mic_label, mic_out_select,
+                                mic_select, mic_gain, mic_gain_label),
                         ]
 
-                        Label: speaker_label:
-                            text = f'Speaker {speaker.output_label}'
+                        Label: mic_label:
+                            text = 'Microphone'
 
-                        ObjectCombo: speaker_select:
-                            items = speaker.available_speakers
-                            selected := speaker.name
+                        ObjectCombo: mic_out_select:
+                            items = sorted(settings.microphones)
+                            selected := settings.selected_microphone
+                            to_string = lambda m: m.input_label
 
-                        PushButton: speaker_add:
-                            text = '+'
-                            clicked ::
-                                popup = AddItem(self, combo=speaker_select, label='Speaker')
-                                popup.show()
+                        ObjectCombo: mic_select:
+                            items = sorted(microphone.available_microphones)
+                            selected := microphone.name
 
-                        PushButton: golay_start:
-                            text = 'Golay'
-                            enabled << bool(mic_settings.name) \
-                                and bool(speaker.name) \
-                                and '(' not in speaker.name
-                            clicked ::
-                                settings.run_cal_golay(speaker, mic_settings)
-                                speaker_tree.collection.update_groups()
+                        ObjectCombo: mic_gain:
+                            items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                            selected := microphone.gain
 
-                        PushButton: chirp_start:
-                            text = 'Chirp'
-                            enabled << bool(mic_settings.name) \
-                                and bool(speaker.name) \
-                                and '(' not in speaker.name
-                            clicked ::
-                                settings.run_cal_chirp(speaker, mic_settings)
-                                speaker_tree.collection.update_groups()
+                        Label: mic_gain_label:
+                            text = 'dB gain'
+
+                    Looper:
+                        iterable << settings.speakers
+
+                        Container:
+                            attr speaker = loop_item
+                            attr mic_settings << settings.selected_microphone
+                            share_layout = True
+                            padding = 0
+                            constraints = [
+                                hbox(
+                                    speaker_label,
+                                    hbox(speaker_select, speaker_add, spacing=0),
+                                    spacer(0),
+                                    hbox(golay_start, chirp_start, spacing=0),
+                                    spacing=5,
+                                ),
+                                speaker_add.width == 25,
+                                align('v_center', speaker_label, speaker_select,
+                                        speaker_add, golay_start, chirp_start),
+                            ]
+
+                            Label: speaker_label:
+                                text = f'Speaker {speaker.output_label}'
+
+                            ObjectCombo: speaker_select:
+                                items = speaker.available_speakers
+                                selected := speaker.name
+
+                            PushButton: speaker_add:
+                                text = '+'
+                                clicked ::
+                                    popup = AddItem(self, combo=speaker_select, label='Speaker')
+                                    popup.show()
+
+                            PushButton: golay_start:
+                                text = 'Golay'
+                                enabled << bool(mic_settings.name) \
+                                    and bool(speaker.name) \
+                                    and '(' not in speaker.name
+                                clicked ::
+                                    settings.run_cal_golay(speaker, mic_settings)
+                                    speaker_tree.collection.update_groups()
+
+                            PushButton: chirp_start:
+                                text = 'Chirp'
+                                enabled << bool(mic_settings.name) \
+                                    and bool(speaker.name) \
+                                    and '(' not in speaker.name
+                                clicked ::
+                                    settings.run_cal_chirp(speaker, mic_settings)
+                                    speaker_tree.collection.update_groups()
 
         DockItem:
             name = 'speaker_sens_plot'

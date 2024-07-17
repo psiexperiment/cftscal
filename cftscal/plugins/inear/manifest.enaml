@@ -18,8 +18,11 @@ def available():
 def inear_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'In-Ear Calibration'
-    settings = InEarCalibrationSettings(list_starship_connections())
-    space.content = InEarView(settings=settings)
+    try:
+        settings = InEarCalibrationSettings(list_starship_connections())
+        space.content = InEarView(settings=settings)
+    except:
+        space.content = InEarView()
     return space
 
 

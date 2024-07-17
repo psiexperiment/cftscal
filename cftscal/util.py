@@ -18,7 +18,7 @@ def list_starship_connections():
     starships = {}
     manifest = load_io_manifest ()()
     for channel in manifest.find_all('^starship_', regex=True):
-        # Strip quotation marks off 
+        # Strip quotation marks off
         _, starship_id, starship_output = channel.name.split('_')
         starships.setdefault(starship_id, []).append(starship_output)
 
@@ -74,7 +74,7 @@ def list_microphone_connections():
     choices = {}
     manifest = load_io_manifest()()
     for channel in manifest.find_all('^microphone_', regex=True):
-        # Strip quotation marks off 
+        # Strip quotation marks off
         choices[channel.label] = channel.name.split('_', 1)[1]
 
     if len(choices) == 0:

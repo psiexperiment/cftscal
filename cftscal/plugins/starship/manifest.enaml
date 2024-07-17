@@ -20,9 +20,12 @@ def available():
 def starship_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Starship Calibration'
-    settings = StarshipCalibrationSettings(list_starship_connections(),
-                                           list_microphone_connections())
-    space.content = StarshipView(settings=settings)
+    try:
+        settings = StarshipCalibrationSettings(list_starship_connections(),
+                                               list_microphone_connections())
+        space.content = StarshipView(settings=settings)
+    except:
+        space.content = StarshipView()
     return space
 
 

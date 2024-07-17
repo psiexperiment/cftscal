@@ -44,6 +44,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser('cfts-cal')
     parser.add_argument('obj', nargs='?')
+    parser.add_argument('--load-all', action='store_true')
     args = parser.parse_args()
 
     with enaml.imports():
@@ -69,7 +70,7 @@ def main():
         for module_name, class_name in to_register:
             try:
                 module = importlib.import_module(module_name)
-                if getattr(module, 'available')():
+                if args.load_all or getattr(module, 'available')():
                     workbench.register(getattr(module, class_name)())
             except ModuleNotFoundError as e:
                 print(f'Could not load {module_name}.{class_name} plugin')

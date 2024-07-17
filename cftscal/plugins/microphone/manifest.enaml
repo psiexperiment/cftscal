@@ -19,8 +19,11 @@ def available():
 def microphone_workspace_factory(workbench):
     space = Workspace()
     space.window_title = 'Microphone Calibration'
-    settings = MicrophoneCalibrationSettings(list_microphone_connections())
-    space.content = MicrophoneView(settings=settings)
+    try:
+        settings = MicrophoneCalibrationSettings(list_microphone_connections())
+        space.content = MicrophoneView(settings=settings)
+    except:
+        space.content = MicrophoneView()
     return space
 
 
