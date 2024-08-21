@@ -30,13 +30,12 @@ which starship to use (assuming your system is configured for more than one
 starship).
 '''
 
-
 def list_starship_connections():
     '''
     List all starships found in the IO Manifest
     '''
     starships = {}
-    manifest = load_io_manifest ()()
+    manifest = load_io_manifest()()
     for channel in manifest.find_all('^starship_', regex=True):
         # Strip quotation marks off 
         _, starship_id, starship_output = channel.name.split('_')
