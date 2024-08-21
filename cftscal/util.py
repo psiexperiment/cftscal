@@ -1,4 +1,24 @@
 from psi.application import get_default_io, load_io_manifest
+from psi.controller.api import HardwareAIChannel
+
+
+NO_INPUT_ERROR = '''
+No input channels could be found in the IO manifest. To use this plugin, you must
+have at least one analog input channel.
+'''
+
+
+def list_inputs():
+    inputs = {}
+    manifest = load_io_manifest()()
+    for obj in manifest.traverse():
+        if isinstance(obj, HardwareAIChannel):
+            inputs[obj.label] = obj.name
+
+    if len(inputs) == 0:
+        raise ValueError(NO_INPUT_ERROR)
+
+    return inputs
 
 
 NO_STARSHIP_ERROR = '''
