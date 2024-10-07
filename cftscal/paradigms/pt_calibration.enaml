@@ -129,7 +129,7 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
     d_phase = pt_phase - cal_phase
 
     if smoothing_window > 0:
-        w = signal.hamming(smoothing_window)
+        w = signal.windows.hamm(smoothing_window)
         w /= w.sum()
         sens = np.convolve(sens, w, mode='same')
 
@@ -195,7 +195,7 @@ def calculate_group_sens_golay(fs, pt_waveform, cal_waveform, color, context,
     phase = pt_phase - cal_phase
 
     if smoothing_window > 0:
-        w = signal.hamming(smoothing_window)
+        w = signal.windows.hamming(smoothing_window)
         w /= w.sum()
         sens = np.convolve(sens, w, mode='same')
         phase = np.convolve(phase, w, mode='same')
