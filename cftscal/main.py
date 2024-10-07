@@ -1,6 +1,7 @@
 import importlib
 
 import enaml
+from enaml.application import deferred_call
 from enaml.workbench.ui.api import UIWorkbench
 import enamlx
 enamlx.install()
