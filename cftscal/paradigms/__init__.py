@@ -18,6 +18,13 @@ selectable_starship_mixin = {
 }
 
 
+selectable_input_mixin = {
+    'manifest': PATH + 'objects.Input',
+    'required': True,
+    'attrs': {'id': 'selected', 'title': 'Input'},
+}
+
+
 selectable_microphone_mixin = {
     'manifest': PATH + 'objects.Microphone',
     'required': True,
@@ -135,6 +142,40 @@ ParadigmDescription(
                 'time_delay': 0.125,
                 'source_name': 'input_amplifier_filtered',
                 'y_label': 'EEG (V)'
+            },
+        },
+    ],
+)
+
+
+ParadigmDescription(
+    'input_monitor', 'Microphone Monitor', 'calibration', [
+        selectable_input_mixin,
+        {'manifest': PATH + 'monitor.MonitorManifest'},
+        {
+            'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
+            'required': True,
+            'attrs': {
+                'id': 'input_signal',
+                'title': 'Time',
+                'time_span': 10,
+                'time_delay': 0.125,
+                'source_name': 'selected_input',
+                'y_label': 'Signal (V)'
+            },
+        },
+        {
+            'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
+            'required': True,
+            'attrs': {
+                'id': 'input_psd',
+                'title': 'PSD',
+                'fft_time_span': 0.25,
+                'fft_freq_lb': 500,
+                'fft_freq_ub': 50000,
+                'source_name': 'selected_input',
+                'y_label': 'Level (dB)',
+                'apply_calibration': True,
             },
         },
     ],

@@ -1,0 +1,26 @@
+from enaml.workbench.api import Extension
+
+from psi.context.api import ContextGroup
+from psi.controller.api import ControllerManifest, ExperimentAction
+
+
+EXPERIMENT = 'monitor'
+
+
+enamldef MonitorManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT + '.monitor.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
+
+    Extension:
+        id = EXPERIMENT + '.monitor.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
