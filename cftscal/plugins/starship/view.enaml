@@ -105,7 +105,7 @@ enamldef StarshipView(Container): starship_view:
                         ]
 
                         ObjectCombo: mic_out_select:
-                            items = sorted(settings.microphones)
+                            items = settings.microphones
                             selected := settings.selected_microphone
                             to_string = lambda m: m.input_label
 
