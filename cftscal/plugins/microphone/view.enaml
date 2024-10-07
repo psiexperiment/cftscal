@@ -141,7 +141,7 @@ enamldef MicrophoneView(Container):
                             attr microphone = loop_item
 
                             Label: mic_label:
-                                text = 'Microphone'
+                                text = f'Microphone {loop_item.input_name}'
 
                             ObjectCombo: mic_select:
                                 items = sorted(microphone.available_microphones)
