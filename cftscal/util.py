@@ -126,7 +126,7 @@ def list_input_amplifier_connections():
     return choices
 
 
-if __name__ == '__main__':
+def show_connections():
     print(f'Looking for connections in {get_default_io()}')
     try:
         print(list_starship_connections())
@@ -144,3 +144,7 @@ if __name__ == '__main__':
         print(list_input_amplifier_connections())
     except ValueError:
         pass
+
+
+if __name__ == '__main__':
+    show_connections()

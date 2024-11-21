@@ -1,3 +1,6 @@
+from psi.application import configure_logging
+configure_logging('DEBUG')
+
 import importlib
 
 import enaml
@@ -75,4 +78,6 @@ def main():
             except ModuleNotFoundError as e:
                 print(f'Could not load {module_name}.{class_name} plugin')
 
+    from cftscal.util import show_connections
+    show_connections()
     workbench.run(args.obj)
