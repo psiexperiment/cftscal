@@ -115,7 +115,7 @@ class CalibrationLoader:
 
 class CalibrationManager:
 
-    P_NAME = re.compile('^(.*)\((.*)\)$')
+    P_NAME = re.compile(r'^(.*)\((.*)\)$')
 
     def __init__(self, object_class):
         self.loaders = []
