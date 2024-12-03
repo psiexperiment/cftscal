@@ -93,9 +93,7 @@ def list_microphone_connections():
     choices = {}
     manifest = load_io_manifest()()
     for channel in manifest.find_all('^microphone_', regex=True):
-        # Strip quotation marks off
         choices[channel.label] = channel.name.split('_', 1)[1]
-
     if len(choices) == 0:
         raise ValueError(NO_MICROPHONE_ERROR)
 
