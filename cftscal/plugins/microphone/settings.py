@@ -13,7 +13,8 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
     pistonphone = Typed(PistonphoneSettings, ())
 
     def __init__(self, inputs):
-        self.microphones = [MicrophoneSettings(name=k, input_name=v) for k, v in inputs.items()]
+        self.microphones = [MicrophoneSettings(input_label=k, input_name=v) \
+                            for k, v in inputs.items()]
         self.pistonphone = PistonphoneSettings()
 
     def save_config(self):
@@ -29,4 +30,4 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             **microphone.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),
         }
-        self._run_cal(pathname, 'pistonphone_calibration', env)
+        self._run_cal(pathname, 'cftscal.paradigms::pistonphone_calibration', env)
