@@ -70,8 +70,7 @@ def calculate_sens(event):
 
     core = event.workbench.get_plugin('enaml.workbench.core')
     command = 'pistonphone_data.save_mapping'
-    parameters = {'name': 'microphone_sensitivity',
-                  'mapping': results}
+    parameters = {'name': 'microphone_sensitivity', 'mapping': results}
     core.invoke_command(command, parameters)
 
     summary = {
