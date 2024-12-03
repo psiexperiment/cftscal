@@ -13,7 +13,7 @@ maintainers = [
 dependencies = [
     "cftsdata",
     "psiexperiment",
-    "enaml[qt5-pyqt] >=0.13.0",
+    "enaml[qt6-pyqt] >=0.13.0",
     "enamlx >=0.6.2",
     "tqdm",
 ]
@@ -21,6 +21,7 @@ dynamic = ["version"]
 
 [project.scripts]
 cfts-cal = "cftscal.main:main"
+cftscal = "cftscal.main:main"
 
 [build-system]
 requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
