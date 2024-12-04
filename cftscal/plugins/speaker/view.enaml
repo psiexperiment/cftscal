@@ -124,7 +124,7 @@ enamldef SpeakerView(Container):
                                     speaker_label,
                                     hbox(speaker_select, speaker_add, spacing=0),
                                     spacer(0),
-                                    hbox(golay_start, chirp_start, spacing=0),
+                                    hbox(golay_start, chirp_start, wav_start, spacing=0),
                                     spacing=5,
                                 ),
                                 speaker_add.width == 25,
@@ -161,6 +161,15 @@ enamldef SpeakerView(Container):
                                     and '(' not in speaker.name
                                 clicked ::
                                     settings.run_cal_chirp(speaker, mic_settings)
+                                    speaker_tree.collection.update_groups()
+
+                            PushButton: wav_start:
+                                text = 'Wav'
+                                enabled << bool(mic_settings.name) \
+                                    and bool(speaker.name) \
+                                    and '(' not in speaker.name
+                                clicked ::
+                                    settings.run_cal_wav(speaker, mic_settings)
                                     speaker_tree.collection.update_groups()
 
         DockItem:

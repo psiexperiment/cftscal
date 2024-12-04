@@ -40,6 +40,8 @@ selectable_speaker_mixin = {
 
 
 ParadigmDescription(
+    # Calibrate a second microphone (e.g., such as that embedded in a probe
+    # tube) using chirps.
     'pt_calibration_chirp', 'Probe tube calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
@@ -51,6 +53,8 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    # Calibrate a second microphone (e.g., such as that embedded in a probe
+    # tube) using a Golay sequence.
     'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
@@ -62,6 +66,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    # Calibrate speaker using a Golay sequence.
     'speaker_calibration_golay', 'Speaker calibration (golay)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
         {'manifest': PATH + 'calibration_mixins.GolayMixin',},
@@ -73,6 +78,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    # Calibrate speaker using chirps.
     'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
         {'manifest': PATH + 'calibration_mixins.ChirpMixin',},
@@ -86,6 +92,17 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    'speaker_calibration_wav', 'Speaker calibration (wav)', 'calibration', [
+        {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',},
+        {'manifest': PATH + 'calibration_mixins.WavMixin',},
+        selectable_microphone_mixin,
+        selectable_speaker_mixin,
+    ],
+)
+
+
+ParadigmDescription(
+    # Calibrate a microphone using a pistonphone.
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
         {'manifest': PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest'},
         {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
@@ -149,7 +166,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'input_monitor', 'Microphone Monitor', 'calibration', [
+    'input_monitor', 'Input Monitor', 'calibration', [
         selectable_input_mixin,
         {'manifest': PATH + 'monitor.MonitorManifest'},
         {
@@ -174,7 +191,7 @@ ParadigmDescription(
                 'fft_freq_lb': 500,
                 'fft_freq_ub': 50000,
                 'source_name': 'selected_input',
-                'y_label': 'Level (dB)',
+                'y_label': 'Level (dB SPL)',
                 'apply_calibration': True,
             },
         },

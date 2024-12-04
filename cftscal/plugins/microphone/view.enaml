@@ -144,8 +144,8 @@ enamldef MicrophoneView(Container):
                                 text << loop_item.input_label
 
                             ObjectCombo: mic_select:
-                                items = sorted(microphone.available_microphones)
-                                selected := microphone.name
+                                items = sorted(microphone.available_devices)
+                                selected := microphone.connected_device
 
                             PushButton: mic_add:
                                 text = '+'
@@ -162,7 +162,7 @@ enamldef MicrophoneView(Container):
 
                             PushButton: mic_cal_start:
                                 text = 'Calibrate'
-                                enabled << bool(microphone.name)
+                                enabled << bool(microphone.connected_device)
                                 clicked ::
                                     settings.run_mic_cal(microphone)
                                     mic_tree.collection.update_groups()

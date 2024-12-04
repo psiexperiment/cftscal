@@ -1,0 +1,47 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+
+from cftscal.util import list_input_connections
+from .settings import InputMonitorSettings
+from .view import InputMonitorView
+
+
+def available():
+    try:
+        list_input_connections()
+        return True
+    except:
+        return False
+
+
+def input_monitor_workspace_factory(workbench):
+    space = Workspace()
+    space.window_title = 'Microphone Calibration'
+    try:
+        settings = InputMonitorSettings(list_input_connections())
+        space.content = InputMonitorView(settings=settings)
+    except:
+        space.content = InputMonitorView()
+    return space
+
+
+enamldef InputMonitorManifest(PluginManifest):
+    id = 'input_monitor'
+
+    Extension:
+        id = 'input_monitor_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/input_monitor'
+            label = 'Input Monitor'
+            shortcut = 'Ctrl+i'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': 'input_monitor.workspace'}
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = input_monitor_workspace_factory

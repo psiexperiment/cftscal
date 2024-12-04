@@ -63,6 +63,7 @@ def main():
 
     to_register = [
         ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        ('cftscal.plugins.input_monitor.manifest', 'InputMonitorManifest'),
         ('cftscal.plugins.microphone.manifest', 'MicrophoneManifest'),
         ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),

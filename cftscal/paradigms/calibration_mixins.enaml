@@ -16,7 +16,10 @@ import pandas as pd
 from scipy import signal
 
 from psi.controller.calibration.tone import tone_sens
-from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
+from psi.context.api import (
+    BoolParameter, ContextGroup, ContextRow, EnumParameter, FileParameter,
+    Parameter
+)
 from psi.controller.api import (ExperimentAction, generate_waveform,
                                 QueuedEpochOutput)
 
@@ -219,6 +222,10 @@ def compute_calibration_chirp(event):
     core.invoke_command('cal_data.save_dataframe', params)
 
     ao.channel.calibration = InterpCalibration(freq, norm_spl, reference='SPL')
+
+
+def compute_calibration_wav(event):
+    pass
 
 
 def level_to_gain(calibration, frequencies, spl, max_gain):
@@ -541,6 +548,97 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             name = 'hw_ao'
             label = 'Output'
             token = chirp
+            auto_decrement = True
+            target_name = 'system_output'
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.compute_calibration'
+            handler = manifest.cleanup_cb
+
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = partial(configure_hardware_chirp, manifest.extract_epoch_inputs)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.compute_calibration'
+            delay = 1
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'psi.controller.configure_hardware'
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'hw_ao.prepare_queue'
+
+
+def configure_hardware_wav(epoch_inputs, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('hw_ao')
+
+    output.channel.calibration = FlatCalibration.as_attenuation()
+    output.queue = FIFOSignalQueue()
+    output.queue.set_fs(output.fs)
+
+    for name in epoch_inputs:
+        i = controller.get_input(name)
+        i.poststim_time = 0
+        i.subscribe_to_queue(output.queue)
+
+
+enamldef WavMixin(ExperimentManifest): manifest:
+
+    id = 'wav'
+    required = True
+
+    attr extract_epoch_inputs = ['epoch']
+    attr cleanup_cb = compute_calibration_wav
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        FileParameter:
+            name = 'wav_file'
+            label = 'Wav file'
+            group_name = 'hardware_settings'
+
+        ContextRow:
+            fmt = ['Average', averages, 'trials with', iti, 's ITI']
+            group_name = 'hardware_settings'
+
+            Parameter: iti:
+                name = 'hw_ao_iti_duration'
+                label = 'Intertrial interval (s)'
+                compact_label = 'ITI'
+                default = 0.001
+                scope = 'experiment'
+                group_name = 'hardware_settings'
+
+            Parameter: averages:
+                name = 'hw_ao_averages'
+                label = 'Averages'
+                compact_label = 'N'
+                default = 32
+                scope = 'experiment'
+                group_name = 'hardware_settings'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput:
+            name = 'hw_ao'
+            label = 'Output'
             auto_decrement = True
             target_name = 'system_output'
 

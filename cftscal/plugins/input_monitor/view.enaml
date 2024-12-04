@@ -1,0 +1,178 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+import pyqtgraph as pg
+
+from enaml.core.api import Conditional, Looper
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+)
+
+from psi.data.plots_manifest import PGCanvas
+
+from cftscal.objects import input_device_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+)
+
+
+from atom.api import Value
+class InputMonitorPlotManager(BasePlotManager):
+    
+    select = Value()
+
+    def _default_vb(self):
+        vb = super()._default_vb()
+        self.select = pg.LinearRegionItem([0, 0.1])
+        vb.addItem(self.select)
+        return vb
+
+    def _update(self, recording, remove=False):
+        plot_id = self.get_plot_id(recording)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+        color, plots = self.get_plots(plot_id)
+
+        fh = recording.load_recording()
+        y = fh.hw_ai[0]
+        x = np.arange(len(y)) / fh.hw_ai.fs
+        plots[0].setData(x, y)
+
+        #psd = fh.get_psd(average_seconds=1).iloc[1:]
+        #x = np.log10(psd.index.values)
+        #y = psd.values
+        #plots[0].setData(x, y)
+        #return color
+
+    def make_y_axis(self):
+        y_axis = pg.AxisItem('left')
+        y_axis.setLabel('Signal (V)')
+        y_axis.setGrid(64)
+        return y_axis
+
+    def make_x_axis(self):
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Time', units='s')
+        return x_axis
+
+
+
+enamldef InputMonitorView(Container):
+
+    attr settings
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings',
+                    'input_list',
+                    sizes=[25, 200],
+                ),
+                'input_monitor_plot',
+                sizes=[150, 900],
+            ),
+        )
+        DockItem:
+            name = 'settings'
+            title = 'Settings'
+            closable = False
+            stretch = 0
+
+            Conditional:
+                condition << settings is None
+
+                Container:
+                    Label:
+                        text = 'No inputs found on system. View mode only.'
+
+            Conditional:
+                condition << settings is not None
+
+                Container:
+                    layout_constraints => ():
+                        # For some reason aligning right edge of first widget
+                        # (label) does not produce nicely-aligned widgets, so we
+                        # align the left edge of second widget.
+                        widgets = self.visible_widgets()
+                        second = [w.children[1] for w in widgets]
+                        constraints = [
+                            vbox(*widgets),
+                            align('left', *second),
+                        ]
+                        return constraints
+
+                    Looper:
+                        iterable << settings.inputs
+
+                        Container:
+                            share_layout = True
+                            padding = 0
+                            constraints = [
+                                hbox(
+                                    input_label,
+                                    hbox(input_select, input_add, input_gain, spacing=0),
+                                    input_gain_label,
+                                    spacer(0),
+                                    input_cal_start,
+                                    spacing=5,
+                                ),
+                                align('v_center', input_label, input_select, input_add,
+                                        input_gain, input_gain_label, input_cal_start),
+                                input_add.width == 25,
+                            ]
+
+                            Label: input_label:
+                                text << loop_item.input_label
+
+                            ObjectCombo: input_select:
+                                items = sorted(loop_item.available_devices)
+                                selected := loop_item.connected_device
+
+                            PushButton: input_add:
+                                text = '+'
+                                clicked ::
+                                    popup = AddItem(self, combo=input_select, label='Input')
+                                    popup.show()
+
+                            ObjectCombo: input_gain:
+                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                                selected := loop_item.gain
+
+                            Label: input_gain_label:
+                                text = 'dB gain'
+
+                            PushButton: input_cal_start:
+                                text = 'Monitor'
+                                enabled << bool(loop_item.connected_device)
+                                clicked ::
+                                    settings.run_input_monitor(loop_item)
+                                    input_tree.collection.update_groups()
+
+        DockItem:
+            name = 'input_monitor_plot'
+            title = 'Input Monitor'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: input_monitor_plot:
+                    attr manager = InputMonitorPlotManager()
+                    component << manager.component
+
+        DockItem:
+            name = 'input_list'
+            title = 'Recordings'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: input_tree:
+                headers = ['Device Name']
+                collection = ObjectCollection(
+                    input_device_manager, input_monitor_plot.manager
+                )

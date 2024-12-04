@@ -8,7 +8,7 @@ have at least one analog input channel.
 '''
 
 
-def list_inputs():
+def list_input_connections():
     inputs = {}
     manifest = load_io_manifest()()
     for obj in manifest.traverse():
@@ -86,14 +86,22 @@ microphone).
 '''
 
 
-def list_microphone_connections():
+def list_microphone_connections(names=None):
     '''
     List all microphones found in the IO Manifest
+
+    Parameters
+    ----------
+    names : list of str
+        If provided, channel names must start with this string. Defaults to
+        ['input', 'microphone'].
     '''
     choices = {}
     manifest = load_io_manifest()()
-    for channel in manifest.find_all('^microphone_', regex=True):
-        choices[channel.label] = channel.name.split('_', 1)[1]
+    if names is None:
+        names = ['input', 'microphone']
+    for channel in manifest.find_all(f'^({"|".join(names)})_', regex=True):
+        choices[channel.label] = channel.name
     if len(choices) == 0:
         raise ValueError(NO_MICROPHONE_ERROR)
 
@@ -125,23 +133,19 @@ def list_input_amplifier_connections():
 
 
 def show_connections():
+    def show_connection(name):
+        print(f'Connections for {name}')
+        try:
+            connections = globals()[f'list_{name}_connections']()
+            for k, v in connections.items():
+                print(f' * {k}: {v}')
+        except ValueError:
+            print('   No connections found')
+
     print(f'Looking for connections in {get_default_io()}')
-    try:
-        print(list_starship_connections())
-    except ValueError:
-        pass
-    try:
-        print(list_speaker_connections())
-    except ValueError:
-        pass
-    try:
-        print(list_microphone_connections())
-    except ValueError:
-        pass
-    try:
-        print(list_input_amplifier_connections())
-    except ValueError:
-        pass
+    connections = 'starship', 'speaker', 'microphone', 'input_amplifier', 'input'
+    for name in connections:
+        show_connection(name)
 
 
 if __name__ == '__main__':

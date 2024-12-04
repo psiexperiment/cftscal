@@ -23,9 +23,9 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
         self.pistonphone.save_config()
 
     def run_mic_cal(self, microphone):
-        filename = f'{{date_time}}_{microphone.name}_{self.pistonphone.name}'
+        filename = f'{{date_time}}_{microphone.connected_device}_{self.pistonphone.name}'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone' / microphone.name / filename
+        pathname = CAL_ROOT / 'microphone' / microphone.connected_device / filename
         env = {
             **microphone.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),

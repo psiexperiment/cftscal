@@ -41,3 +41,11 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'speaker_calibration_chirp', env)
+
+    def run_cal_wav(self, speaker, microphone):
+        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_wav'
+        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
+
+        env = microphone.get_env_vars()
+        env.update(speaker.get_env_vars(include_cal=False))
+        self._run_cal(pathname, 'speaker_calibration_wav', env)

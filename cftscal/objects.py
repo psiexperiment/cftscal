@@ -171,17 +171,23 @@ class CFTSBaseLoader(CalibrationLoader):
 
     def __init__(self):
         self.label = 'CFTS'
-        self.base_path = CAL_ROOT / self.subfolder
-        self.base_path.mkdir(exist_ok=True)
+        # Initialize the list of base paths to scan for objects
+        self.base_paths = {}
+        for subfolder, cal_class in self.sources.items():
+            base_path = CAL_ROOT / subfolder
+            base_path.mkdir(exist_ok=True)
+            self.base_paths[base_path] = cal_class
 
     def list_names(self):
-        for path in self.base_path.iterdir():
-            yield path.stem
+        for base_path in self.base_paths:
+            for path in base_path.iterdir():
+                yield path.stem
 
     def list_calibrations(self, name):
         calibrations = []
-        for path in (self.base_path / name).glob(f'*_{name}_*'):
-            calibrations.append(self.cal_class(name, path))
+        for base_path, cal_class in self.base_paths.items():
+            for path in (base_path / name).glob(f'*_{name}_*'):
+                calibrations.append(cal_class(name, path))
         return calibrations
 
 
@@ -336,8 +342,10 @@ class CFTSStarshipCalibration(Calibration):
 
 
 class CFTSStarshipLoader(CFTSBaseLoader):
-    subfolder = 'starship'
-    cal_class = CFTSStarshipCalibration
+
+    sources = {
+        'starship': CFTSStarshipCalibration,
+    }
 
 
 ################################################################################
@@ -389,8 +397,10 @@ class CFTSSpeakerCalibration(Calibration):
 
 
 class CFTSSpeakerLoader(CFTSBaseLoader):
-    subfolder = 'speaker'
-    cal_class = CFTSSpeakerCalibration
+
+    sources = {
+        'speaker': CFTSSpeakerCalibration,
+    }
 
 
 ################################################################################
@@ -424,18 +434,44 @@ class CFTSInputAmplifierCalibration(Calibration):
 
 
 class CFTSInputAmplifierLoader(CFTSBaseLoader):
-    subfolder = 'input_amplifier'
-    cal_class = CFTSInputAmplifierCalibration
+
+    sources = {
+        'input_amplifier': CFTSInputAmplifierCalibration,
+    }
 
 
 ################################################################################
-# Microphone calibration management
+# Input calibration management
 ################################################################################
-class Microphone(CalibratedObject):
+class Input(CalibratedObject):
     pass
 
 
-class CFTSMicrophoneCalibration(Calibration):
+class Microphone(Input):
+    pass
+
+
+class CFTSInputCalibration(Calibration):
+
+    def __init__(self, name, filename):
+        self.label = 'CFTS'
+        self.name = name
+        self.filename = Path(filename)
+        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
+
+    @cached_property
+    def datetime(self):
+        datestr, _ = self.filename.stem.split('_', 1)
+        return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+    def load(self):
+        raise NotImplementedError
+
+    def load_recording(self):
+        raise NotImplementedError
+
+
+class CFTSMicrophoneCalibration(CFTSInputCalibration):
 
     def __init__(self, name, filename):
         self.label = 'CFTS'
@@ -479,9 +515,15 @@ class CFTSMicrophoneCalibration(Calibration):
         return MicrophoneCalibration(self.filename)
 
 
-class CFTSMicrophoneLoader(CFTSBaseLoader):
-    subfolder = 'microphone'
-    cal_class = CFTSMicrophoneCalibration
+class CFTSInputLoader(CFTSBaseLoader):
+
+    sources = {
+        'microphone': CFTSMicrophoneCalibration,
+    }
+
+
+class CFTSMicrophoneLoader(CFTSInputLoader):
+    pass
 
 
 ################################################################################
@@ -531,8 +573,10 @@ class CFTSInEarCalibration(Calibration):
 
 
 class CFTSInEarLoader(CFTSBaseLoader):
-    subfolder = 'inear'
-    cal_class = CFTSInEarCalibration
+
+    sources = {
+        'inear': CFTSInEarCalibration,
+    }
 
     def list_names(self):
         self.names = {}
@@ -551,6 +595,9 @@ class CFTSInEarLoader(CFTSBaseLoader):
 ################################################################################
 # Basic cal registration
 ################################################################################
+input_device_manager = CalibrationManager(Input)
+input_device_manager.register('cftscal.objects.CFTSInputLoader')
+
 input_amplifier_manager = CalibrationManager(InputAmplifier)
 input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
