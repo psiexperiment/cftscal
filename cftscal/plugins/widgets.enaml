@@ -123,20 +123,41 @@ class BasePlotManager(Atom):
     def get_plot_id(self, calibration):
         return calibration
 
-    def create_empty_plots(self):
-        color, plot = self.create_plot()
+    def create_plot(self, color=None, width=2, line='solid'):
+        if color is None:
+            try:
+                color = make_color(next(self.color_cycle))
+            except StopIteration:
+                # We have exhausted the color cycle. Just start over again at
+                # the beginning.
+                self.color_cycle = self._default_color_cycle()
+                color = make_color(next(self.color_cycle))
+        else:
+            # Coerce color back to Qcolor for use by pygtgraph
+            color = make_color(color)
+
+        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
+        pen = pg.mkPen(color, width=width, style=linestyle)
+        return color, pg.PlotCurveItem(pen=pen)
+
+    def create_empty_plots(self, color=None, width=2, line='solid'):
+        color, plot = self.create_plot(color=color, width=width, line=line)
         return color, [plot]
 
-    def get_plots(self, plot_id):
+    def get_plots(self, plot_id, vb=None, **kw):
+        if vb is None:
+            vb = self.vb
         if plot_id not in self.plots:
-            color, plots = self.create_empty_plots()
+            color, plots = self.create_empty_plots(**kw)
             # Convert to Enaml color for highlight in object tree 
-            color = Color(color.red(), color.green(), color.blue(), color.alpha())
-            self.plots[plot_id] = color, plots
+            color = Color(color.red(), color.green(), color.blue(),
+                          color.alpha())
+            self.plots[vb, plot_id] = color, plots
             self.legend.addItem(plots[0], str(plot_id))
             for plot in plots:
-                self.vb.addItem(plot)
-        return self.plots[plot_id]
+                vb.addItem(plot)
+
+        return self.plots[vb, plot_id]
 
     def plot(self, calibration):
         return self._update(calibration, remove=False)
@@ -147,26 +168,13 @@ class BasePlotManager(Atom):
             return
         return self._update(calibration, remove=True)
 
-    def remove_plots(self, plot_id):
-        _, plots = self.plots.pop(plot_id)
+    def remove_plots(self, plot_id, vb=None):
+        if vb is None:
+            vb = self.vb
+        _, plots = self.plots.pop(vb, plot_id)
         self.legend.removeItem(plots[0])
         for plot in plots:
-            self.vb.removeItem(plot)
-
-    def create_plot(self, color=None, width=2, line='solid'):
-        if color is None:
-            try:
-                color = make_color(next(self.color_cycle))
-            except StopIteration:
-                # We have exhausted the color cycle. Just start over again at
-                # the beginning.
-                self.color_cycle = self._default_color_cycle()
-                color = make_color(next(self.color_cycle))
-
-        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
-        pen = pg.mkPen(color, width=width, style=linestyle)
-        return color, pg.PlotCurveItem(pen=pen)
-
+            vb.removeItem(plot)
 
 ################################################################################
 # Organize list of calibrated objects and calibrations for each object

@@ -12,6 +12,7 @@ from enaml.widgets.api import (
 )
 
 from psi.data.plots_manifest import PGCanvas
+from psiaudio import util
 
 from cftscal.objects import input_device_manager
 from cftscal.plugins.widgets import (
@@ -20,46 +21,93 @@ from cftscal.plugins.widgets import (
 
 
 from atom.api import Value
-class InputMonitorPlotManager(BasePlotManager):
-    
-    select = Value()
 
-    def _default_vb(self):
-        vb = super()._default_vb()
-        self.select = pg.LinearRegionItem([0, 0.1])
-        vb.addItem(self.select)
-        return vb
+
+class InputMonitorPlotManager(BasePlotManager):
+
+    region_select = Value()
+    time_vb = Value()
+    psd_vb = Value()
+    data = Value()
+
+    def _default_component(self):
+        component = pg.GraphicsLayout()
+        component.setSpacing(10)
+
+        # Set up time series viewbox
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Time', units='s')
+        y_axis = pg.AxisItem('left')
+        y_axis.setLabel('Signal (V)')
+        y_axis.setGrid(64)
+        self.time_vb = vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        y_axis.linkToView(vb)
+        x_axis.linkToView(vb)
+        component.addItem(y_axis, 0, 0)
+        component.addItem(x_axis, 1, 1)
+        component.addItem(vb, 0, 1)
+
+        # Set up time series viewbox
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Frequency', units='Hz')
+        y_axis = pg.AxisItem('left')
+        y_axis.setLabel('PSD (dB SPL)')
+        y_axis.setGrid(64)
+        self.psd_vb = vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        y_axis.linkToView(vb)
+        x_axis.linkToView(vb)
+        component.addItem(y_axis, 2, 0)
+        component.addItem(x_axis, 3, 1)
+        component.addItem(vb, 2, 1)
+
+        self.data = {}
+
+        return component
+
+    def _region_select_updated(self):
+        xlb, xub = self.region_select.getRegion()
+        for d in self.data.values():
+            x, y, fs = d['x'], d['y'], d['fs']
+            m = (x >= xlb) & (x < xub)
+            psd = util.db(util.psd_df(y[m], fs=fs))
+            d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
 
     def _update(self, recording, remove=False):
-        plot_id = self.get_plot_id(recording)
         if remove:
-            self.remove_plots(plot_id)
-            return None
-        color, plots = self.get_plots(plot_id)
+            self.remove_plots(('time', recording))
+            self.remove_plots(('psd', recording))
+
+        if self.region_select is None:
+            def update():
+                nonlocal self
+                self._region_select_updated()
+
+            self.region_select = region = pg.LinearRegionItem()
+            region.setZValue(10)
+            region.sigRegionChanged.connect(update)
+            self.time_vb.addItem(region, ignoreBounds=True)
+
+        color, time_plot = self.get_plots(('time', recording), vb=self.time_vb)
+        _, psd_plot = self.get_plots(('psd', recording), color=color, vb=self.psd_vb)
 
         fh = recording.load_recording()
         y = fh.hw_ai[0]
         x = np.arange(len(y)) / fh.hw_ai.fs
-        plots[0].setData(x, y)
+        time_plot[0].setData(x, y)
 
-        #psd = fh.get_psd(average_seconds=1).iloc[1:]
-        #x = np.log10(psd.index.values)
-        #y = psd.values
-        #plots[0].setData(x, y)
-        #return color
-
-    def make_y_axis(self):
-        y_axis = pg.AxisItem('left')
-        y_axis.setLabel('Signal (V)')
-        y_axis.setGrid(64)
-        return y_axis
-
-    def make_x_axis(self):
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(64)
-        x_axis.setLabel('Time', units='s')
-        return x_axis
-
+        self.data[recording] = {
+            'time_plot': time_plot,
+            'psd_plot': psd_plot,
+            'x': x,
+            'y': y,
+            'fs': fh.hw_ai.fs,
+        }
+        self._region_select_updated()
+        return color
 
 
 enamldef InputMonitorView(Container):
