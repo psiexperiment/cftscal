@@ -136,14 +136,17 @@ def initialize_speaker(name, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    input_name = os.environ[f'CFTS_SPEAKER']
-    item_speaker = context.get_item(f'{name}_speaker')
-    item_speaker.expression = f'"{input_name}"'
-    item_speaker.editable = False
+    try:
+        input_name = os.environ[f'CFTS_SPEAKER']
+        item_speaker = context.get_item(f'{name}_speaker')
+        item_speaker.expression = f'"{input_name}"'
+        item_speaker.editable = False
 
-    if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
-        channel = controller.get_channel(f'hw_ai::speaker_{input_name}')
-        channel.calibration = speaker_manager.from_string(name).load()
+        if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
+            channel = controller.get_channel(f'hw_ai::speaker_{input_name}')
+            channel.calibration = speaker_manager.from_string(name).load()
+    except Exception as e:
+        log.exception(e)
 
 
 enamldef Speaker(ExperimentManifest): manifest:

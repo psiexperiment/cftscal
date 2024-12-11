@@ -28,7 +28,7 @@ from psiaudio.calibration import FlatCalibration, InterpCalibration
 from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 from psi.core.enaml.api import ExperimentManifest
-from psi.token.primitives import Chirp, Cos2Envelope, Tone
+from psi.token.primitives import Chirp, Cos2Envelope, Tone, WavFile
 
 
 def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
@@ -607,11 +607,6 @@ enamldef WavMixin(ExperimentManifest): manifest:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
-        FileParameter:
-            name = 'wav_file'
-            label = 'Wav file'
-            group_name = 'hardware_settings'
-
         ContextRow:
             fmt = ['Average', averages, 'trials with', iti, 's ITI']
             group_name = 'hardware_settings'
@@ -633,12 +628,22 @@ enamldef WavMixin(ExperimentManifest): manifest:
                 group_name = 'hardware_settings'
 
     Extension:
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
+
+        WavFile: wavfile:
+            default_values = {
+                'level': 0,
+            }
+
+    Extension:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput:
             name = 'hw_ao'
             label = 'Output'
+            token = wavfile
             auto_decrement = True
             target_name = 'system_output'
 
@@ -652,7 +657,8 @@ enamldef WavMixin(ExperimentManifest): manifest:
 
         Command:
             id = 'psi.controller.configure_hardware'
-            handler = partial(configure_hardware_chirp, manifest.extract_epoch_inputs)
+            handler = partial(configure_hardware_wav,
+                              manifest.extract_epoch_inputs)
 
     Extension:
         id = manifest.id + '.actions'
