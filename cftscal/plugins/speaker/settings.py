@@ -27,25 +27,25 @@ class SpeakerCalibrationSettings(CalibrationSettings):
             s.save_config()
 
     def run_cal_golay(self, speaker, microphone):
-        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_golay'
-        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
+        filename = f'{{date_time}}_{speaker.output_name}_{microphone.input_name}_golay'
+        pathname = CAL_ROOT / 'speaker' / speaker.output_name / filename
 
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'speaker_calibration_golay', env)
+        self._run_cal(pathname, 'cftscal.paradigms::speaker_calibration_golay', env)
 
     def run_cal_chirp(self, speaker, microphone):
-        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_chirp'
-        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
+        filename = f'{{date_time}}_{speaker.output_name}_{microphone.input_name}_chirp'
+        pathname = CAL_ROOT / 'speaker' / speaker.output_name / filename
 
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'speaker_calibration_chirp', env)
+        self._run_cal(pathname, 'cftscal.paradigms::speaker_calibration_chirp', env)
 
     def run_cal_wav(self, speaker, microphone):
-        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_wav'
-        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
+        filename = f'{{date_time}}_{speaker.output_name}_{microphone.input_name}_wav'
+        pathname = CAL_ROOT / 'speaker' / speaker.output_name / filename
 
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'speaker_calibration_wav', env)
+        self._run_cal(pathname, 'cftscal.paradigms::speaker_calibration_wav', env)

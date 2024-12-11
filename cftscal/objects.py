@@ -77,7 +77,10 @@ class CalibratedObject:
         return calibrations
 
     def get_current_calibration(self):
-        return sorted(self.list_calibrations())[-1]
+        try:
+            return sorted(self.list_calibrations())[-1]
+        except IndexError as e:
+            raise ValueError(f'No calibration for {self.name}') from e
 
     def __repr__(self):
         return f'{self.__class__.__name__} :: {self.name}'

@@ -5,8 +5,9 @@ from atom.api import Str
 from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
+from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton
 )
 
 from psi.data.plots_manifest import PGCanvas
@@ -101,8 +102,8 @@ enamldef SpeakerView(Container):
                             to_string = lambda m: m.input_label
 
                         ObjectCombo: mic_select:
-                            items = sorted(microphone.available_microphones)
-                            selected := microphone.name
+                            items = sorted(microphone.available_devices)
+                            selected := microphone.connected_device
 
                         ObjectCombo: mic_gain:
                             items = [-20, -10, 0, 10, 20, 30, 40, 50]
@@ -124,12 +125,11 @@ enamldef SpeakerView(Container):
                                     speaker_label,
                                     hbox(speaker_select, speaker_add, spacing=0),
                                     spacer(0),
-                                    hbox(golay_start, chirp_start, wav_start, spacing=0),
+                                    start_buttons,
                                     spacing=5,
                                 ),
                                 speaker_add.width == 25,
-                                align('v_center', speaker_label, speaker_select,
-                                        speaker_add, golay_start, chirp_start),
+                                align('v_center', speaker_label, speaker_select, start_buttons),
                             ]
 
                             Label: speaker_label:
@@ -145,32 +145,34 @@ enamldef SpeakerView(Container):
                                     popup = AddItem(self, combo=speaker_select, label='Speaker')
                                     popup.show()
 
-                            PushButton: golay_start:
-                                text = 'Golay'
-                                enabled << bool(mic_settings.name) \
-                                    and bool(speaker.name) \
-                                    and '(' not in speaker.name
-                                clicked ::
-                                    settings.run_cal_golay(speaker, mic_settings)
-                                    speaker_tree.collection.update_groups()
+                            HGroup: start_buttons:
+                                padding = 0
+                                spacing = 0
 
-                            PushButton: chirp_start:
-                                text = 'Chirp'
-                                enabled << bool(mic_settings.name) \
-                                    and bool(speaker.name) \
-                                    and '(' not in speaker.name
-                                clicked ::
-                                    settings.run_cal_chirp(speaker, mic_settings)
-                                    speaker_tree.collection.update_groups()
+                                enabled << bool(mic_settings.input_name) \
+                                    and bool(speaker.output_name) \
+                                    and '(' not in speaker.output_name
 
-                            PushButton: wav_start:
-                                text = 'Wav'
-                                enabled << bool(mic_settings.name) \
-                                    and bool(speaker.name) \
-                                    and '(' not in speaker.name
-                                clicked ::
-                                    settings.run_cal_wav(speaker, mic_settings)
-                                    speaker_tree.collection.update_groups()
+                                PushButton:
+                                    text = 'Golay'
+                                    clicked ::
+                                        settings.run_cal_golay(speaker, mic_settings)
+                                        speaker_tree.collection.update_groups()
+
+                                PushButton:
+                                    text = 'Chirp'
+                                    clicked ::
+                                        settings.run_cal_chirp(speaker, mic_settings)
+                                        speaker_tree.collection.update_groups()
+
+                                PushButton:
+                                    text = 'Wav'
+                                    clicked ::
+                                        try:
+                                            settings.run_cal_wav(speaker, mic_settings)
+                                        except Exception as e:
+                                            critical(self, 'Error running calibration', str(e))
+                                        speaker_tree.collection.update_groups()
 
         DockItem:
             name = 'speaker_sens_plot'

@@ -97,6 +97,14 @@ ParadigmDescription(
         {'manifest': PATH + 'calibration_mixins.WavMixin',},
         selectable_microphone_mixin,
         selectable_speaker_mixin,
+        {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
+         'required': True,
+         'attrs': {'source_name': 'hw_ai', 'time_span': 8, 'y_label': 'Amplitude (V)'},
+         },
+        {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
+         'required': True,
+         'attrs': {'source_name': 'hw_ai', 'apply_calibration': True, 'y_label': 'PSD (dB SPL)'}
+         },
     ],
 )
 

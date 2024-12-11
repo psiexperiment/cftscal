@@ -632,7 +632,7 @@ enamldef WavMixin(ExperimentManifest): manifest:
         point = 'psi.token.tokens'
 
         WavFile: wavfile:
-            default_values = {
+            values = {
                 'level': 0,
             }
 
