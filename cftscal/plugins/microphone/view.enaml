@@ -91,6 +91,7 @@ enamldef MicrophoneView(Container):
                                     pistonphone_level_label,
                                     spacer(0),
                                 ),
+                                input_config,
                             ),
                             pistonphone_frequency.width == 50,
                             pistonphone_level.width == 50,
@@ -118,54 +119,55 @@ enamldef MicrophoneView(Container):
                         Label: pistonphone_level_label:
                             text = 'dB SPL'
 
-                    Looper:
-                        iterable << settings.microphones
-
-                        Container:
+                        Container: input_config:
                             share_layout = True
                             padding = 0
                             constraints = [
                                 hbox(
-                                    mic_label,
-                                    hbox(mic_select, mic_add, mic_gain, spacing=0),
-                                    mic_gain_label,
+                                    input_select,
+                                    hbox(dev_select, dev_add, dev_gain, spacing=0),
+                                    dev_gain_label,
                                     spacer(0),
-                                    mic_cal_start,
+                                    dev_cal_start,
                                     spacing=5,
                                 ),
-                                align('v_center', mic_label, mic_select, mic_add,
-                                        mic_gain, mic_gain_label, mic_cal_start),
-                                mic_add.width == 25,
+                                align('v_center', input_select, dev_select, dev_add,
+                                        dev_gain, dev_gain_label, dev_cal_start),
+                                dev_add.width == 25,
                             ]
 
-                            attr microphone = loop_item
+                            ObjectCombo: input_select:
+                                items << settings.microphones
+                                to_string = lambda x: x.input_label
+                                selected := settings.selected_input
 
-                            Label: mic_label:
-                                text << loop_item.input_label
+                            ObjectCombo: dev_select:
+                                items << sorted(settings.selected_input.available_devices)
+                                selected := settings.selected_input.connected_device
 
-                            ObjectCombo: mic_select:
-                                items = sorted(microphone.available_devices)
-                                selected := microphone.connected_device
-
-                            PushButton: mic_add:
+                            PushButton: dev_add:
                                 text = '+'
                                 clicked ::
-                                    popup = AddItem(self, combo=mic_select, label='Microphone')
+                                    popup = AddItem(self, combo=dev_select, label='Microphone')
                                     popup.show()
 
-                            ObjectCombo: mic_gain:
+                            ObjectCombo: dev_gain:
                                 items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := microphone.gain
+                                selected := settings.selected_input.gain
 
-                            Label: mic_gain_label:
+                            Label: dev_gain_label:
                                 text = 'dB gain'
 
-                            PushButton: mic_cal_start:
+                            PushButton: dev_cal_start:
                                 text = 'Calibrate'
-                                enabled << bool(microphone.connected_device)
+                                enabled << bool(settings.selected_input.connected_device)
                                 clicked ::
-                                    settings.run_mic_cal(microphone)
-                                    mic_tree.collection.update_groups()
+                                    settings.run_dev_cal(settings.selected_input)
+                                    dev_tree.collection.update_groups()
+
+
+                    Looper:
+                        iterable << settings.microphones
 
         DockItem:
             name = 'mic_sens_plot'
