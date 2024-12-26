@@ -71,14 +71,67 @@ enamldef AddItem(PopupView): popup:
 
 class BasePlotManager(Atom):
 
-    legend = Typed(pg.LegendItem)
     component = Typed(pg.GraphicsLayout)
-    vb = Typed(pg.ViewBox)
     color_cycle = Value()
     plots = Dict()
 
     def _default_color_cycle(self):
         return iter(Tableau_20.colors)
+
+    def _default_component(self):
+        raise NotImplementedError
+
+    def _default_plots(self):
+        return {}
+
+    def create_plot(self, color=None, width=2, line='solid'):
+        if color is None:
+            try:
+                color = make_color(next(self.color_cycle))
+            except StopIteration:
+                # We have exhausted the color cycle. Just start over again at
+                # the beginning.
+                self.color_cycle = self._default_color_cycle()
+                color = make_color(next(self.color_cycle))
+        else:
+            # Coerce color back to Qcolor for use by pygtgraph
+            color = make_color(color)
+
+        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
+        pen = pg.mkPen(color, width=width, style=linestyle)
+        return color, pg.PlotCurveItem(pen=pen)
+
+    def create_empty_plots(self, color=None, width=2, line='solid'):
+        color, plot = self.create_plot(color=color, width=width, line=line)
+        return color, [plot]
+
+    def get_plots(self, plot_id, vb, **kw):
+        if plot_id not in self.plots:
+            color, plots = self.create_empty_plots(**kw)
+            # Convert to Enaml color for highlight in object tree 
+            color = Color(color.red(), color.green(), color.blue(),
+                          color.alpha())
+            self.plots[vb, plot_id] = color, plots
+            for plot in plots:
+                vb.addItem(plot)
+        return self.plots[vb, plot_id]
+
+    def plot(self, item):
+        return self._update(item, remove=False)
+
+    def remove(self, item):
+        return self._update(item, remove=True)
+
+    def remove_plots(self, plot_id, vb):
+        _, plots = self.plots.pop((vb, plot_id), (None, []))
+        for plot in plots:
+            vb.removeItem(plot)
+
+
+class SinglePlotManager(BasePlotManager):
+
+    vb = Typed(pg.ViewBox)
+    legend = Typed(pg.LegendItem)
 
     def _default_legend(self):
         legend = pg.LegendItem()
@@ -104,9 +157,6 @@ class BasePlotManager(Atom):
 
         return component
 
-    def _default_plots(self):
-        return {}
-
     def make_y_axis(self):
         y_axis = pg.AxisItem('left')
         y_axis.setLabel('Sensitivity (dB re 1Vrms)')
@@ -120,61 +170,9 @@ class BasePlotManager(Atom):
         x_axis.setLogMode(True)
         return x_axis
 
-    def get_plot_id(self, calibration):
-        return calibration
+    def get_plot_id(self, item):
+        return item
 
-    def create_plot(self, color=None, width=2, line='solid'):
-        if color is None:
-            try:
-                color = make_color(next(self.color_cycle))
-            except StopIteration:
-                # We have exhausted the color cycle. Just start over again at
-                # the beginning.
-                self.color_cycle = self._default_color_cycle()
-                color = make_color(next(self.color_cycle))
-        else:
-            # Coerce color back to Qcolor for use by pygtgraph
-            color = make_color(color)
-
-        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
-        pen = pg.mkPen(color, width=width, style=linestyle)
-        return color, pg.PlotCurveItem(pen=pen)
-
-    def create_empty_plots(self, color=None, width=2, line='solid'):
-        color, plot = self.create_plot(color=color, width=width, line=line)
-        return color, [plot]
-
-    def get_plots(self, plot_id, vb=None, **kw):
-        if vb is None:
-            vb = self.vb
-        if plot_id not in self.plots:
-            color, plots = self.create_empty_plots(**kw)
-            # Convert to Enaml color for highlight in object tree 
-            color = Color(color.red(), color.green(), color.blue(),
-                          color.alpha())
-            self.plots[vb, plot_id] = color, plots
-            self.legend.addItem(plots[0], str(plot_id))
-            for plot in plots:
-                vb.addItem(plot)
-
-        return self.plots[vb, plot_id]
-
-    def plot(self, calibration):
-        return self._update(calibration, remove=False)
-
-    def remove(self, calibration):
-        plot_id = self.get_plot_id(calibration)
-        if plot_id not in self.plots:
-            return
-        return self._update(calibration, remove=True)
-
-    def remove_plots(self, plot_id, vb=None):
-        if vb is None:
-            vb = self.vb
-        _, plots = self.plots.pop(vb, plot_id)
-        self.legend.removeItem(plots[0])
-        for plot in plots:
-            vb.removeItem(plot)
 
 ################################################################################
 # Organize list of calibrated objects and calibrations for each object
@@ -266,6 +264,7 @@ class ObjectGroup(Atom):
 
 
 class ObjectCollection(Atom):
+
     groups = List(ObjectGroup)
     manager = Value()
     plot_manager = Value()

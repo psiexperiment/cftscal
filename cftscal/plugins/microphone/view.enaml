@@ -11,20 +11,19 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
 )
 
 
-class MicrophonePlotManager(BasePlotManager):
+class MicrophonePlotManager(SinglePlotManager):
 
-    def _update(self, calibration, remove=False):
-        plot_id = self.get_plot_id(calibration)
+    def _update(self, item, remove=False):
         if remove:
-            self.remove_plots(plot_id)
+            self.remove_plots(item, self.vb)
             return None
-        color, plots = self.get_plots(plot_id)
+        color, plots = self.get_plots(item, self.vb)
 
-        fh = calibration.load_recording()
+        fh = item.load_recording()
         psd = fh.get_psd(average_seconds=1).iloc[1:]
         x = np.log10(psd.index.values)
         y = psd.values
