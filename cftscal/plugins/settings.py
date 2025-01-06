@@ -90,7 +90,7 @@ class InputSettings(PersistentSettings):
     def _get_settings_filename(self):
         return f'input_{self.input_name}.json'
 
-    def _default_device(self):
+    def _default_connected_device(self):
         try:
             return self.available_devices[0]
         except IndexError:

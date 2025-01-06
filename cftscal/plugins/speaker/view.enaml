@@ -10,6 +10,7 @@ from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton
 )
 
+from psi.core.enaml.api import ListDictTable
 from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import speaker_manager
@@ -25,8 +26,16 @@ enamldef SpeakerView(Container):
     DockArea: area:
         layout = AreaLayout(
             HSplitLayout(
-                VSplitLayout('settings', 'speaker_list', sizes=[25, 200]),
-                'speaker_sens_plot',
+                VSplitLayout(
+                    'settings',
+                    'speaker_list',
+                    sizes=[25, 200]
+                ),
+                VSplitLayout(
+                    'speaker_sens_plot',
+                    'input_analysis',
+                    sizes=[800, 200],
+                ),
                 sizes=[150, 900],
             ),
         )
@@ -180,3 +189,23 @@ enamldef SpeakerView(Container):
                 collection = ObjectCollection(
                     speaker_manager, [speaker_plot.manager],
                 )
+
+        DockItem:
+            name = 'input_analysis'
+            title = 'Analysis'
+
+            Container:
+                ListDictTable:
+                    data << speaker_plot.manager.analysis
+                    columns = ['run', 'duration', 'ptp', 'rms']
+                    column_info = {
+                        'run': {'label': 'Calibration'},
+                        'duration': {'label': 'Sample duration (s)'},
+                        'ptp': {'label': 'peak-equivalent dB SPL'},
+                        'rms': {'label': 'dB SPL RMS'},
+                    }
+
+                    get_cell_color => (row, column):
+                        if column != 0:
+                            return 'white'
+                        return data[row]['color']

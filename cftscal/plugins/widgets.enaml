@@ -196,6 +196,8 @@ class TimePSDPlotManager(BasePlotManager):
 
     apply_calibration = Bool(True)
 
+    analysis = Value()
+
     _selecting = Bool(False)
     _initial_x = Value()
 
@@ -271,18 +273,33 @@ class TimePSDPlotManager(BasePlotManager):
     def _region_select_updated(self):
         # Don't update PSD until region select complete
         if self._selecting:
-            print('skipping')
             return
         xlb, xub = self.region_select.getRegion()
-        for d in self.data.values():
+        info = []
+        for item, d in self.data.items():
             x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
             m = (x >= xlb) & (x < xub)
             if m.any():
                 psd = cal.get_db(util.psd_df(y[m], fs=fs))
                 d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
-                ptp = np.ptp(y[m])
+                y_cal = cal.get_level(y[m])
+                info.append({
+                    'color': d['color'],
+                    'run': str(item),
+                    'ptp': util.patodb(np.ptp(y_cal)),
+                    'rms': util.patodb(util.rms(y_cal)),
+                    'duration': x[m].max() - x[m].min(),
+                })
             else:
                 d['psd_plot'][0].setData([], [])
+                info.append({
+                    'color': d['color'],
+                    'run': str(item),
+                    'ptp': np.nan,
+                    'rms': np.nan,
+                    'duration': 0,
+                })
+        self.analysis = info
 
     def remove(self, recording):
         self._update(recording, True)
@@ -315,6 +332,7 @@ class TimePSDPlotManager(BasePlotManager):
         color, time_plot = self.get_plots(item, self.time_vb)
         _, psd_plot = self.get_plots(item, self.psd_vb)
         self.data[item] = self._plot(item, time_plot, psd_plot)
+        self.data[item]['color'] = color
         self._region_select_updated()
         return {'color': color}
 

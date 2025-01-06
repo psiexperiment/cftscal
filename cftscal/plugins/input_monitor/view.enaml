@@ -11,6 +11,7 @@ from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
 )
 
+from psi.core.enaml.api import ListDictTable
 from psi.data.plots_manifest import PGCanvas
 from psiaudio import util
 
@@ -57,10 +58,10 @@ enamldef InputMonitorView(Container):
                     'input_list',
                     sizes=[25, 200],
                 ),
-                HSplitLayout(
+                VSplitLayout(
                     'input_monitor_plot',
                     'input_analysis',
-                    sizes=[600, 300],
+                    sizes=[800, 200],
                 ),
                 sizes=[150, 900],
             ),
@@ -170,4 +171,17 @@ enamldef InputMonitorView(Container):
             title = 'Analysis'
 
             Container:
-                pass
+                ListDictTable:
+                    data << input_monitor_plot.manager.analysis
+                    columns = ['run', 'duration', 'ptp', 'rms']
+                    column_info = {
+                        'run': {'label': 'Calibration'},
+                        'duration': {'label': 'Sample duration (s)'},
+                        'ptp': {'label': 'peak-equivalent dB SPL'},
+                        'rms': {'label': 'dB SPL RMS'},
+                    }
+
+                    get_cell_color => (row, column):
+                        if column != 0:
+                            return 'white'
+                        return data[row]['color']
