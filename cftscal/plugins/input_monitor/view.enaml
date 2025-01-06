@@ -30,6 +30,8 @@ class InputMonitorPlotManager(BasePlotManager):
     psd_vb = Value()
     data = Value()
 
+    apply_calibration = Bool(True)
+
     _selecting = Bool(False)
     _initial_x = Value()
 
@@ -42,7 +44,10 @@ class InputMonitorPlotManager(BasePlotManager):
         x_axis.setGrid(64)
         x_axis.setLabel('Time', units='s')
         y_axis = pg.AxisItem('left')
-        y_axis.setLabel('Signal (V)')
+        if self.apply_calibration:
+            y_axis.setLabel('Signal (Pa)')
+        else:
+            y_axis.setLabel('Signal (V)')
         y_axis.setGrid(64)
         self.time_vb = vb = pg.ViewBox()
         vb.setBackgroundColor('w')
@@ -57,8 +62,12 @@ class InputMonitorPlotManager(BasePlotManager):
         x_axis.setGrid(64)
         x_axis.setLabel('Frequency', units='Hz')
         y_axis = pg.AxisItem('left')
-        y_axis.setLabel('PSD (dB SPL)')
         y_axis.setGrid(64)
+        if self.apply_calibration:
+            y_axis.setLabel('PSD (dB SPL)')
+        else:
+            y_axis.setLabel('PSD (dB re 1 Vrms)')
+
         self.psd_vb = vb = pg.ViewBox()
         vb.setBackgroundColor('w')
         y_axis.linkToView(vb)
@@ -97,13 +106,14 @@ class InputMonitorPlotManager(BasePlotManager):
     def _region_select_updated(self):
         xlb, xub = self.region_select.getRegion()
         for d in self.data.values():
-            x, y, fs = d['x'], d['y'], d['fs']
+            x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
             m = (x >= xlb) & (x < xub)
             if m.any():
-                psd = util.db(util.psd_df(y[m], fs=fs))
+                print(cal)
+                print(cal.get_sens(1e3))
+                psd = cal.get_db(util.psd_df(y[m], fs=fs))
                 d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
                 ptp = np.ptp(y[m])
-                print(ptp)
             else:
                 d['psd_plot'][0].setData([], [])
 
@@ -140,8 +150,15 @@ class InputMonitorPlotManager(BasePlotManager):
 
         fh = recording.load_recording()
         y = fh.hw_ai[0]
+        if self.apply_calibration:
+            cal = fh.hw_ai.get_calibration()
+        else:
+            print('creating dummy')
+            cal = FlatCalibration.unity()
+
+        y_cal = cal.get_level(y)
         x = np.arange(len(y)) / fh.hw_ai.fs
-        time_plot[0].setData(x, y)
+        time_plot[0].setData(x, y_cal)
 
         self.data[recording] = {
             'time_plot': time_plot,
@@ -149,6 +166,7 @@ class InputMonitorPlotManager(BasePlotManager):
             'x': x,
             'y': y,
             'fs': fh.hw_ai.fs,
+            'calibration': cal,
         }
         self._region_select_updated()
         return {'color': color}
