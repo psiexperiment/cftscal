@@ -116,11 +116,11 @@ class BasePlotManager(Atom):
                 vb.addItem(plot)
         return self.plots[vb, plot_id]
 
-    def plot(self, item):
-        return self._update(item, remove=False)
-
-    def remove(self, item):
-        return self._update(item, remove=True)
+    def notify(self, item, selected):
+        if selected:
+            return self._update(item, remove=False)
+        else:
+            return self._update(item, remove=True)
 
     def remove_plots(self, plot_id, vb):
         _, plots = self.plots.pop((vb, plot_id), (None, []))
@@ -173,6 +173,17 @@ class SinglePlotManager(BasePlotManager):
     def get_plot_id(self, item):
         return item
 
+    def _update(self, item, remove=False):
+        if remove:
+            self.remove_plots(item, self.vb)
+            return None
+        color, plots = self.get_plots(item, self.vb)
+        self._plot(item, plots[0])
+        return {'color': color}
+
+    def _plot(self, item, plot):
+        raise NotImplementedError
+
 
 ################################################################################
 # Organize list of calibrated objects and calibrations for each object
@@ -202,35 +213,49 @@ class MultiPlotManager(Atom):
 
 
 class ObjectNode(Atom):
+    '''
+    Represents a single recording or calibration in the tree hierarchy
+    '''
     selected = Bool(False)
     item = Value()
-    manager = Value()
+    parent = Value()
     color = Value(None)
 
     def _observe_selected(self, event):
         if self.selected:
-            self.color = self.manager.plot(self.item)
+            self.parent.notify(self, selected=True)
         else:
-            self.manager.remove(self.item)
-            self.color = None
+            self.parent.notify(self, selected=False)
 
 
 class ObjectGroup(Atom):
+    '''
+    Represents a group of recordings or calibration in the tree hierarchy
+    '''
     selected = Bool(False)
-    skip_autoselect = Bool(False)
-    subitems = List(ObjectNode)
     item = Value()
-    manager = Value()
+    parent = Value()
     color = Value(None)
+    subitems = List(ObjectNode)
 
-    def __init__(self, item, manager):
+    #: Internal flag to prevent race conditions when selecting/unselecting
+    #: items in tree. We have the option of checking the group (allowing
+    #: us to plot the most recent recording/calibration) or unchecking the
+    #: group, which will remove all recordings/calibrations under the group
+    #: from the plot.
+    _skip_autoselect = Bool(False)
+
+    def __init__(self, item, parent):
         self.item = item
-        self.manager = manager
+        self.parent = parent
         self.update_subitems()
+
+    def notify(self, node, selected):
+        self.parent.notify(node, selected)
 
     def update_subitems(self):
         objects = sorted(self.item.list_calibrations(), reverse=True)
-        self.subitems = [ObjectNode(item=obj, manager=self.manager) for obj in objects]
+        self.subitems = [ObjectNode(item=obj, parent=self) for obj in objects]
 
     def _observe_subitems(self, event):
         for i in self.subitems:
@@ -240,9 +265,9 @@ class ObjectGroup(Atom):
     def _check_selected(self, event):
         for i in self.subitems:
             if i.selected:
-                self.skip_autoselect = True
+                self._skip_autoselect = True
                 self.selected = True
-                self.skip_autoselect = False
+                self._skip_autoselect = False
                 return
         self.selected = False
 
@@ -256,7 +281,7 @@ class ObjectGroup(Atom):
 
     def _observe_selected(self, event):
         if self.selected:
-            if not self.skip_autoselect:
+            if not self._skip_autoselect:
                 self.subitems[0].selected = True
         else:
             for i in self.subitems:
@@ -264,19 +289,35 @@ class ObjectGroup(Atom):
 
 
 class ObjectCollection(Atom):
-
+    '''
+    Manages the list of recording/calibration groups
+    '''
     groups = List(ObjectGroup)
-    manager = Value()
-    plot_manager = Value()
 
-    def __init__(self, manager, plot_manager):
-        self.manager = manager
-        self.plot_manager = plot_manager
+    #: Manager that implements a `list_objects` method (e.g.,
+    #: `starship_manager.list_objects()`) that is used to load the items that
+    #: are shown in the tree.
+    object_manager = Value()
+
+    #: Managers that respond to group/node selections in the tree.
+    view_managers = Value()
+
+    def __init__(self, object_manager, view_managers):
+        self.object_manager = object_manager
+        self.view_managers = view_managers
         self.update_groups()
 
     def update_groups(self):
-        objects = sorted(self.manager.list_objects())
-        self.groups = [ObjectGroup(obj, self.plot_manager) for obj in objects]
+        objects = sorted(self.object_manager.list_objects())
+        self.groups = [ObjectGroup(obj, self) for obj in objects]
+
+    def notify(self, node, selected):
+        for manager in self.view_managers:
+            result = manager.notify(node.item, selected)
+            if not selected:
+                node.color = None
+            elif result is not None and 'color' in result:
+                node.color = result['color']
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):

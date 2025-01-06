@@ -102,6 +102,8 @@ class InputMonitorPlotManager(BasePlotManager):
             if m.any():
                 psd = util.db(util.psd_df(y[m], fs=fs))
                 d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
+                ptp = np.ptp(y[m])
+                print(ptp)
             else:
                 d['psd_plot'][0].setData([], [])
 
@@ -149,7 +151,7 @@ class InputMonitorPlotManager(BasePlotManager):
             'fs': fh.hw_ai.fs,
         }
         self._region_select_updated()
-        return color
+        return {'color': color}
 
 
 enamldef InputMonitorView(Container):
@@ -164,7 +166,11 @@ enamldef InputMonitorView(Container):
                     'input_list',
                     sizes=[25, 200],
                 ),
-                'input_monitor_plot',
+                HSplitLayout(
+                    'input_monitor_plot',
+                    'input_analysis',
+                    sizes=[600, 300],
+                ),
                 sizes=[150, 900],
             ),
         )
@@ -265,5 +271,12 @@ enamldef InputMonitorView(Container):
                 headers = ['Device Name']
                 collection = ObjectCollection(
                     input_device_manager,
-                    input_monitor_plot.manager
+                    [input_monitor_plot.manager],
                 )
+
+        DockItem:
+            name = 'input_analysis'
+            title = 'Analysis'
+
+            Container:
+                pass

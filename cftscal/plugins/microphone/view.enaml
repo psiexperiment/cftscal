@@ -17,18 +17,12 @@ from cftscal.plugins.widgets import (
 
 class MicrophonePlotManager(SinglePlotManager):
 
-    def _update(self, item, remove=False):
-        if remove:
-            self.remove_plots(item, self.vb)
-            return None
-        color, plots = self.get_plots(item, self.vb)
-
+    def _plot(self, item, plot):
         fh = item.load_recording()
         psd = fh.get_psd(average_seconds=1).iloc[1:]
         x = np.log10(psd.index.values)
         y = psd.values
-        plots[0].setData(x, y)
-        return color
+        plot.setData(x, y)
 
 
 enamldef MicrophoneView(Container):
@@ -188,5 +182,5 @@ enamldef MicrophoneView(Container):
             CalibratedObjects: mic_tree:
                 headers = ['Name', 'Sens', 'Sens (dB)', 'Pistonphone']
                 collection = ObjectCollection(
-                    microphone_manager, microphone_plot.manager
+                    microphone_manager, [microphone_plot.manager],
                 )
