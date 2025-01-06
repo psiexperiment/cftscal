@@ -398,6 +398,9 @@ class CFTSSpeakerCalibration(Calibration):
         }
         return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
 
+    def load_recording(self):
+        return Recording(self.filename, setting_table='epoch_metadata')
+
 
 class CFTSSpeakerLoader(CFTSBaseLoader):
 

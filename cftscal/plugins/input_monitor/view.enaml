@@ -16,151 +16,26 @@ from psiaudio import util
 
 from cftscal.objects import input_device_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
 )
 
 
 from atom.api import Bool, Value
 
 
-class InputMonitorPlotManager(BasePlotManager):
+class InputMonitorPlotManager(TimePSDPlotManager):
 
-    region_select = Value()
-    time_vb = Value()
-    psd_vb = Value()
-    data = Value()
-
-    apply_calibration = Bool(True)
-
-    _selecting = Bool(False)
-    _initial_x = Value()
-
-    def _default_component(self):
-        component = pg.GraphicsLayout()
-        component.setSpacing(10)
-
-        # Set up time series viewbox
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(64)
-        x_axis.setLabel('Time', units='s')
-        y_axis = pg.AxisItem('left')
-        if self.apply_calibration:
-            y_axis.setLabel('Signal (Pa)')
-        else:
-            y_axis.setLabel('Signal (V)')
-        y_axis.setGrid(64)
-        self.time_vb = vb = pg.ViewBox()
-        vb.setBackgroundColor('w')
-        y_axis.linkToView(vb)
-        x_axis.linkToView(vb)
-        component.addItem(y_axis, 0, 0)
-        component.addItem(x_axis, 1, 1)
-        component.addItem(vb, 0, 1)
-
-        # Set up time series viewbox
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(64)
-        x_axis.setLabel('Frequency', units='Hz')
-        y_axis = pg.AxisItem('left')
-        y_axis.setGrid(64)
-        if self.apply_calibration:
-            y_axis.setLabel('PSD (dB SPL)')
-        else:
-            y_axis.setLabel('PSD (dB re 1 Vrms)')
-
-        self.psd_vb = vb = pg.ViewBox()
-        vb.setBackgroundColor('w')
-        y_axis.linkToView(vb)
-        x_axis.linkToView(vb)
-        component.addItem(y_axis, 2, 0)
-        component.addItem(x_axis, 3, 1)
-        component.addItem(vb, 2, 1)
-
-        self.data = {}
-
-        return component
-
-    def _mouse_click(self, event):
-        if self.time_vb.sceneBoundingRect().contains(event.scenePos()):
-            point = self.time_vb.mapSceneToView(event.scenePos())
-            if not self._selecting:
-                new_region = (point.x(), point.x())
-                self._selecting = True
-                self._initial_x = point.x()
-            else:
-                region = self.region_select.getRegion()
-
-                new_region = (self._initial_x, point.x())
-                self._selecting = False
-            region = self.region_select.setRegion(new_region)
-
-    def _mouse_move(self, pos):
-        if self.time_vb.sceneBoundingRect().contains(pos):
-            point = self.time_vb.mapSceneToView(pos)
-            if not self._selecting:
-                return
-            region = self.region_select.getRegion()
-            new_region = (self._initial_x, point.x())
-            region = self.region_select.setRegion(new_region)
-
-    def _region_select_updated(self):
-        xlb, xub = self.region_select.getRegion()
-        for d in self.data.values():
-            x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
-            m = (x >= xlb) & (x < xub)
-            if m.any():
-                print(cal)
-                print(cal.get_sens(1e3))
-                psd = cal.get_db(util.psd_df(y[m], fs=fs))
-                d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
-                ptp = np.ptp(y[m])
-            else:
-                d['psd_plot'][0].setData([], [])
-
-    def remove(self, recording):
-        self._update(recording, True)
-
-    def _update(self, recording, remove=False):
-        if remove:
-            self.remove_plots(recording, self.time_vb)
-            self.remove_plots(recording, self.psd_vb)
-            return
-
-        if self.region_select is None:
-            def click(event):
-                nonlocal self
-                self._mouse_click(event)
-            def move(pos):
-                nonlocal self
-                self._mouse_move(pos)
-            self.time_vb.scene().sigMouseClicked.connect(click)
-            self.time_vb.scene().sigMouseMoved.connect(move)
-
-            def update():
-                nonlocal self
-                self._region_select_updated()
-
-            self.region_select = region = pg.LinearRegionItem(values=(0, 0), movable=False)
-            region.setZValue(10)
-            region.sigRegionChanged.connect(update)
-            self.time_vb.addItem(region, ignoreBounds=True)
-
-        color, time_plot = self.get_plots(recording, self.time_vb)
-        _, psd_plot = self.get_plots(recording, self.psd_vb)
-
-        fh = recording.load_recording()
+    def _plot(self, item, time_plot, psd_plot):
+        fh = item.load_recording()
         y = fh.hw_ai[0]
         if self.apply_calibration:
             cal = fh.hw_ai.get_calibration()
         else:
-            print('creating dummy')
             cal = FlatCalibration.unity()
-
         y_cal = cal.get_level(y)
         x = np.arange(len(y)) / fh.hw_ai.fs
         time_plot[0].setData(x, y_cal)
-
-        self.data[recording] = {
+        return {
             'time_plot': time_plot,
             'psd_plot': psd_plot,
             'x': x,
@@ -168,8 +43,6 @@ class InputMonitorPlotManager(BasePlotManager):
             'fs': fh.hw_ai.fs,
             'calibration': cal,
         }
-        self._region_select_updated()
-        return {'color': color}
 
 
 enamldef InputMonitorView(Container):

@@ -14,24 +14,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import speaker_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
 )
-
-
-class SpeakerPlotManager(BasePlotManager):
-
-    def _update(self, calibration, remove=False):
-        plot_id = self.get_plot_id(calibration)
-        if remove:
-            self.remove_plots(plot_id)
-            return None
-        color, plots = self.get_plots(plot_id)
-
-        cal = calibration.load()
-        x = cal.frequency[1:]
-        y = cal.get_db(x, 1.0)
-        plots[0].setData(np.log10(x), y)
-        return color
 
 
 enamldef SpeakerView(Container):
@@ -182,7 +166,7 @@ enamldef SpeakerView(Container):
 
             Container:
                 PGCanvas: speaker_plot:
-                    attr manager = SpeakerPlotManager()
+                    attr manager = TimePSDPlotManager()
                     component << manager.component
 
         DockItem:
@@ -194,5 +178,5 @@ enamldef SpeakerView(Container):
             CalibratedObjects: speaker_tree:
                 headers = ['Name', 'Microphone', 'Method']
                 collection = ObjectCollection(
-                    speaker_manager, speaker_plot.manager
+                    speaker_manager, [speaker_plot.manager],
                 )
