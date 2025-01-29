@@ -561,7 +561,7 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_end'
+            event = 'engines_stopped'
             command = 'psi.controller.compute_calibration'
             delay = 1
 
