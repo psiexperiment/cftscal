@@ -172,7 +172,7 @@ class CFTSBaseLoader(CalibrationLoader):
     def __init__(self):
         self.label = 'CFTS'
         self.base_path = CAL_ROOT / self.subfolder
-        self.base_path.mkdir(exist_ok=True)
+        self.base_path.mkdir(parents=True, exist_ok=True)
 
     def list_names(self):
         for path in self.base_path.iterdir():
