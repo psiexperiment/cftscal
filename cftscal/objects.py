@@ -566,3 +566,14 @@ speaker_manager.register('cftscal.objects.CFTSSpeakerLoader')
 
 inear_manager = CalibrationManager(InEar)
 inear_manager.register('cftscal.objects.CFTSInEarLoader')
+
+
+def show_objects():
+    print('Looking for objects')
+    print('Microphones')
+    for name in microphone_manager.list_names():
+        print(' * name')
+
+
+if __name__ == '__main__':
+    show_objects()
