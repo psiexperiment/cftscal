@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 
+import numpy as np
 import pandas as pd
 
 from psiaudio.calibration import FlatCalibration, InterpCalibration
@@ -454,9 +455,12 @@ class CFTSMicrophoneCalibration(Calibration):
 
     @cached_property
     def sens(self):
-        sens_file = self.filename / 'microphone_sensitivity.json'
-        cal = json.loads(sens_file.read_text())
-        return cal['mic sens overall (mV/Pa)']
+        try:
+            sens_file = self.filename / 'microphone_sensitivity.json'
+            cal = json.loads(sens_file.read_text())
+            return cal['mic sens overall (mV/Pa)']
+        except:
+            return np.nan
 
     @cached_property
     def sens_db(self):
