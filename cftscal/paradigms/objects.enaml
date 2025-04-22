@@ -18,7 +18,12 @@ from psi.controller.api import (
 )
 from psi.paradigms.core.io_mixins import ChannelInput, ChannelInputManifest
 
-from cftscal.objects import microphone_manager, starship_manager
+from cftscal.objects import (
+    microphone_manager,
+    speaker_manager,
+    starship_manager
+)
+
 from cftscal.util import (
     list_inputs,
     list_input_amplifier_connections,
@@ -125,7 +130,7 @@ def initialize_speaker(name, event):
     item_speaker.editable = False
 
     if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
-        channel = controller.get_channel(f'hw_ai::speaker_{input_name}')
+        channel = controller.get_channel(f'hw_ao::speaker_{input_name}')
         channel.calibration = speaker_manager.from_string(name).load()
 
 
