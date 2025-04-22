@@ -1,3 +1,6 @@
+'''
+Defines generic objects that can be reused by paradigms
+'''
 import logging
 log = logging.getLogger(__name__)
 
