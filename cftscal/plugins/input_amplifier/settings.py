@@ -27,4 +27,4 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
         env = {
             **input_amplifier.get_env_vars(include_cal=False),
         }
-        self._run_cal(pathname, 'input_amplifier_calibration', env)
+        self._run_cal(pathname, 'cftscal.paradigms.input_amplifier_calibration', env)

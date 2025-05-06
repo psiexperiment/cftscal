@@ -32,7 +32,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
 
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'speaker_calibration_golay', env)
+        self._run_cal(pathname, 'cftscal.paradigms.speaker_calibration_golay', env)
 
     def run_cal_chirp(self, speaker, microphone):
         filename = f'{{date_time}}_{speaker.name}_{microphone.name}_chirp'
@@ -40,4 +40,4 @@ class SpeakerCalibrationSettings(CalibrationSettings):
 
         env = microphone.get_env_vars()
         env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'speaker_calibration_chirp', env)
+        self._run_cal(pathname, 'cftscal.paradigms.speaker_calibration_chirp', env)

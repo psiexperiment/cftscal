@@ -23,4 +23,4 @@ class InEarCalibrationSettings(CalibrationSettings):
         filename = ' '.join(filename.split())
         pathname = CAL_ROOT / 'inear' / ear.ear / filename
         env = ear.get_env_vars()
-        self._run_cal(pathname, 'iec', env)
+        self._run_cal(pathname, 'cftscal.paradigms.iec', env)
