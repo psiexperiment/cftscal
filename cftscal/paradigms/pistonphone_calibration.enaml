@@ -121,6 +121,13 @@ def configure_hardware(event):
     input_channel = controller.get_input('hw_ai').channel
     sample_duration = context.get_value('sample_duration')
     input_channel.calibration = FlatCalibration.unity()
+    if sample_duration == 0:
+        raise ValueError('Sample duration must be greater than 0')
+    if input_channel.fs == 0:
+        # This indicates a configuration issue with the hardware backend (i.e.,
+        # sampling rate should be determined by the hardware backend before we
+        # get to this point).
+        raise ValueError('Input channel sampling rate is 0')
     input_channel.samples = round(sample_duration * input_channel.fs)
 
     controller.register_action(
