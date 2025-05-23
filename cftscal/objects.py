@@ -573,10 +573,19 @@ inear_manager.register('cftscal.objects.CFTSInEarLoader')
 
 
 def show_objects():
-    print('Looking for objects')
-    print('Microphones')
-    for name in microphone_manager.list_names():
-        print(' * name')
+    print('Looking for calibrated objects')
+
+    print('* Starships')
+    for loader in starship_manager.loaders:
+        print(f'  - {loader.label}')
+        for name in sorted(starship_manager.list_names(loader.label)):
+            print(f'    . {name}')
+
+    print('* Microphone')
+    for loader in microphone_manager.loaders:
+        print(f'  - {loader.label}')
+        for name in sorted(microphone_manager.list_names(loader.label)):
+            print(f'    . {name}')
 
 
 if __name__ == '__main__':
