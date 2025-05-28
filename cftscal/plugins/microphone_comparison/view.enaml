@@ -1,0 +1,223 @@
+import numpy as np
+
+from enaml.core.api import Conditional, Looper
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton
+)
+
+from psi.data.plots_manifest import PGCanvas
+
+from cftscal.objects import generic_microphone_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+)
+
+
+class MicrophoneComparisonPlotManager(BasePlotManager):
+
+    def _update(self, calibration, remove=False):
+        plot_id = self.get_plot_id(calibration)
+        if remove:
+            self.remove_plots(plot_id)
+            return None
+
+        color, plots = self.get_plots(plot_id)
+
+        cal = calibration.load()
+        x = np.log10(cal.frequency[1:])
+        y = cal.sensitivity[1:]
+        plots[0].setData(x, y)
+        return color
+
+
+enamldef MicrophoneComparisonView(Container): view:
+
+    attr settings
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings',
+                    'device_list',
+                    sizes=[25, 900],
+                ),
+                'device_sens_plot',
+                sizes=[150, 900],
+            ),
+        )
+
+        DockItem:
+            name = f'settings'
+            title = f'Settings'
+            closable = False
+            stretch = 0
+
+            Conditional:
+                condition << settings is None
+
+                Container:
+                    Label:
+                        text = 'No microphones found on system. View mode only.'
+
+            Conditional:
+                condition << settings is not None
+
+                Container:
+                    layout_constraints => ():
+                        widgets = self.visible_widgets()
+                        first = []
+                        second = []
+                        for w in widgets:
+                            first.append(w.children[0])
+                            for c in w.children[1:]:
+                                if isinstance(c, Label):
+                                    second.append(c)
+                                    break
+
+                        constraints = [
+                            vbox(*widgets),
+                            align('right', *first),
+                            align('left', *second),
+                            align('right', *second),
+                        ]
+                        return constraints
+
+                    Container:
+                        share_layout = True
+                        padding = 0
+
+                        layout_constraints => ():
+                            constraints = [vbox(*visible_widgets(), spacing=5)]
+                            # Ensure that the element in the same column has
+                            # the same width across rows
+
+                            # Extract the column for the add pushbutton
+                            pb = visible_widgets()[0].visible_widgets()[3]
+                            constraints.append(pb.width == 20)
+                            to_align = visible_widgets()[:-1]
+                            for col in zip(*[c.visible_widgets() for c in to_align]):
+                                constraints.append(align('right', *col))
+                            return constraints
+
+                        HGroup:
+                            # Blank labels are used to ensure that headings
+                            # align with respective elements in the subsequent
+                            # HGroups.
+                            share_layout = True
+                            align_widths = False
+                            padding = 0
+                            spacing = 5
+
+                            Label:
+                                text = ''
+
+                            Label:
+                                text = 'Input'
+
+                            Label:
+                                text = 'Mic.'
+
+                            Label:
+                                text = ''
+
+                            Label:
+                                text = 'Gain (dB)'
+
+                        HGroup:
+                            share_layout = True
+                            align_widths = False
+                            padding = 0
+                            spacing = 5
+
+                            Label:
+                                text = 'Test'
+
+                            ObjectCombo:
+                                items = settings.generic_inputs
+                                selected := settings.generic_input
+                                to_string = lambda m: m.input_label
+
+                            ObjectCombo: test_select:
+                                items = sorted(settings.generic_input.available_microphones)
+                                selected := settings.generic_input.name
+
+                            PushButton:
+                                text = '+'
+                                clicked ::
+                                    popup = AddItem(self, combo=test_select, label='Test Microphone Name')
+                                    popup.show()
+
+                            ObjectCombo:
+                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                                selected := settings.generic_input.gain
+
+                        HGroup:
+                            share_layout = True
+                            align_widths = False
+                            padding = 0
+                            spacing = 5
+
+                            Label:
+                                text = 'Ref.'
+
+                            ObjectCombo:
+                                items = settings.measurement_inputs
+                                selected := settings.measurement_input
+                                to_string = lambda m: m.input_label
+
+                            ObjectCombo: ref_select:
+                                items = sorted(settings.measurement_input.available_microphones)
+                                selected := settings.measurement_input.name
+
+                            PushButton:
+                                text = '+'
+                                clicked ::
+                                    popup = AddItem(self, combo=ref_select, label='Reference Microphone Name')
+                                    popup.show()
+
+                            ObjectCombo:
+                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                                selected := settings.measurement_input.gain
+
+                        HGroup:
+                            padding = 0
+                            spacing = 5
+                            leading_spacer = spacer(0)
+
+                            PushButton: golay_start:
+                                text = 'Golay'
+                                clicked ::
+                                    settings.run_cal_golay()
+                                    device_tree.collection.update_groups()
+
+                            PushButton: chirp_start:
+                                text = 'Chirp'
+                                clicked ::
+                                    settings.run_cal_chirp()
+                                    device_tree.collection.update_groups()
+
+        DockItem:
+            name = 'device_sens_plot'
+            title = 'Microphone Comparison Sensitivity'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: device_plot:
+                    attr manager = MicrophoneComparisonPlotManager()
+                    component << manager.component
+
+        DockItem:
+            name = 'device_list'
+            title = 'Microphone Comparison Calibrations'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: device_tree:
+                headers = ['Name', 'Microphone', 'Stimulus']
+                collection = ObjectCollection(
+                    generic_microphone_manager, device_plot.manager
+                )

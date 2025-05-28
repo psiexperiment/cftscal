@@ -9,7 +9,7 @@ from enaml.widgets.api import (
 
 from psi.data.plots_manifest import PGCanvas
 
-from cftscal.objects import microphone_manager
+from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
 )
@@ -187,5 +187,5 @@ enamldef MicrophoneView(Container):
             CalibratedObjects: mic_tree:
                 headers = ['Name', 'Sens', 'Sens (dB)', 'Pistonphone']
                 collection = ObjectCollection(
-                    microphone_manager, microphone_plot.manager
+                    measurement_microphone_manager, microphone_plot.manager
                 )

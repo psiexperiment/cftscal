@@ -436,6 +436,22 @@ class Microphone(CalibratedObject):
     pass
 
 
+class MeasurementMicrophone(Microphone):
+    '''
+    Defines a microphone that has a flat frequency response and can be
+    calibrated using a pistonphone at a single frequency.
+    '''
+    pass
+
+
+class GenericMicrophone(Microphone):
+    '''
+    Defines a microphone that may not have a flat frequency response (e.g.,
+    such as for use in monitoring ambient sound in chamber).
+    '''
+    pass
+
+
 class CFTSMicrophoneCalibration(Calibration):
 
     def __init__(self, name, filename):
@@ -445,13 +461,16 @@ class CFTSMicrophoneCalibration(Calibration):
         self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
-    def pistonphone(self):
-        return self.filename.stem.rsplit('_', 1)[1]
-
-    @cached_property
     def datetime(self):
         datestr, _ = self.filename.stem.split('_', 1)
         return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+
+class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
+
+    @cached_property
+    def pistonphone(self):
+        return self.filename.stem.rsplit('_', 1)[1]
 
     @cached_property
     def sens(self):
@@ -483,9 +502,20 @@ class CFTSMicrophoneCalibration(Calibration):
         return MicrophoneCalibration(self.filename)
 
 
-class CFTSMicrophoneLoader(CFTSBaseLoader):
+class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
+    pass
+
+
+class CFTSMeasurementMicrophoneLoader(CFTSBaseLoader):
+
     subfolder = 'microphone'
-    cal_class = CFTSMicrophoneCalibration
+    cal_class = CFTSMeasurementMicrophoneCalibration
+
+
+class CFTSGenericMicrophoneLoader(CFTSBaseLoader):
+
+    subfolder = 'generic_microphone'
+    cal_class = CFTSGenericMicrophoneCalibration
 
 
 ################################################################################
@@ -558,8 +588,10 @@ class CFTSInEarLoader(CFTSBaseLoader):
 input_amplifier_manager = CalibrationManager(InputAmplifier)
 input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
-microphone_manager = CalibrationManager(Microphone)
-microphone_manager.register('cftscal.objects.CFTSMicrophoneLoader')
+measurement_microphone_manager = CalibrationManager(MeasurementMicrophone)
+measurement_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+generic_microphone_manager = CalibrationManager(GenericMicrophone)
+generic_microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
 
 starship_manager = CalibrationManager(Starship)
 starship_manager.register('cftscal.objects.EPLStarshipLoader')
@@ -573,20 +605,22 @@ inear_manager.register('cftscal.objects.CFTSInEarLoader')
 
 
 def show_objects():
+    def printer(d):
+        for loader in d.loaders:
+            print(f'  - {loader.label}')
+            for name in sorted(d.list_names(loader.label)):
+                print(f'    . {name}')
+
     print('Looking for calibrated objects')
 
     print('* Starships')
-    for loader in starship_manager.loaders:
-        print(f'  - {loader.label}')
-        for name in sorted(starship_manager.list_names(loader.label)):
-            print(f'    . {name}')
+    printer(starship_manager)
 
-    print('* Microphone')
-    for loader in microphone_manager.loaders:
-        print(f'  - {loader.label}')
-        for name in sorted(microphone_manager.list_names(loader.label)):
-            print(f'    . {name}')
+    print('* Measurement Microphones')
+    printer(measurement_microphone_manager)
 
+    print('* Generic Microphones')
+    printer(generic_microphone_manager)
 
 if __name__ == '__main__':
     show_objects()

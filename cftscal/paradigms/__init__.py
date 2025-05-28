@@ -40,6 +40,7 @@ selectable_speaker_mixin = {
 
 
 ParadigmDescription(
+    # Calibrates probe-tube microphone in starship.
     'pt_calibration_chirp', 'Probe tube calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
@@ -51,6 +52,31 @@ ParadigmDescription(
 
 
 ParadigmDescription(
+    # Calibrates probe-tube microphone in starship.
+    'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
+        {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
+        {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
+        selectable_starship_mixin,
+        selectable_microphone_mixin,
+    ],
+)
+
+
+ParadigmDescription(
+    # Calibrates probe-tube microphone in starship.
+    'pt_calibration_chirp', 'Test microphone calibration (chirp)', 'calibration', [
+        {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
+        {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
+        {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
+        selectable_starship_mixin,
+        selectable_microphone_mixin,
+    ],
+)
+
+
+ParadigmDescription(
+    # Calirates probe-tube microphone in starship.
     'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTGolayMixin',},

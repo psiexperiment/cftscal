@@ -3,18 +3,18 @@ from atom.api import List, Typed
 
 from psi import get_config
 
-from ..settings import CalibrationSettings, MicrophoneSettings, PistonphoneSettings
+from ..settings import CalibrationSettings, MeasurementMicrophoneSettings, PistonphoneSettings
 
 from cftscal import CAL_ROOT
 
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
 
-    microphones = List(Typed(MicrophoneSettings, ()))
+    microphones = List(Typed(MeasurementMicrophoneSettings, ()))
     pistonphone = Typed(PistonphoneSettings, ())
 
     def __init__(self, inputs):
-        self.microphones = [MicrophoneSettings(name=k, input_name=v) for k, v in inputs.items()]
+        self.microphones = [MeasurementMicrophoneSettings(name=k, input_name=v) for k, v in inputs.items()]
         self.pistonphone = PistonphoneSettings()
 
     def save_config(self):

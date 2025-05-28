@@ -52,21 +52,16 @@ def main():
 
     with enaml.imports():
         from .plugins.manifest import CalibrationManifest
-        from .plugins.input_amplifier.manifest import InputAmplifierManifest
-        from .plugins.microphone.manifest import MicrophoneManifest
-        from .plugins.starship.manifest import StarshipManifest
-        from .plugins.speaker.manifest import SpeakerManifest
-        from .plugins.inear.manifest import InEarManifest
-
     workbench = CalibrationWorkbench()
     workbench.register(CalibrationManifest())
 
     to_register = [
         ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
-        ('cftscal.plugins.microphone.manifest', 'MicrophoneManifest'),
+        ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
         ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
-        ('cftscal.plugins.inear.manifest', 'InEarManifest')
+        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
+        ('cftscal.plugins.microphone_comparison.manifest', 'TestMicrophoneManifest'),
     ]
 
     with enaml.imports():

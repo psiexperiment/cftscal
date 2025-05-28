@@ -2,15 +2,16 @@ import json
 import os
 import subprocess
 
-from atom.api import Atom, Enum, Float, List, Property, Str
+from atom.api import set_default, Atom, Enum, Float, List, Property, Str, Typed
 
 from psi import get_config_folder
 from psi.util import get_tagged_members, get_tagged_values
 
 
 from cftscal.objects import (
-    input_amplifier_manager, inear_manager, microphone_manager, speaker_manager,
-    starship_manager
+    generic_microphone_manager, input_amplifier_manager, inear_manager,
+    measurement_microphone_manager, speaker_manager, starship_manager,
+    CalibrationManager,
 )
 
 
@@ -65,12 +66,18 @@ class MicrophoneSettings(PersistentSettings):
     #: several microphones available in the lab is currently connected.
     name = Str().tag(persist=True)
 
+    #: Gain of microphone. Some microphone premaps/power supplies have a
+    #: hardware switch to configure the gain. This value must match the gain
+    #: set on the preamp.
     gain = Float(20).tag(persist=True)
 
+    #: List of microphones that have been calibrated previously.
     available_microphones = Property()
 
+    microphone_manager = Typed(CalibrationManager)
+
     def _get_available_microphones(self):
-        return sorted(microphone_manager.list_names('CFTS'))
+        return sorted(self.microphone_manager.list_names('CFTS'))
 
     def get_env_vars(self, include_cal=True):
         env = {
@@ -78,7 +85,7 @@ class MicrophoneSettings(PersistentSettings):
             f'CFTS_MICROPHONE_{self.input_name.upper()}_GAIN': str(self.gain),
         }
         if include_cal:
-            mic = microphone_manager.get_object(self.name)
+            mic = self.microphone_manager.get_object(self.name)
             cal = mic.get_current_calibration()
             env[f'CFTS_MICROPHONE_{self.input_name.upper()}'] = cal.to_string()
         return env
@@ -91,6 +98,16 @@ class MicrophoneSettings(PersistentSettings):
             return self.available_microphones[0]
         except IndexError:
             return ''
+
+
+class MeasurementMicrophoneSettings(MicrophoneSettings):
+
+    microphone_manager = set_default(measurement_microphone_manager)
+
+
+class GenericMicrophoneSettings(MicrophoneSettings):
+
+    microphone_manager = set_default(generic_microphone_manager)
 
 
 class PistonphoneSettings(PersistentSettings):

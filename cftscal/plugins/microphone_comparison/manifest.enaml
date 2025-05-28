@@ -4,15 +4,13 @@ from enaml.workbench.ui.api import ActionItem, Workspace
 
 
 from cftscal.util import list_microphone_connections
-from .settings import MicrophoneCalibrationSettings
-from .view import MicrophoneView
-
+from .settings import MicrophoneComparisonSettings
+from .view import MicrophoneComparisonView
 
 
 def available():
     try:
-        list_microphone_connections()
-        return True
+        return len(list_microphone_connections()) > 1
     except:
         return False
 
@@ -21,30 +19,30 @@ def workspace_factory(workbench, title):
     space = Workspace()
     space.window_title = title
     try:
-        settings = MicrophoneCalibrationSettings(list_microphone_connections())
-        space.content = MicrophoneView(settings=settings)
+        settings = MicrophoneComparisonSettings(list_microphone_connections())
+        space.content = MicrophoneComparisonView(settings=settings)
     except:
-        space.content = MicrophoneView()
+        space.content = MicrophoneComparisonView()
     return space
 
 
-enamldef MeasurementMicrophoneManifest(PluginManifest): manifest:
+enamldef TestMicrophoneManifest(PluginManifest): manifest:
 
-    id = 'microphone-measurement'
-    attr title = 'Measurement Microphone Calibration'
+    id = 'microphone-test'
+    attr title = 'Test Microphone Calibration'
+    attr workspace = 'test_microphone'
 
     Extension:
-        id = 'microphone_actions'
+        id = manifest.id + '.actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/workspace/' + manifest.id
             label = manifest.title
-            shortcut = 'Ctrl+m'
             group = 'spaces'
             command = 'enaml.workbench.ui.select_workspace'
             parameters = {'workspace': manifest.id + '.workspace'}
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = lambda w: workspace_factory(w, manifest.title)
