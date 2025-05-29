@@ -10,15 +10,16 @@ from cftscal import CAL_ROOT
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
 
-    microphones = List(Typed(MeasurementMicrophoneSettings, ()))
+    measurement_inputs = List(Typed(MeasurementMicrophoneSettings, ()))
     pistonphone = Typed(PistonphoneSettings, ())
 
     def __init__(self, inputs):
-        self.microphones = [MeasurementMicrophoneSettings(name=k, input_name=v) for k, v in inputs.items()]
+        self.measurement_inputs = \
+            [MeasurementMicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
         self.pistonphone = PistonphoneSettings()
 
     def save_config(self):
-        for m in self.microphones:
+        for m in self.measurement_inputs:
             m.save_config()
         self.pistonphone.save_config()
 

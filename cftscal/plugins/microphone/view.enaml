@@ -119,7 +119,7 @@ enamldef MicrophoneView(Container):
                             text = 'dB SPL'
 
                     Looper:
-                        iterable << settings.microphones
+                        iterable << settings.measurement_inputs
 
                         Container:
                             share_layout = True
@@ -141,7 +141,7 @@ enamldef MicrophoneView(Container):
                             attr microphone = loop_item
 
                             Label: mic_label:
-                                text = f'Microphone {loop_item.input_name}'
+                                text = microphone.input_label
 
                             ObjectCombo: mic_select:
                                 items = sorted(microphone.available_microphones)

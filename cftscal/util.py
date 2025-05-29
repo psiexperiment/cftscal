@@ -1,5 +1,7 @@
+from functools import partial
+
 from psi.application import get_default_io, load_io_manifest
-from psi.controller.api import HardwareAIChannel
+from psi.controller.api import Channel
 
 
 NO_INPUT_ERROR = '''
@@ -54,52 +56,41 @@ def list_starship_connections():
     return choices
 
 
-NO_SPEAKER_ERROR = '''
-No speaker could be found in the IO manifest. To use this plugin, you must
-have an analog output channel named speaker_ID. ID is the name of the speaker
-that will appear in any drop-down selectors where you can select which speaker
-to use (assuming your system is configured for more than one speaker).
+
+
+NO_DEVICE_ERROR = '''
+No channel supporting {} could be found in the IO manifest. To use this plugin,
+you must add {} as a supported device to at least one analog channel via the
+supported_devices list attribute on that channel.
 '''
 
 
-def list_speaker_connections():
-    '''
-    List all speakers found in the IO Manifest
-    '''
+def list_connections(channel_type_code, device_type, label_fmt=None,
+                     as_expression=False):
+    if label_fmt is None:
+        label_fmt = lambda x: x
     choices = {}
     manifest = load_io_manifest()()
-    for channel in manifest.find_all('^speaker_', regex=True):
-        choices[channel.label] = channel.name.split('_', 1)[1]
-
+    for obj in manifest.traverse():
+        if isinstance(obj, Channel):
+            if channel_type_code == obj.type_code:
+                if device_type in obj.supported_devices:
+                    label = label_fmt(obj.label)
+                    if as_expression:
+                        # Wrap name in quotation marks so that `eval` returns a
+                        # string when this is passed through the context
+                        # expression evaluation system.
+                        name = f'"{obj.name}"'
+                    else:
+                        name = obj.name
+                    choices[label] = name
     if len(choices) == 0:
-        raise ValueError(NO_SPEAKER_ERROR)
-
+        raise ValueError(NO_DEVICE_ERROR.format(device_type, device_type))
     return choices
 
 
-NO_MICROPHONE_ERROR = '''
-No microphone could be found in the IO manifest. To use this plugin, you must
-have an analog input channel named microphone_ID. ID is the name of the
-microphone that will appear in any drop-down selectors where you can select
-which microphone to use (assuming your system is configured for more than one
-microphone).
-'''
-
-
-def list_microphone_connections():
-    '''
-    List all microphones found in the IO Manifest
-    '''
-    choices = {}
-    manifest = load_io_manifest()()
-    for channel in manifest.find_all('^microphone_', regex=True):
-        # Strip quotation marks off
-        choices[channel.label] = channel.name.split('_', 1)[1]
-
-    if len(choices) == 0:
-        raise ValueError(NO_MICROPHONE_ERROR)
-
-    return choices
+list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
+list_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
 
 
 NO_INPUT_AMPLIFIER_ERROR = '''
@@ -128,10 +119,10 @@ def list_input_amplifier_connections():
 
 def show_connections():
     print(f'Looking for connections in {get_default_io()}')
-    try:
-        print(list_starship_connections())
-    except ValueError:
-        pass
+    #try:
+    #    print(list_starship_connections())
+    #except ValueError:
+    #    pass
     try:
         print(list_speaker_connections())
     except ValueError:
@@ -140,10 +131,10 @@ def show_connections():
         print(list_microphone_connections())
     except ValueError:
         pass
-    try:
-        print(list_input_amplifier_connections())
-    except ValueError:
-        pass
+    #try:
+    #    print(list_input_amplifier_connections())
+    #except ValueError:
+    #    pass
 
 
 if __name__ == '__main__':

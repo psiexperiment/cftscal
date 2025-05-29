@@ -29,9 +29,9 @@ selectable_microphone_mixin = {
     'manifest': PATH + 'objects.Microphone',
     'required': True,
     'attrs': {
-        'id': 'cal',
-        'title': 'Measurement Microphone',
-        'microphone_type': 'measurement'
+        'id': 'cal_microphone',
+        'title': 'Microphone',
+        'microphone_type': 'measurement_microphone'
     },
 }
 
@@ -78,8 +78,8 @@ ParadigmDescription(
             'manifest': PATH + 'objects.Microphone',
             'required': True,
             'attrs': {
-                'id': 'generic',
-                'title': 'Generic Microphone',
+                'id': 'system',
+                'title': 'System Microphone',
                 'microphone_type': 'generic'
             },
         },

@@ -6,6 +6,7 @@ log = logging.getLogger(__name__)
 
 import functools
 import os
+import re
 
 from enaml.core.api import Conditional
 from enaml.workbench.api import Extension
@@ -26,6 +27,7 @@ from cftscal.objects import (
 )
 
 from cftscal.util import (
+    list_connections,
     list_inputs,
     list_input_amplifier_connections,
     list_microphone_connections,
@@ -125,14 +127,17 @@ def initialize_speaker(name, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    input_name = os.environ[f'CFTS_SPEAKER']
-    item_speaker = context.get_item(f'{name}_speaker')
-    item_speaker.expression = f'"{input_name}"'
-    item_speaker.editable = False
+    try:
+        input_name = os.environ[f'CFTS_SPEAKER']
+        item_speaker = context.get_item(name)
+        item_speaker.expression = input_name
+        item_speaker.editable = False
 
-    if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
-        channel = controller.get_channel(f'hw_ao::speaker_{input_name}')
-        channel.calibration = speaker_manager.from_string(name).load()
+        if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
+            channel = controller.get_channel(f'hw_ao::speaker_{input_name}')
+            channel.calibration = speaker_manager.from_string(name).load()
+    except:
+        pass
 
 
 enamldef Speaker(ExperimentManifest): manifest:
@@ -143,10 +148,13 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         * speaker_<name>
 
-    Environment variables are also needed to configure the speaker
+    An output will be made available to all experiments named `<id>_output`.
+
+    Environment variables can also be optionally used to auto-configure the
+    speaker and calibration.
 
     CFTS_SPEAKER
-        Indicates which speaker name to use.
+        Indicates which output channel to use.
 
     CFTS_SPEAKER_<name>
         A calibration string (provided by cftscal) that will load the correct
@@ -176,17 +184,17 @@ enamldef Speaker(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         MUXOutput:
-            name = f'{manifest.id}_output'
-            target_name = 'hw_ao::speaker_' + getattr(C, f'{manifest.id}_speaker')
+            name = manifest.id
+            target_name = 'hw_ao::' + getattr(C, f'{manifest.id}')
 
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
         EnumParameter:
-            name = f'{manifest.id}_speaker'
-            label = f'{manifest.title}'
-            choices = {k: f'"{v}"' for k, v in list_speaker_connections().items()}
+            name = manifest.id
+            label = manifest.title
+            choices = {k: str(v) for k, v in list_speaker_connections().items()}
             scope = 'experiment'
             group_name = 'hardware_settings'
 
@@ -224,10 +232,11 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         * microphone_<name>
 
-    Environment variables are also needed to configure the microphone.
+    Environment variables can also be optionally used to auto-configure the
+    microphone, gain, and calibration.
 
     CFTS_MICROPHONE
-        Indicates which microphone name to use.
+        Indicates which microphone channel to use.
 
     CFTS_MICROPHONE_<name>_GAIN
         Indicates the current gain setting on the microphone amplifier.
@@ -236,13 +245,18 @@ enamldef Microphone(ExperimentManifest): manifest:
         A calibration string (provided by cftscal) that will load the correct
         calibration when passed to `starship_manager.from_string`.
 
-    Once successfully initialized, a continous input named `{id}_microphone`
-    will be available for use by other plugins.
+    Once successfully initialized, a continous input named `<id>` will be
+    available for use by other plugins.
     '''
 
-    id = 'microphone'
+    id = 'system_microphone'
     title = manifest.id.capitalize().replace('_', ' ')
-    attr microphone_type = 'measurement'
+
+    attr label_fmt = lambda x: re.sub(r'\bmicrophone\b', '', x, flags=re.IGNORECASE)
+    attr microphone_type = 'measurement_microphone'
+    attr connections = list_connections('hw_ai', manifest.microphone_type,
+                                        as_expression=True,
+                                        label_fmt=label_fmt)
 
     Extension:
         id = manifest.id + '.commands'
@@ -266,10 +280,10 @@ enamldef Microphone(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         ContinuousInput:
-            name = f'{manifest.id}_microphone'
-            source_name = 'hw_ai::microphone_' + getattr(C, f'{manifest.id}_microphone')
+            name << manifest.id
+            source_name = 'hw_ai::' + getattr(C, f'{manifest.id}_input')
             source::
-                channel.gain = getattr(C, f'{manifest.id}_microphone_input_gain')
+                channel.gain = getattr(C, f'{manifest.id}_input_gain')
 
     Extension:
         id = manifest.id + '.context'
@@ -277,18 +291,18 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         ContextRow:
             fmt = [f'{manifest.title}', microphone, 'with', gain, 'dB gain']
-            name = f'{manifest.id}_microphone_settings'
+            name = f'{manifest.id}_settings'
             group_name = 'hardware_settings'
 
             EnumParameter: microphone:
-                name = f'{manifest.id}_microphone'
-                label = f'{manifest.title}'
-                choices = {k: f'"{v}"' for k, v in list_microphone_connections().items()}
+                name = manifest.id + '_input'
+                label = manifest.title
+                choices = manifest.connections
                 scope = 'experiment'
 
             Parameter: gain:
-                name = f'{manifest.id}_microphone_input_gain'
-                label = f'{manifest.title} input gain (dB)'
+                name = manifest.id + '_input_gain'
+                label = manifest.title + ' input gain (dB)'
                 dtype = 'float64'
                 default = 40
                 scope = 'experiment'

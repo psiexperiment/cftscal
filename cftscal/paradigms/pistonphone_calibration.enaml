@@ -156,7 +156,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'hw_ai'
-            source_name = 'cal_microphone'
+            source_name << 'cal_microphone'
 
     Extension:
         id = 'context'

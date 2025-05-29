@@ -48,21 +48,19 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
     data = workbench.get_plugin('psi.data')
     controller = workbench.get_plugin('psi.controller')
 
-    generic_mic_cal = controller.get_input('cal_microphone').calibration
-    generic_mic_sens = cal_mic_cal.to_mv_pa() * 1e-3
-
-    measurement_source = data.find_sink('mic_data').get_source('measurement_microphone')
-    generic_source = data.find_sink('mic_data').get_source('cal_microphone')
-    epoch_info = data.find_sink('generic_data').get_source('cal_epoch')
+    measurement_source = data.find_source('measurement_microphone')
+    generic_source = data.find_source('system_microphone')
+    epoch_info = data.find_source('generic_epoch')
 
     duration = epoch_info.iloc[0].loc['epoch_size']
-    measurement_df = measurement_source.get_epochs(epoch_info, offset=0, duration=duration,
-                                 columns=grouping)
-    generic_df = cal_source.get_epochs(epoch_info, offset=0, duration=duration,
-                                   columns=grouping)
+    measurement_df = measurement_source.get_epochs(epoch_info, offset=0,
+                                                   duration=duration,
+                                                   columns=grouping)
+    generic_df = generic_source.get_epochs(epoch_info, offset=0,
+                                           duration=duration, columns=grouping)
 
     measurement_grouped = measurement_df.groupby(grouping)
-    generic_grouped = cal_df.groupby(grouping)
+    generic_grouped = generic_df.groupby(grouping)
     groups = sorted(measurement_grouped.groups.keys())
 
     n = max(3, len(groups))
@@ -77,12 +75,12 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
         sens_summary = calc_sens(
             fs=measurement_source.fs,
             measurement_waveform=measurement_grouped.get_group(key).values,
-            generic_waveform=cal_grouped.get_group(key).values,
+            generic_waveform=generic_grouped.get_group(key).values,
             color=color,
             context=context,
             data=data,
             name=name,
-            generic_mic_sens=cal_mic_sens,
+            measurement_cal=controller.get_input('measurement_microphone').calibration,
         )
         sens_summary = pd.DataFrame(sens_summary)
         sens_summary.set_index('frequency', inplace=True)
@@ -111,25 +109,26 @@ def calculate_sens_golay(event):
 
 
 def calculate_group_sens_chirp(fs, measurement_waveform, generic_waveform, color, context,
-                               data, name, generic_mic_sens):
+                               data, name, measurement_cal):
 
     smoothing_window = context.get_value('smoothing_window')
 
     freq = psd_freq(measurement_waveform, fs)
     measurement_psd = np.mean(psd(measurement_waveform, fs), axis=0)
-    generic_psd = np.mean(psd(cal_waveform, fs), axis=0)
+    generic_psd = np.mean(psd(generic_waveform, fs), axis=0)
     measurement_phase = np.mean(phase(measurement_waveform, fs), axis=0)
-    generic_phase = np.mean(phase(cal_waveform, fs), axis=0)
+    generic_phase = np.mean(phase(generic_waveform, fs), axis=0)
 
-    # divide cal mic volts by cal mic sens (in V/Pa) to get pascals
-    pa = db(generic_psd) - db(cal_mic_sens)
-    # cal units should be dB(Pa/20e-6/V)
-    sens = pa - db(20e-6) - db(measurement_psd)
+    # Determine actual stim level using measurement microphone.
+    spl = dbi(measurement_cal.get_db(freq, measurement_psd))
+
+    # Calibration units should be SPL/V
+    sens = spl - db(generic_psd)
 
     d_phase = measurement_phase - generic_phase
 
     if smoothing_window > 0:
-        w = signal.windows.hamm(smoothing_window)
+        w = signal.windows.hamming(smoothing_window)
         w /= w.sum()
         sens = np.convolve(sens, w, mode='same')
 
@@ -149,14 +148,15 @@ def calculate_group_sens_chirp(fs, measurement_waveform, generic_waveform, color
         'phase': d_phase,
     }
 
-    def plot_data(data=data, measurement_summary=measurement_summary, generic_summary=cal_summary,
-                  sens_summary=sens_summary, color=color, name=name):
+    def plot_data(data=data, measurement_summary=measurement_summary,
+                  generic_summary=generic_summary, sens_summary=sens_summary,
+                  color=color, name=name):
         vb = data.find_viewbox('measurement_fft')
         vb.plot(measurement_summary['frequency'], db(measurement_summary['psd']), color,
                 log_x=True)
         vb = data.find_viewbox('generic_fft')
-        vb.plot(generic_summary['frequency'], db(cal_summary['psd']), color,
-                log_x=True)
+        vb.plot(generic_summary['frequency'], db(generic_summary['psd']),
+                color, log_x=True)
         vb = data.find_viewbox('sens')
         vb.plot(sens_summary['frequency'], sens_summary['sens'], color,
                 log_x=True, label=name)
@@ -165,8 +165,8 @@ def calculate_group_sens_chirp(fs, measurement_waveform, generic_waveform, color
     return sens_summary
 
 
-def calculate_group_sens_golay(fs, measurement_waveform, generic_waveform, color, context,
-                               data, name, generic_mic_sens):
+def calculate_group_sens_golay(fs, measurement_waveform, generic_waveform,
+                               color, context, data, name, meas_cal):
     n_bits = context.get_value('n_bits')
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
@@ -180,8 +180,8 @@ def calculate_group_sens_golay(fs, measurement_waveform, generic_waveform, color
     measurement_a, measurement_b = measurement_waveform[n_discard:n], measurement_waveform[n+n_discard:]
     measurement_summary = summarize_golay(fs, a, b, measurement_a, measurement_b, n_waveforms)
 
-    generic_a, cal_b = cal_waveform[n_discard:n], cal_waveform[n+n_discard:]
-    generic_summary = summarize_golay(fs, a, b, cal_a, cal_b, n_waveforms)
+    generic_a, generic_a = generic_waveform[n_discard:n], generic_waveform[n+n_discard:]
+    generic_summary = summarize_golay(fs, a, b, generic_summary, generic_summary, n_waveforms)
 
     measurement_psd = measurement_summary['psd']
     generic_psd = cal_summary['psd']
@@ -189,7 +189,7 @@ def calculate_group_sens_golay(fs, measurement_waveform, generic_waveform, color
     generic_phase = cal_summary['phase']
 
     # divide cal mic volts by cal mic sens (in V/Pa) to get pascals
-    pa = db(generic_psd) - db(cal_mic_sens)
+    pa = db(generic_psd) - db(meas_sens)
     # cal units should be dB(Pa/20e-6/V)
     sens = pa - db(20e-6) - db(measurement_psd)
     phase = measurement_phase - generic_phase
@@ -278,7 +278,8 @@ enamldef GenericMicCalibrationManifest(ControllerManifest): manifest:
 
         BinaryStore:
             name = 'mic_data'
-            continuous_inputs = ['measurement_microphone', 'generic_microphone']
+            continuous_inputs = ['measurement_microphone',
+                                 'system_microphone']
 
         TextStore:
             name = 'generic_data'
@@ -300,7 +301,7 @@ enamldef GenericMicCalibrationManifest(ControllerManifest): manifest:
 
         ExtractEpochs:
             name = 'generic_epoch'
-            source_name = 'generic_microphone'
+            source_name = 'system_microphone'
 
     Extension:
         id = 'context'
