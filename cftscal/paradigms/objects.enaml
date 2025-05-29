@@ -19,7 +19,8 @@ from psi.controller.api import (
 from psi.paradigms.core.io_mixins import ChannelInput, ChannelInputManifest
 
 from cftscal.objects import (
-    microphone_manager,
+    generic_microphone_manager,
+    measurement_microphone_manager,
     speaker_manager,
     starship_manager
 )
@@ -190,7 +191,7 @@ enamldef Speaker(ExperimentManifest): manifest:
             group_name = 'hardware_settings'
 
 
-def initialize_microphone(name, event):
+def initialize_microphone(name, microphone_type, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
@@ -207,7 +208,10 @@ def initialize_microphone(name, event):
 
         if (name := os.environ.get(f'CFTS_MICROPHONE_{input_name.upper()}', None)):
             channel = controller.get_channel(f'hw_ai::microphone_{input_name}')
-            channel.calibration = microphone_manager.from_string(name).load()
+            if microphone_type == 'generic':
+                channel.calibration = generic_microphone_manager.from_string(name).load()
+            elif microphone_type == 'measurement':
+                channel.calibration = measurement_microphone_manager.from_string(name).load()
     except:
         pass
 
@@ -238,6 +242,7 @@ enamldef Microphone(ExperimentManifest): manifest:
 
     id = 'microphone'
     title = manifest.id.capitalize().replace('_', ' ')
+    attr microphone_type = 'measurement'
 
     Extension:
         id = manifest.id + '.commands'
@@ -245,7 +250,8 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_microphone_settings'
-            handler = functools.partial(initialize_microphone, manifest.id)
+            handler = functools.partial(initialize_microphone, manifest.id,
+                                        manifest.microphone_type)
 
     Extension:
         id = manifest.id + '.actions'
