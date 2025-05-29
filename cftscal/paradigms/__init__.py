@@ -28,7 +28,11 @@ selectable_input_mixin = {
 selectable_microphone_mixin = {
     'manifest': PATH + 'objects.Microphone',
     'required': True,
-    'attrs': {'id': 'cal', 'title': 'Microphone'},
+    'attrs': {
+        'id': 'cal',
+        'title': 'Measurement Microphone',
+        'microphone_type': 'measurement'
+    },
 }
 
 
@@ -64,24 +68,31 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    # Calibrates probe-tube microphone in starship.
-    'pt_calibration_chirp', 'Test microphone calibration (chirp)', 'calibration', [
-        {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
-        {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
+    'mic_calibration_chirp', 'Generic microphone calibration (chirp)', 'calibration', [
+        {'manifest': PATH + 'generic_mic_calibration.GenericMicCalibrationManifest',},
+        {'manifest': PATH + 'generic_mic_calibration.GenericMicChirpMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_starship_mixin,
         selectable_microphone_mixin,
+        selectable_speaker_mixin,
+        {
+            'manifest': PATH + 'objects.Microphone',
+            'required': True,
+            'attrs': {
+                'id': 'generic',
+                'title': 'Generic Microphone',
+                'microphone_type': 'generic'
+            },
+        },
     ],
 )
 
 
 ParadigmDescription(
     # Calirates probe-tube microphone in starship.
-    'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
-        {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
-        {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
+    'mic_calibration_golay', 'Generic microphone calibration (golay)', 'calibration', [
+        {'manifest': PATH + 'generic_mic_calibration.GenericMicCalibrationManifest',},
+        {'manifest': PATH + 'generic_mic_calibration.GenericMicGolayMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_starship_mixin,
         selectable_microphone_mixin,
     ],
 )
