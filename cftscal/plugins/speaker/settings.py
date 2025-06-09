@@ -4,7 +4,8 @@ from atom.api import List, Typed
 
 from psi import get_config
 
-from ..settings import CalibrationSettings, MicrophoneSettings, SpeakerSettings
+from ..settings import (CalibrationSettings, MeasurementMicrophoneSettings,
+                        SpeakerSettings)
 
 from cftscal import CAL_ROOT
 
@@ -12,12 +13,12 @@ from cftscal import CAL_ROOT
 class SpeakerCalibrationSettings(CalibrationSettings):
 
     speakers = List(Typed(SpeakerSettings))
-    microphones = List(Typed(MicrophoneSettings))
-    selected_microphone = Typed(MicrophoneSettings)
+    microphones = List(Typed(MeasurementMicrophoneSettings))
+    selected_microphone = Typed(MeasurementMicrophoneSettings)
 
     def __init__(self, outputs, inputs):
         self.speakers = [SpeakerSettings(output_name=n, output_label=l) for l, n in outputs.items()]
-        self.microphones = [MicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
+        self.microphones = [MeasurementMicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
         self.selected_microphone = self.microphones[0]
 
     def save_config(self):

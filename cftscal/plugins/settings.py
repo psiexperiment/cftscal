@@ -52,7 +52,7 @@ class CalibrationSettings(Atom):
         subprocess.check_output(args, env=env)
 
 
-class MicrophoneSettings(PersistentSettings):
+class BaseMicrophoneSettings(PersistentSettings):
 
     #: Name of input as defined in IO manifest
     input_name = Str()
@@ -74,21 +74,8 @@ class MicrophoneSettings(PersistentSettings):
     #: List of microphones that have been calibrated previously.
     available_microphones = Property()
 
-    microphone_manager = Typed(CalibrationManager)
-
-    def _get_available_microphones(self):
-        return sorted(self.microphone_manager.list_names('CFTS'))
-
     def get_env_vars(self, include_cal=True):
-        env = {
-            'CFTS_MICROPHONE': self.input_name,
-            f'CFTS_MICROPHONE_{self.input_name.upper()}_GAIN': str(self.gain),
-        }
-        if include_cal:
-            mic = self.microphone_manager.get_object(self.name)
-            cal = mic.get_current_calibration()
-            env[f'CFTS_MICROPHONE_{self.input_name.upper()}'] = cal.to_string()
-        return env
+        raise NotImplementedError
 
     def _get_settings_filename(self):
         return f'microphone_{self.input_name}.json'
@@ -100,14 +87,38 @@ class MicrophoneSettings(PersistentSettings):
             return ''
 
 
-class MeasurementMicrophoneSettings(MicrophoneSettings):
+class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
 
-    microphone_manager = set_default(measurement_microphone_manager)
+    def _get_available_microphones(self):
+        return sorted(measurement_microphone_manager.list_names('CFTS'))
+
+    def get_env_vars(self, include_cal=True, env_prefix='CFTS_MICROPHONE'):
+        env = {
+            env_prefix: self.input_name,
+            f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.gain),
+        }
+        if include_cal:
+            mic = measurement_microphone_manager.get_object(self.name)
+            cal = mic.get_current_calibration()
+            env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
+        return env
 
 
-class GenericMicrophoneSettings(MicrophoneSettings):
+class GenericMicrophoneSettings(BaseMicrophoneSettings):
 
-    microphone_manager = set_default(generic_microphone_manager)
+    def _get_available_microphones(self):
+        return sorted(generic_microphone_manager.list_names('CFTS'))
+
+    def get_env_vars(self, include_cal=True, env_prefix='CFTS_GENERIC_MICROPHONE'):
+        env = {
+            env_prefix: self.input_name,
+            f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.gain),
+        }
+        if include_cal:
+            mic = generic_microphone_manager.get_object(self.name)
+            cal = mic.get_current_calibration()
+            env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
+        return env
 
 
 class PistonphoneSettings(PersistentSettings):

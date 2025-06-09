@@ -4,7 +4,8 @@ from atom.api import List, Str, Typed
 
 from psi import get_config, get_config_folder
 
-from ..settings import CalibrationSettings, MicrophoneSettings, StarshipSettings
+from ..settings import (CalibrationSettings, MeasurementMicrophoneSettings,
+                        StarshipSettings)
 
 from cftscal import CAL_ROOT
 
@@ -12,8 +13,8 @@ from cftscal import CAL_ROOT
 class StarshipCalibrationSettings(CalibrationSettings):
 
     starships = List(Typed(StarshipSettings))
-    microphones = List(Typed(MicrophoneSettings))
-    selected_microphone = Typed(MicrophoneSettings)
+    microphones = List(Typed(MeasurementMicrophoneSettings))
+    selected_microphone = Typed(MeasurementMicrophoneSettings)
     calibration_coupler = Str()
 
     def __init__(self, outputs, inputs):

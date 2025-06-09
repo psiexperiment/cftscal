@@ -61,13 +61,15 @@ def main():
         ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
         ('cftscal.plugins.inear.manifest', 'InEarManifest'),
-        ('cftscal.plugins.microphone_comparison.manifest', 'TestMicrophoneManifest'),
+        ('cftscal.plugins.microphone_comparison.manifest', 'GenericMicrophoneManifest'),
     ]
 
     with enaml.imports():
         for module_name, class_name in to_register:
+            print(module_name)
             try:
                 module = importlib.import_module(module_name)
+                print(module.available())
                 if args.load_all or getattr(module, 'available')():
                     workbench.register(getattr(module, class_name)())
             except ModuleNotFoundError as e:

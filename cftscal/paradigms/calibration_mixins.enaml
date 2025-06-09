@@ -170,7 +170,8 @@ def compute_calibration_chirp(event):
     epoch_info = data.find_sink('cal_data').get_source('epoch')
     duration = epoch_info.iloc[0].loc['hw_ao_chirp_duration']
 
-    waveforms = source.get_epochs(epoch_info, offset=0, duration=duration)
+    waveforms = source.get_epochs(epoch_info, offset=0, duration=duration,
+                                  columns=['hw_ao_chirp_level'])
 
     vb_spl = data.find_viewbox('spl_result')
     vb_sens = data.find_viewbox('sens_result')
@@ -185,6 +186,9 @@ def compute_calibration_chirp(event):
         resp_phase = util.phase(epochs.values, source.fs).mean(axis=0)
 
         spl = ai.channel.calibration.get_db(freq, resp_psd)
+        log.error(ai.channel.calibration)
+        log.error(ai.channel.calibration.attrs)
+        log.error(ai.channel.calibration.to_mv_pa())
 
         settings['hw_ao_chirp_level'] = chirp_level
         chirp = generate_waveform(ao, settings)
@@ -270,6 +274,9 @@ enamldef GolayMixin(ExperimentManifest): manifest:
     #: calibrated.
     attr cleanup_cb = compute_spl_golay
 
+    #: Name of output to send signal to
+    attr output_name = 'system_speaker'
+
     Extension:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
@@ -279,7 +286,7 @@ enamldef GolayMixin(ExperimentManifest): manifest:
             label = 'Output'
             auto_decrement = True
             configurable = False
-            target_name = 'system_output'
+            target_name = manifest.output_name
 
     Extension:
         id = manifest.id + '.commands'
@@ -495,6 +502,9 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
     attr extract_epoch_inputs = ['epoch']
     attr cleanup_cb = compute_calibration_chirp
 
+    #: Name of output to send signal to
+    attr output_name = 'system_speaker'
+
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
@@ -542,7 +552,7 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             label = 'Output'
             token = chirp
             auto_decrement = True
-            target_name = 'system_output'
+            target_name = manifest.output_name
 
     Extension:
         id = manifest.id + '.commands'
@@ -579,6 +589,10 @@ enamldef ToneMixin(ExperimentManifest): manifest:
     id = 'tone'
     required = True
 
+
+    #: Name of output to send signal to
+    attr output_name = 'system_speaker'
+
     Extension:
         id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
@@ -609,7 +623,7 @@ enamldef ToneMixin(ExperimentManifest): manifest:
             configurable = False
             auto_decrement = True
             token = tone_pip
-            target_name = 'system_output'
+            target_name = manifest.output_name
             target ::
                 if C.level_as_attenuation:
                     log.debug('Setting output to use attenuation values')

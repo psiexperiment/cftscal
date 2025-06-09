@@ -5,6 +5,6 @@ from .util import (
     list_starship_connections
 )
 from .objects import (
-    inear_manager, input_amplifier_manager, microphone_manager,
-    speaker_manager, starship_manager
+    generic_microphone_manager, inear_manager, input_amplifier_manager,
+    measurement_microphone_manager, speaker_manager, starship_manager
 )

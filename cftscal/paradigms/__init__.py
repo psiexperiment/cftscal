@@ -39,7 +39,7 @@ selectable_microphone_mixin = {
 selectable_speaker_mixin = {
     'manifest': PATH + 'objects.Speaker',
     'required': True,
-    'attrs': {'id': 'system', 'title': 'Speaker'},
+    'attrs': {'id': 'system_speaker', 'title': 'Speaker'},
 }
 
 
@@ -72,15 +72,24 @@ ParadigmDescription(
         {'manifest': PATH + 'generic_mic_calibration.GenericMicCalibrationManifest',},
         {'manifest': PATH + 'generic_mic_calibration.GenericMicChirpMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_microphone_mixin,
         selectable_speaker_mixin,
         {
             'manifest': PATH + 'objects.Microphone',
             'required': True,
             'attrs': {
-                'id': 'system',
-                'title': 'System Microphone',
-                'microphone_type': 'generic'
+                'id': 'measurement_microphone',
+                'title': 'Microphone',
+                'microphone_type': 'measurement_microphone'
+            },
+        },
+        {
+            'manifest': PATH + 'objects.Microphone',
+            'required': True,
+            'attrs': {
+                'id': 'generic_microphone',
+                'title': 'Generic Microphone',
+                'microphone_type': 'generic_microphone',
+                'env_prefix': 'CFTS_GENERIC_MICROPHONE',
             },
         },
     ],
@@ -88,12 +97,31 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    # Calirates probe-tube microphone in starship.
+    # Calibrates probe-tube microphone in starship.
     'mic_calibration_golay', 'Generic microphone calibration (golay)', 'calibration', [
         {'manifest': PATH + 'generic_mic_calibration.GenericMicCalibrationManifest',},
         {'manifest': PATH + 'generic_mic_calibration.GenericMicGolayMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_microphone_mixin,
+        selectable_speaker_mixin,
+        {
+            'manifest': PATH + 'objects.Microphone',
+            'required': True,
+            'attrs': {
+                'id': 'measurement_microphone',
+                'title': 'Microphone',
+                'microphone_type': 'measurement_microphone'
+            },
+        },
+        {
+            'manifest': PATH + 'objects.Microphone',
+            'required': True,
+            'attrs': {
+                'id': 'generic_microphone',
+                'title': 'Generic Microphone',
+                'microphone_type': 'generic_microphone',
+                'env_prefix': 'CFTS_GENERIC_MICROPHONE',
+            },
+        },
     ],
 )
 

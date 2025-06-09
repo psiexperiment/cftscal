@@ -56,8 +56,6 @@ def list_starship_connections():
     return choices
 
 
-
-
 NO_DEVICE_ERROR = '''
 No channel supporting {} could be found in the IO manifest. To use this plugin,
 you must add {} as a supported device to at least one analog channel via the
@@ -90,7 +88,11 @@ def list_connections(channel_type_code, device_type, label_fmt=None,
 
 
 list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
-list_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
+list_measurement_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
+list_generic_microphone_connections = partial(list_connections, 'hw_ai', 'generic_microphone')
+# Set this up as an alias since some third-party libraries are expecting this
+# function and it was renamed once we added support for generic microphones.
+list_microphone_connections = list_measurement_microphone_connections
 
 
 NO_INPUT_AMPLIFIER_ERROR = '''
@@ -119,22 +121,19 @@ def list_input_amplifier_connections():
 
 def show_connections():
     print(f'Looking for connections in {get_default_io()}')
-    #try:
-    #    print(list_starship_connections())
-    #except ValueError:
-    #    pass
-    try:
-        print(list_speaker_connections())
-    except ValueError:
-        pass
-    try:
-        print(list_microphone_connections())
-    except ValueError:
-        pass
-    #try:
-    #    print(list_input_amplifier_connections())
-    #except ValueError:
-    #    pass
+    fn_list = [
+        list_starship_connections,
+        list_input_amplifier_connections,
+        list_speaker_connections,
+        list_measurement_microphone_connections,
+        list_generic_microphone_connections,
+    ]
+
+    for fn in fn_list:
+        try:
+            print(fn())
+        except ValueError:
+            pass
 
 
 if __name__ == '__main__':

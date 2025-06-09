@@ -123,32 +123,30 @@ enamldef Input(ExperimentManifest): manifest:
                 scope = 'experiment'
 
 
-def initialize_speaker(name, event):
+def initialize_speaker(name, env_prefix, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
     try:
-        input_name = os.environ[f'CFTS_SPEAKER']
-        item_speaker = context.get_item(name)
-        item_speaker.expression = input_name
+        input_name = os.environ[env_prefix]
+        item_speaker = context.get_item(f'{name}_output')
+        item_speaker.expression = f'"{input_name}"'
         item_speaker.editable = False
 
-        if (name := os.environ.get(f'CFTS_SPEAKER_{input_name.upper()}', None)):
-            channel = controller.get_channel(f'hw_ao::speaker_{input_name}')
+        if (name := os.environ.get(f'{env_prefix}_{input_name.upper()}', None)):
+            channel = controller.get_channel(f'hw_ao::{input_name}')
             channel.calibration = speaker_manager.from_string(name).load()
     except:
+        raise
         pass
 
 
 enamldef Speaker(ExperimentManifest): manifest:
     '''
-    Defines a speaker. The IO manifest will be scanned for all channels that
-    contain "speaker" in the name. The channels must follow the naming
-    convention:
+    Defines a speaker. The IO manifest will be scanned for all hardware AO
+    channels that contain `speaker` in the supported device list.
 
-        * speaker_<name>
-
-    An output will be made available to all experiments named `<id>_output`.
+    An output will be made available to all experiments named `<id>`.
 
     Environment variables can also be optionally used to auto-configure the
     speaker and calibration.
@@ -160,8 +158,13 @@ enamldef Speaker(ExperimentManifest): manifest:
         A calibration string (provided by cftscal) that will load the correct
         calibration when passed to `speaker_manager.from_string`.
     '''
-    id = 'speaker'
+    id = 'system_speaker'
     title = manifest.id.capitalize().replace('_', ' ')
+    attr env_prefix = 'CFTS_SPEAKER'
+
+    attr label_fmt = lambda x: re.sub(r'\bspeaker\b', '', x, flags=re.IGNORECASE)
+    attr connections = list_connections('hw_ao', 'speaker', as_expression=True, label_fmt=label_fmt)
+
 
     Extension:
         id = manifest.id + '.commands'
@@ -169,7 +172,7 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_speaker_settings'
-            handler = functools.partial(initialize_speaker, manifest.id)
+            handler = functools.partial(initialize_speaker, manifest.id, manifest.env_prefix)
 
     Extension:
         id = manifest.id + '.actions'
@@ -185,43 +188,45 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         MUXOutput:
             name = manifest.id
-            target_name = 'hw_ao::' + getattr(C, f'{manifest.id}')
+            target_name = 'hw_ao::' + getattr(C, f'{manifest.id}_output')
 
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
         EnumParameter:
-            name = manifest.id
+            name = manifest.id + '_output'
             label = manifest.title
-            choices = {k: str(v) for k, v in list_speaker_connections().items()}
+            choices = manifest.connections
             scope = 'experiment'
             group_name = 'hardware_settings'
 
 
-def initialize_microphone(name, microphone_type, event):
+def initialize_microphone(name, microphone_type, env_prefix, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
     try:
-        input_name = os.environ[f'CFTS_MICROPHONE']
-        item_microphone = context.get_item(f'{name}_microphone')
+        input_name = os.environ[env_prefix]
+        item_microphone = context.get_item(f'{name}_input')
         item_microphone.expression = f'"{input_name}"'
         item_microphone.editable = False
 
-        gain = os.environ[f'CFTS_MICROPHONE_{input_name.upper()}_GAIN']
-        item_gain = context.get_item(f'{name}_microphone_input_gain')
+        gain = os.environ[f'{env_prefix}_{input_name.upper()}_GAIN']
+        item_gain = context.get_item(f'{name}_input_gain')
         item_gain.set_value(gain)
         item_gain.editable = False
 
-        if (name := os.environ.get(f'CFTS_MICROPHONE_{input_name.upper()}', None)):
-            channel = controller.get_channel(f'hw_ai::microphone_{input_name}')
-            if microphone_type == 'generic':
+        if (name := os.environ.get(f'{env_prefix}_{input_name.upper()}', None)):
+            channel = controller.get_channel(f'hw_ai::{input_name}')
+            if microphone_type == 'generic_microphone':
                 channel.calibration = generic_microphone_manager.from_string(name).load()
-            elif microphone_type == 'measurement':
+            elif microphone_type == 'measurement_microphone':
                 channel.calibration = measurement_microphone_manager.from_string(name).load()
+            else:
+                raise ValueError(f'Unsupported microphone type "{microphone_type}"')
     except:
-        pass
+        raise
 
 
 enamldef Microphone(ExperimentManifest): manifest:
@@ -253,6 +258,10 @@ enamldef Microphone(ExperimentManifest): manifest:
     title = manifest.id.capitalize().replace('_', ' ')
 
     attr label_fmt = lambda x: re.sub(r'\bmicrophone\b', '', x, flags=re.IGNORECASE)
+    attr env_prefix = 'CFTS_MICROPHONE'
+
+    # This is the original microphone type we expected, so I have configured it
+    # accordingly.
     attr microphone_type = 'measurement_microphone'
     attr connections = list_connections('hw_ai', manifest.microphone_type,
                                         as_expression=True,
@@ -264,8 +273,10 @@ enamldef Microphone(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_microphone_settings'
-            handler = functools.partial(initialize_microphone, manifest.id,
-                                        manifest.microphone_type)
+            handler = functools.partial(initialize_microphone,
+                                        manifest.id,
+                                        manifest.microphone_type,
+                                        manifest.env_prefix)
 
     Extension:
         id = manifest.id + '.actions'

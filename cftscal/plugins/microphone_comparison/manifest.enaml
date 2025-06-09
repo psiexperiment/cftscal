@@ -3,15 +3,22 @@ from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.ui.api import ActionItem, Workspace
 
 
-from cftscal.util import list_microphone_connections
+from cftscal.util import (
+    list_generic_microphone_connections,
+    list_measurement_microphone_connections,
+    list_speaker_connections,
+)
 from .settings import MicrophoneComparisonSettings
 from .view import MicrophoneComparisonView
 
 
 def available():
     try:
-        return len(list_microphone_connections()) > 1
-    except:
+        list_measurement_microphone_connections()
+        list_generic_microphone_connections()
+        list_speaker_connections()
+        return True
+    except Exception as e:
         return False
 
 
@@ -19,18 +26,22 @@ def workspace_factory(workbench, title):
     space = Workspace()
     space.window_title = title
     try:
-        settings = MicrophoneComparisonSettings(list_microphone_connections())
+        settings = MicrophoneComparisonSettings(
+            list_measurement_microphone_connections(),
+            list_generic_microphone_connections(),
+            list_speaker_connections(),
+        )
         space.content = MicrophoneComparisonView(settings=settings)
     except:
+        raise
         space.content = MicrophoneComparisonView()
     return space
 
 
-enamldef TestMicrophoneManifest(PluginManifest): manifest:
+enamldef GenericMicrophoneManifest(PluginManifest): manifest:
 
-    id = 'microphone-test'
-    attr title = 'Test Microphone Calibration'
-    attr workspace = 'test_microphone'
+    id = 'microphone-generic'
+    attr title = 'Generic Microphone Calibration'
 
     Extension:
         id = manifest.id + '.actions'

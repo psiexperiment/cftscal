@@ -133,7 +133,7 @@ enamldef SpeakerView(Container):
                             ]
 
                             Label: speaker_label:
-                                text = f'Speaker {speaker.output_label}'
+                                text = speaker.output_label
 
                             ObjectCombo: speaker_select:
                                 items = speaker.available_speakers

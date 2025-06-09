@@ -185,7 +185,15 @@ enamldef MicrophoneComparisonView(Container): view:
                         HGroup:
                             padding = 0
                             spacing = 5
-                            leading_spacer = spacer(0)
+                            align_widths = False
+
+                            Label:
+                                text = 'Speaker'
+
+                            ObjectCombo:
+                                items = settings.speaker_outputs
+                                selected := settings.speaker_output
+                                to_string = lambda s: s.output_label
 
                             PushButton: golay_start:
                                 text = 'Golay'

@@ -3,7 +3,7 @@ from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.ui.api import ActionItem, Workspace
 
 
-from ...util import list_microphone_connections, list_speaker_connections
+from ...util import list_measurement_microphone_connections, list_speaker_connections
 from .settings import SpeakerCalibrationSettings
 from .view import SpeakerView
 
@@ -11,7 +11,7 @@ from .view import SpeakerView
 def available():
     try:
         list_speaker_connections()
-        list_microphone_connections()
+        list_measurement_microphone_connections()
         return True
     except:
         return False
@@ -23,10 +23,11 @@ def speaker_workspace_factory(workbench):
     try:
         settings = SpeakerCalibrationSettings(
             list_speaker_connections(),
-            list_microphone_connections(),
+            list_measurement_microphone_connections(),
         )
         space.content = SpeakerView(settings=settings)
     except:
+        raise
         space.content = SpeakerView()
     return space
 

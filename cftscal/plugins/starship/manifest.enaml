@@ -3,7 +3,9 @@ from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.ui.api import ActionItem, Workspace
 
 
-from cftscal.util import list_microphone_connections, list_starship_connections
+from cftscal.util import (list_measurement_microphone_connections,
+                          list_starship_connections)
+
 from .settings import StarshipCalibrationSettings
 from .view import StarshipView
 
@@ -11,7 +13,7 @@ from .view import StarshipView
 def available():
     try:
         list_starship_connections()
-        list_microphone_connections()
+        list_measurement_microphone_connections()
         return True
     except:
         return False
@@ -22,7 +24,7 @@ def starship_workspace_factory(workbench):
     space.window_title = 'Starship Calibration'
     try:
         settings = StarshipCalibrationSettings(list_starship_connections(),
-                                               list_microphone_connections())
+                                               list_measurement_microphone_connections())
         space.content = StarshipView(settings=settings)
     except:
         space.content = StarshipView()
