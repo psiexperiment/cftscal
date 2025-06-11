@@ -189,10 +189,11 @@ def calculate_group_sens_golay(fs, measurement_waveform, generic_waveform,
 
     meas_sens = meas_cal.to_mv_pa() * 1e-3
 
-    # divide cal mic volts by cal mic sens (in V/Pa) to get pascals
-    pa = db(generic_psd) - db(meas_sens)
-    # cal units should be dB(Pa/20e-6/V)
-    sens = pa - db(20e-6) - db(measurement_psd)
+    # divide meas. mic volts by meas. mic sens (in V/Pa) to get pascals
+    pa = db(measurement_psd) - db(meas_sens)
+
+    # The final units of the generic microphone calibration should be dB(Pa/20e-6/V)
+    sens = pa - db(20e-6) - db(generic_psd)
     phase = measurement_phase - generic_phase
 
     if smoothing_window > 0:
@@ -243,8 +244,7 @@ def validate_sens(event, sens):
     freq_ub = context.get_value('validation_end')
     octaves = context.get_value('validation_octaves')
 
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
-                               'bounded')*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves, 'bounded')*1e3
     log.debug('Validating calibration by targeting %f dB SPL', validation_level)
     if len(frequencies) == 0:
         log.error('No frequencies available to calibrate. Please review target SPL.')
@@ -253,17 +253,19 @@ def validate_sens(event, sens):
     # TODO: NEED TO ORDER CHANNELS!
     engines = [ao.engine, generic_ai.engine, measurement_ai.engine]
     ai_channels = [generic_ai.name, measurement_ai.name]
-    log.error(ao.name)
-    log.error(ai_channels)
     result = tone_sens(engines,
                        frequencies,
                        gains=-30,
                        ao_channel_name=ao.name,
                        ai_channel_names=ai_channels)
+
     rms = result['rms'].unstack('channel_name')
     measurement_rms = rms[measurement_ai.name]
-    generic_rms = rms[cal_ai.name]
-    sens = db(generic_rms) - db(measurement_mic_sens) - db(20e-6) - db(measurement_rms)
+    generic_rms = rms[generic_ai.name]
+
+    pa = db(measurement_rms) - db(measurement_mic_sens)
+    sens = pa - db(20e-6) - db(generic_rms)
+    #sens = db(generic_rms) - db(measurement_mic_sens) - db(20e-6) - db(measurement_rms)
 
     def plot_data(data=data, sens=sens):
         vb = data.find_viewbox('sens')
@@ -386,17 +388,17 @@ enamldef GenericMicCalibrationManifest(ControllerManifest): manifest:
                 y_min = -160
                 y_max = -50
                 name = 'measurement_fft'
-                y_label = 'Probe tube PSD (dB re 1V)'
+                y_label = 'Measurement mic. PSD (dB re 1V)'
 
             ViewBox:
                 y_min = -160
                 y_max = -50
                 name = 'generic_fft'
-                y_label = 'Calibration mic. PSD (dB re 1V)'
+                y_label = 'Generic mic. PSD (dB re 1V)'
 
             ViewBox:
                 name = 'sens'
-                y_label = 'Probe tube sens (V/Pa)'
+                y_label = 'Generic mic. sens (V/Pa)'
 
 
 enamldef GenericMicGolayMixin(GolayMixin): manifest:
