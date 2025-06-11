@@ -503,7 +503,35 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 
 
 class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
-    pass
+
+    @cached_property
+    def measurement_microphone(self):
+        return self.filename.name.rsplit('_', 2)[1]
+
+    @cached_property
+    def stimulus(self):
+        return self.filename.stem.rsplit('_', 1)[1]
+
+    def load(self):
+        '''
+        Load calibration that was run at the highest output gain and number of
+        bits under the assumption that this represents the calibration with the
+        highest SNR and resolution.
+        '''
+        index_col = ['n_bits', 'output_gain', 'frequency']
+        sens = pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
+        n_bits = int(sens.index.unique('n_bits').max())
+        output_gain = int(sens.index.unique('output_gain').max())
+        s = sens.loc[n_bits, output_gain]
+        attrs ={
+            'calibration_file': str(self.filename),
+            'name': self.name,
+            'string': self.to_string(),
+            'class': self.qualname,
+            'n_bits': n_bits,
+            'output_gain': output_gain,
+        }
+        return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
 
 
 class CFTSMeasurementMicrophoneLoader(CFTSBaseLoader):
@@ -514,7 +542,7 @@ class CFTSMeasurementMicrophoneLoader(CFTSBaseLoader):
 
 class CFTSGenericMicrophoneLoader(CFTSBaseLoader):
 
-    subfolder = 'generic_microphone'
+    subfolder = 'microphone_generic'
     cal_class = CFTSGenericMicrophoneCalibration
 
 
