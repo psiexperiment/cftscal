@@ -39,9 +39,9 @@ class MicrophoneComparisonSettings(CalibrationSettings):
         self.speaker_output.save_config()
 
     def run_cal_golay(self):
-        filename = f'{{date_time}}_{self.generic_input.name}_{self.generic_input.name}_golay'
+        filename = f'{{date_time}}_{self.generic_input.name}_{self.measurement_input.name}_golay'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone_comparison' / self.generic_input.name / filename
+        pathname = CAL_ROOT / 'microphone_generic' / self.generic_input.name / filename
         env = {
             **self.measurement_input.get_env_vars(),
             # Since we are calibrating the test microphone, we do not load the
@@ -56,7 +56,7 @@ class MicrophoneComparisonSettings(CalibrationSettings):
     def run_cal_chirp(self):
         filename = f'{{date_time}}_{self.generic_input.name}_{self.generic_input.name}_chirp'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone_comparison' / self.generic_input.name / filename
+        pathname = CAL_ROOT / 'microphone_generic' / self.generic_input.name / filename
         env = {
             **self.measurement_input.get_env_vars(),
             # Since we are calibrating the test microphone, we do not load the

@@ -33,7 +33,6 @@ def workspace_factory(workbench, title):
         )
         space.content = MicrophoneComparisonView(settings=settings)
     except:
-        raise
         space.content = MicrophoneComparisonView()
     return space
 

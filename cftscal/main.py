@@ -61,7 +61,7 @@ def main():
         ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
         ('cftscal.plugins.inear.manifest', 'InEarManifest'),
-        ('cftscal.plugins.microphone_comparison.manifest', 'GenericMicrophoneManifest'),
+        ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
     ]
 
     with enaml.imports():

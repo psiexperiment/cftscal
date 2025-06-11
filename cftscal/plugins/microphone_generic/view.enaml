@@ -209,7 +209,7 @@ enamldef MicrophoneComparisonView(Container): view:
 
         DockItem:
             name = 'device_sens_plot'
-            title = 'Microphone Comparison Sensitivity'
+            title = 'Generic Microphone Sensitivity'
             closable = False
             stretch = 10
 
@@ -220,7 +220,7 @@ enamldef MicrophoneComparisonView(Container): view:
 
         DockItem:
             name = 'device_list'
-            title = 'Microphone Comparison Calibrations'
+            title = 'Generic Microphone Calibrations'
             closable = False
             stretch = 0
 
