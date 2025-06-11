@@ -3,7 +3,7 @@ import shutil
 from palettable.tableau import Tableau_20
 import pyqtgraph as pg
 
-from atom.api import Atom, Bool, Dict, Float, List, Tuple, Typed, Value
+from atom.api import Atom, Bool, Dict, Float, List, Str, Tuple, Typed, Value
 import enaml
 with enaml.imports():
     from psi.data.plots_manifest import PGCanvas
@@ -24,8 +24,12 @@ from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
 from cftscal.objects import (
-    CFTSInEarCalibration, CFTSInputAmplifierCalibration,
-    CFTSMicrophoneCalibration, CFTSStarshipCalibration, CFTSSpeakerCalibration,
+    CFTSInEarCalibration,
+    CFTSInputAmplifierCalibration,
+    CFTSGenericMicrophoneCalibration,
+    CFTSMeasurementMicrophoneCalibration,
+    CFTSStarshipCalibration,
+    CFTSSpeakerCalibration,
 )
 
 
@@ -77,6 +81,11 @@ class BasePlotManager(Atom):
     color_cycle = Value()
     plots = Dict()
 
+    x_label = Str('Frequency')
+    x_units = Str('Hz')
+    y_label = Str('Sensitivity')
+    y_units = Str('dB re 1 Vrms')
+
     def _default_color_cycle(self):
         return iter(Tableau_20.colors)
 
@@ -109,14 +118,14 @@ class BasePlotManager(Atom):
 
     def make_y_axis(self):
         y_axis = pg.AxisItem('left')
-        y_axis.setLabel('Sensitivity (dB re 1Vrms)')
+        y_axis.setLabel(self.y_label, self.y_units)
         y_axis.setGrid(64)
         return y_axis
 
     def make_x_axis(self):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
-        x_axis.setLabel('Frequency', units='Hz')
+        x_axis.setLabel(self.x_label, units=self.x_units)
         x_axis.setLogMode(True)
         return x_axis
 
@@ -272,13 +281,18 @@ class ObjectCollection(Atom):
         self.groups = [ObjectGroup(obj, self.plot_manager) for obj in objects]
 
 
-template CalibratedObjectTemplate(item, MemberType: CFTSMicrophoneCalibration):
+template CalibratedObjectTemplate(item, MemberType: CFTSMeasurementMicrophoneCalibration):
     TreeViewColumn:
         text << f'{item.sens:.2f} mV/Pa'
     TreeViewColumn:
         text << f'{item.sens_db:.2f} dB(mV/Pa)'
     TreeViewColumn:
         text << item.pistonphone
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSGenericMicrophoneCalibration):
+    TreeViewColumn:
+        text << item.measurement_microphone
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):

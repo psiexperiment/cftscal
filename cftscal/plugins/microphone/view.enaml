@@ -17,6 +17,8 @@ from cftscal.plugins.widgets import (
 
 class MicrophonePlotManager(BasePlotManager):
 
+    y_label = 'Measured Voltage'
+
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
         if remove:
@@ -169,7 +171,7 @@ enamldef MicrophoneView(Container):
 
         DockItem:
             name = 'mic_sens_plot'
-            title = 'Microphone Sensitivity'
+            title = 'Microphone Voltage'
             closable = False
             stretch = 10
 
