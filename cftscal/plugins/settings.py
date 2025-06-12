@@ -164,14 +164,14 @@ class SpeakerSettings(PersistentSettings):
         except IndexError:
             return ''
 
-    def get_env_vars(self, include_cal=True):
+    def get_env_vars(self, include_cal=True, env_prefix='CFTS_SPEAKER'):
         env = {
-            f'CFTS_SPEAKER': self.output_name,
+            env_prefix: self.output_name,
         }
         if include_cal:
             speaker = speaker_manager.get_object(self.name)
             cal = speaker.get_current_calibration()
-            env[f'CFTS_SPEAKER_{self.output_name.upper()}'] = cal.to_string()
+            env[f'{env_prefix}_{self.output_name.upper()}'] = cal.to_string()
         return env
 
 

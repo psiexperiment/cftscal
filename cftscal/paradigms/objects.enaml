@@ -149,12 +149,13 @@ enamldef Speaker(ExperimentManifest): manifest:
     An output will be made available to all experiments named `<id>`.
 
     Environment variables can also be optionally used to auto-configure the
-    speaker and calibration.
+    speaker and calibration. The env_prefix is configured using the
+    `env_prefix` attribute.
 
-    CFTS_SPEAKER
+    <env_prefix>
         Indicates which output channel to use.
 
-    CFTS_SPEAKER_<name>
+    <env_prefix>_<name>
         A calibration string (provided by cftscal) that will load the correct
         calibration when passed to `speaker_manager.from_string`.
     '''
