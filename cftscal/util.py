@@ -63,8 +63,10 @@ supported_devices list attribute on that channel.
 '''
 
 
-def list_connections(channel_type_code, device_type, label_fmt=None,
+def list_connections(channel_type_code, device_types, label_fmt=None,
                      as_expression=False):
+    if isinstance(device_types, str):
+        device_types = [device_types]
     if label_fmt is None:
         label_fmt = lambda x: x
     choices = {}
@@ -72,16 +74,19 @@ def list_connections(channel_type_code, device_type, label_fmt=None,
     for obj in manifest.traverse():
         if isinstance(obj, Channel):
             if channel_type_code == obj.type_code:
-                if device_type in obj.supported_devices:
-                    label = label_fmt(obj.label)
-                    if as_expression:
-                        # Wrap name in quotation marks so that `eval` returns a
-                        # string when this is passed through the context
-                        # expression evaluation system.
-                        name = f'"{obj.name}"'
-                    else:
-                        name = obj.name
-                    choices[label] = name
+                for device_type in device_types:
+                    if device_type in obj.supported_devices:
+                        label = label_fmt(obj.label)
+                        if as_expression:
+                            # Wrap name in quotation marks so that `eval` returns a
+                            # string when this is passed through the context
+                            # expression evaluation system.
+                            name = f'"{obj.name}"'
+                        else:
+                            name = obj.name
+                        choices[label] = name
+                        break
+
     if len(choices) == 0:
         raise ValueError(NO_DEVICE_ERROR.format(device_type, device_type))
     return choices
@@ -89,7 +94,8 @@ def list_connections(channel_type_code, device_type, label_fmt=None,
 
 list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
 list_measurement_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
-list_generic_microphone_connections = partial(list_connections, 'hw_ai', 'generic_microphone')
+list_generic_microphone_connections = partial(list_connections, 'hw_ai',
+                                              ['generic_microphone', 'measurement_microphone'])
 # Set this up as an alias since some third-party libraries are expecting this
 # function and it was renamed once we added support for generic microphones.
 list_microphone_connections = list_measurement_microphone_connections

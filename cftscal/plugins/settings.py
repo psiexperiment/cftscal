@@ -90,7 +90,7 @@ class BaseMicrophoneSettings(PersistentSettings):
 class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
 
     def _get_available_microphones(self):
-        return sorted(measurement_microphone_manager.list_names('CFTS'))
+        return sorted(measurement_microphone_manager.list_names())
 
     def get_env_vars(self, include_cal=True, env_prefix='CFTS_MICROPHONE'):
         env = {
@@ -107,7 +107,7 @@ class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
 class GenericMicrophoneSettings(BaseMicrophoneSettings):
 
     def _get_available_microphones(self):
-        return sorted(generic_microphone_manager.list_names('CFTS'))
+        return sorted(generic_microphone_manager.list_names())
 
     def get_env_vars(self, include_cal=True, env_prefix='CFTS_GENERIC_MICROPHONE'):
         env = {
@@ -153,7 +153,7 @@ class SpeakerSettings(PersistentSettings):
     available_speakers = Property()
 
     def _get_available_speakers(self):
-        return sorted(speaker_manager.list_names('CFTS'))
+        return sorted(speaker_manager.list_names())
 
     def _get_settings_filename(self):
         return f'speaker_{self.output_name}.json'
@@ -183,7 +183,7 @@ class StarshipSettings(PersistentSettings):
     available_starships = Property()
 
     def _get_available_starships(self):
-        return sorted(starship_manager.list_names('CFTS'))
+        return sorted(starship_manager.list_names())
 
     def _get_settings_filename(self):
         return f'starship_{self.output}.json'
@@ -242,7 +242,7 @@ class InputAmplifierSettings(PersistentSettings):
         return self.gain * self.gain_mult
 
     def _get_available_input_amplifiers(self):
-        return sorted(input_amplifier_manager.list_names('CFTS'))
+        return sorted(input_amplifier_manager.list_names())
 
     def get_env_vars(self, include_cal=True):
         return {
