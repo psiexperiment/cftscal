@@ -1,7 +1,7 @@
 from functools import partial
 
 from psi.application import get_default_io, load_io_manifest
-from psi.controller.api import Channel
+from psi.controller.api import Channel, HardwareAIChannel
 
 
 NO_INPUT_ERROR = '''
@@ -58,8 +58,8 @@ def list_starship_connections():
 
 NO_DEVICE_ERROR = '''
 No channel supporting {} could be found in the IO manifest. To use this plugin,
-you must add {} as a supported device to at least one analog channel via the
-supported_devices list attribute on that channel.
+you must mark at least one analog channel as supporting one of these types via
+the supported_devices list attribute on that channel.
 '''
 
 
@@ -88,7 +88,8 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
                         break
 
     if len(choices) == 0:
-        raise ValueError(NO_DEVICE_ERROR.format(device_type, device_type))
+        info = ', '.join(device_types)
+        raise ValueError(NO_DEVICE_ERROR.format(info))
     return choices
 
 
@@ -138,8 +139,8 @@ def show_connections():
     for fn in fn_list:
         try:
             print(fn())
-        except ValueError:
-            pass
+        except ValueError as e:
+            print(e)
 
 
 if __name__ == '__main__':

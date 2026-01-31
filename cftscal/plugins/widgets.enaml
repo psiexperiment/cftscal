@@ -1,5 +1,6 @@
 import shutil
 
+import numpy as np
 from palettable.tableau import Tableau_20
 import pyqtgraph as pg
 
@@ -23,9 +24,11 @@ from enaml.widgets.api import (
 from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
+from psiaudio import util
 from cftscal.objects import (
     CFTSInEarCalibration,
     CFTSInputAmplifierCalibration,
+    CFTSInputRecording,
     CFTSGenericMicrophoneCalibration,
     CFTSMeasurementMicrophoneCalibration,
     CFTSStarshipCalibration,
@@ -75,19 +78,72 @@ enamldef AddItem(PopupView): popup:
 
 class BasePlotManager(Atom):
 
-    legend = Typed(pg.LegendItem)
     component = Typed(pg.GraphicsLayout)
-    vb = Typed(pg.ViewBox)
     color_cycle = Value()
     plots = Dict()
+
+    def _default_color_cycle(self):
+        return iter(Tableau_20.colors)
+
+    def _default_component(self):
+        raise NotImplementedError
+
+    def _default_plots(self):
+        return {}
+
+    def create_plot(self, color=None, width=2, line='solid'):
+        if color is None:
+            try:
+                color = make_color(next(self.color_cycle))
+            except StopIteration:
+                # We have exhausted the color cycle. Just start over again at
+                # the beginning.
+                self.color_cycle = self._default_color_cycle()
+                color = make_color(next(self.color_cycle))
+        else:
+            # Coerce color back to Qcolor for use by pygtgraph
+            color = make_color(color)
+
+        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
+        pen = pg.mkPen(color, width=width, style=linestyle)
+        return color, pg.PlotCurveItem(pen=pen)
+
+    def create_empty_plots(self, color=None, width=2, line='solid'):
+        color, plot = self.create_plot(color=color, width=width, line=line)
+        return color, [plot]
+
+    def get_plots(self, plot_id, vb, **kw):
+        if plot_id not in self.plots:
+            color, plots = self.create_empty_plots(**kw)
+            # Convert to Enaml color for highlight in object tree 
+            color = Color(color.red(), color.green(), color.blue(),
+                          color.alpha())
+            self.plots[vb, plot_id] = color, plots
+            for plot in plots:
+                vb.addItem(plot)
+        return self.plots[vb, plot_id]
+
+    def notify(self, item, selected):
+        if selected:
+            return self._update(item, remove=False)
+        else:
+            return self._update(item, remove=True)
+
+    def remove_plots(self, plot_id, vb):
+        _, plots = self.plots.pop((vb, plot_id), (None, []))
+        for plot in plots:
+            vb.removeItem(plot)
+
+
+class SinglePlotManager(BasePlotManager):
+
+    vb = Typed(pg.ViewBox)
+    legend = Typed(pg.LegendItem)
 
     x_label = Str('Frequency')
     x_units = Str('Hz')
     y_label = Str('Sensitivity')
     y_units = Str('dB re 1 Vrms')
-
-    def _default_color_cycle(self):
-        return iter(Tableau_20.colors)
 
     def _default_legend(self):
         legend = pg.LegendItem()
@@ -113,12 +169,9 @@ class BasePlotManager(Atom):
 
         return component
 
-    def _default_plots(self):
-        return {}
-
     def make_y_axis(self):
         y_axis = pg.AxisItem('left')
-        y_axis.setLabel(self.y_label, self.y_units)
+        y_axis.setLabel(self.y_label, units=self.y_units)
         y_axis.setGrid(64)
         return y_axis
 
@@ -129,52 +182,189 @@ class BasePlotManager(Atom):
         x_axis.setLogMode(True)
         return x_axis
 
-    def get_plot_id(self, calibration):
-        return calibration
+    def get_plot_id(self, item):
+        return item
 
-    def create_empty_plots(self):
-        color, plot = self.create_plot()
-        return color, [plot]
+    def _update(self, item, remove=False):
+        if remove:
+            self.remove_plots(item, self.vb)
+            return None
+        color, plots = self.get_plots(item, self.vb)
+        self._plot(item, plots[0])
+        return {'color': color}
 
-    def get_plots(self, plot_id):
-        if plot_id not in self.plots:
-            color, plots = self.create_empty_plots()
-            # Convert to Enaml color for highlight in object tree 
-            color = Color(color.red(), color.green(), color.blue(), color.alpha())
-            self.plots[plot_id] = color, plots
-            self.legend.addItem(plots[0], str(plot_id))
-            for plot in plots:
-                self.vb.addItem(plot)
-        return self.plots[plot_id]
+    def _plot(self, item, plot):
+        raise NotImplementedError
 
-    def plot(self, calibration):
-        return self._update(calibration, remove=False)
 
-    def remove(self, calibration):
-        plot_id = self.get_plot_id(calibration)
-        if plot_id not in self.plots:
+class TimePSDPlotManager(BasePlotManager):
+
+    region_select = Value()
+    time_vb = Value()
+    psd_vb = Value()
+    data = Value()
+
+    apply_calibration = Bool(True)
+
+    analysis = List()
+
+    _selecting = Bool(False)
+    _initial_x = Value()
+
+    def _default_component(self):
+        component = pg.GraphicsLayout()
+        component.setSpacing(10)
+
+        # Set up time series viewbox
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Time', units='s')
+        y_axis = pg.AxisItem('left')
+        if self.apply_calibration:
+            y_axis.setLabel('Signal (Pa)')
+        else:
+            y_axis.setLabel('Signal (V)')
+        y_axis.setGrid(64)
+        self.time_vb = vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        y_axis.linkToView(vb)
+        x_axis.linkToView(vb)
+        component.addItem(y_axis, 0, 0)
+        component.addItem(x_axis, 1, 1)
+        component.addItem(vb, 0, 1)
+
+        # Set up time series viewbox
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(64)
+        x_axis.setLabel('Frequency', units='Hz')
+        y_axis = pg.AxisItem('left')
+        y_axis.setGrid(64)
+        if self.apply_calibration:
+            y_axis.setLabel('PSD (dB SPL)')
+        else:
+            y_axis.setLabel('PSD (dB re 1 Vrms)')
+
+        self.psd_vb = vb = pg.ViewBox()
+        vb.setBackgroundColor('w')
+        y_axis.linkToView(vb)
+        x_axis.linkToView(vb)
+        component.addItem(y_axis, 2, 0)
+        component.addItem(x_axis, 3, 1)
+        component.addItem(vb, 2, 1)
+
+        self.data = {}
+
+        return component
+
+    def _mouse_click(self, event):
+        if self.time_vb.sceneBoundingRect().contains(event.scenePos()):
+            point = self.time_vb.mapSceneToView(event.scenePos())
+            if not self._selecting:
+                new_region = (point.x(), point.x())
+                self._selecting = True
+                self._initial_x = point.x()
+            else:
+                region = self.region_select.getRegion()
+
+                new_region = (self._initial_x, point.x())
+                self._selecting = False
+            region = self.region_select.setRegion(new_region)
+
+    def _mouse_move(self, pos):
+        return
+        if self.time_vb.sceneBoundingRect().contains(pos):
+            point = self.time_vb.mapSceneToView(pos)
+            if not self._selecting:
+                return
+            region = self.region_select.getRegion()
+            new_region = (self._initial_x, point.x())
+            region = self.region_select.setRegion(new_region)
+
+    def _region_select_updated(self):
+        # Don't update PSD until region select complete
+        if self._selecting:
             return
-        return self._update(calibration, remove=True)
+        xlb, xub = self.region_select.getRegion()
+        info = []
+        for item, d in self.data.items():
+            x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
+            m = (x >= xlb) & (x < xub)
+            if m.any():
+                psd = cal.get_db(util.psd_df(y[m], fs=fs))
+                d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
+                y_cal = cal.get_level(y[m])
+                info.append({
+                    'color': d['color'],
+                    'run': str(item),
+                    'ptp': util.patodb(np.ptp(y_cal)),
+                    'rms': util.patodb(util.rms(y_cal)),
+                    'duration': x[m].max() - x[m].min(),
+                })
+            else:
+                d['psd_plot'][0].setData([], [])
+                info.append({
+                    'color': d['color'],
+                    'run': str(item),
+                    'ptp': np.nan,
+                    'rms': np.nan,
+                    'duration': 0,
+                })
+        self.analysis = info
 
-    def remove_plots(self, plot_id):
-        _, plots = self.plots.pop(plot_id)
-        self.legend.removeItem(plots[0])
-        for plot in plots:
-            self.vb.removeItem(plot)
+    def remove(self, recording):
+        self._update(recording, True)
 
-    def create_plot(self, color=None, width=2, line='solid'):
-        if color is None:
-            try:
-                color = make_color(next(self.color_cycle))
-            except StopIteration:
-                # We have exhausted the color cycle. Just start over again at
-                # the beginning.
-                self.color_cycle = self._default_color_cycle()
-                color = make_color(next(self.color_cycle))
+    def _update(self, item, remove=False):
+        if remove:
+            self.remove_plots(item, self.time_vb)
+            self.remove_plots(item, self.psd_vb)
+            return
 
-        linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
-        pen = pg.mkPen(color, width=width, style=linestyle)
-        return color, pg.PlotCurveItem(pen=pen)
+        if self.region_select is None:
+            def click(event):
+                nonlocal self
+                self._mouse_click(event)
+            def move(pos):
+                nonlocal self
+                self._mouse_move(pos)
+            self.time_vb.scene().sigMouseClicked.connect(click)
+            self.time_vb.scene().sigMouseMoved.connect(move)
+
+            def update():
+                nonlocal self
+                self._region_select_updated()
+
+            self.region_select = region = pg.LinearRegionItem(values=(0, 0), movable=False)
+            region.setZValue(10)
+            region.sigRegionChanged.connect(update)
+            self.time_vb.addItem(region, ignoreBounds=True)
+
+        color, time_plot = self.get_plots(item, self.time_vb)
+        _, psd_plot = self.get_plots(item, self.psd_vb)
+        self.data[item] = self._plot(item, time_plot, psd_plot)
+        self.data[item]['color'] = color
+        self._region_select_updated()
+        return {'color': color}
+
+    def _plot(self, item, time_plot, psd_plot):
+        fh = item.load_recording()
+        epochs = fh.hw_ai.get_epochs(fh.epoch_metadata, offset=0,
+                                     duration=fh.get_setting('duration'))
+        y = epochs.mean(axis=0)
+        if self.apply_calibration:
+            cal = fh.hw_ai.get_calibration()
+        else:
+            cal = FlatCalibration.unity()
+        y_cal = cal.get_level(y)
+        time_plot[0].setData(y.index.values, y_cal.values)
+        return {
+            'x': y.index.values,
+            'y': y.values,
+            'fs': fh.hw_ai.fs,
+            'calibration': cal,
+            'time_plot': time_plot,
+            'psd_plot': psd_plot,
+        }
 
 
 ################################################################################
@@ -205,35 +395,49 @@ class MultiPlotManager(Atom):
 
 
 class ObjectNode(Atom):
+    '''
+    Represents a single recording or calibration in the tree hierarchy
+    '''
     selected = Bool(False)
     item = Value()
-    manager = Value()
+    parent = Value()
     color = Value(None)
 
     def _observe_selected(self, event):
         if self.selected:
-            self.color = self.manager.plot(self.item)
+            self.parent.notify(self, selected=True)
         else:
-            self.manager.remove(self.item)
-            self.color = None
+            self.parent.notify(self, selected=False)
 
 
 class ObjectGroup(Atom):
+    '''
+    Represents a group of recordings or calibration in the tree hierarchy
+    '''
     selected = Bool(False)
-    skip_autoselect = Bool(False)
-    subitems = List(ObjectNode)
     item = Value()
-    manager = Value()
+    parent = Value()
     color = Value(None)
+    subitems = List(ObjectNode)
 
-    def __init__(self, item, manager):
+    #: Internal flag to prevent race conditions when selecting/unselecting
+    #: items in tree. We have the option of checking the group (allowing
+    #: us to plot the most recent recording/calibration) or unchecking the
+    #: group, which will remove all recordings/calibrations under the group
+    #: from the plot.
+    _skip_autoselect = Bool(False)
+
+    def __init__(self, item, parent):
         self.item = item
-        self.manager = manager
+        self.parent = parent
         self.update_subitems()
+
+    def notify(self, node, selected):
+        self.parent.notify(node, selected)
 
     def update_subitems(self):
         objects = sorted(self.item.list_calibrations(), reverse=True)
-        self.subitems = [ObjectNode(item=obj, manager=self.manager) for obj in objects]
+        self.subitems = [ObjectNode(item=obj, parent=self) for obj in objects]
 
     def _observe_subitems(self, event):
         for i in self.subitems:
@@ -243,9 +447,9 @@ class ObjectGroup(Atom):
     def _check_selected(self, event):
         for i in self.subitems:
             if i.selected:
-                self.skip_autoselect = True
+                self._skip_autoselect = True
                 self.selected = True
-                self.skip_autoselect = False
+                self._skip_autoselect = False
                 return
         self.selected = False
 
@@ -259,7 +463,7 @@ class ObjectGroup(Atom):
 
     def _observe_selected(self, event):
         if self.selected:
-            if not self.skip_autoselect:
+            if not self._skip_autoselect:
                 self.subitems[0].selected = True
         else:
             for i in self.subitems:
@@ -267,18 +471,35 @@ class ObjectGroup(Atom):
 
 
 class ObjectCollection(Atom):
+    '''
+    Manages the list of recording/calibration groups
+    '''
     groups = List(ObjectGroup)
-    manager = Value()
-    plot_manager = Value()
 
-    def __init__(self, manager, plot_manager):
-        self.manager = manager
-        self.plot_manager = plot_manager
+    #: Manager that implements a `list_objects` method (e.g.,
+    #: `starship_manager.list_objects()`) that is used to load the items that
+    #: are shown in the tree.
+    object_manager = Value()
+
+    #: Managers that respond to group/node selections in the tree.
+    view_managers = Value()
+
+    def __init__(self, object_manager, view_managers):
+        self.object_manager = object_manager
+        self.view_managers = view_managers
         self.update_groups()
 
     def update_groups(self):
-        objects = sorted(self.manager.list_objects())
-        self.groups = [ObjectGroup(obj, self.plot_manager) for obj in objects]
+        objects = sorted(self.object_manager.list_objects())
+        self.groups = [ObjectGroup(obj, self) for obj in objects]
+
+    def notify(self, node, selected):
+        for manager in self.view_managers:
+            result = manager.notify(node.item, selected)
+            if not selected:
+                node.color = None
+            elif result is not None and 'color' in result:
+                node.color = result['color']
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSMeasurementMicrophoneCalibration):
@@ -319,6 +540,11 @@ template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):
 template CalibratedObjectTemplate(item, MemberType: CFTSInputAmplifierCalibration):
     TreeViewColumn:
         text << f'{item.measured_gain:.0f}'
+
+
+template CalibratedObjectTemplate(item, MemberType: CFTSInputRecording):
+    TreeViewColumn:
+        text << item.sensor
 
 
 template CalibratedObjectTemplate(item, MemberType):

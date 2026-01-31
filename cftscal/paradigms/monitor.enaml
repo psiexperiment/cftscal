@@ -2,12 +2,22 @@ from enaml.workbench.api import Extension
 
 from psi.context.api import ContextGroup
 from psi.controller.api import ControllerManifest, ExperimentAction
+from psi.data.sinks.api import BinaryStore
 
 
 EXPERIMENT = 'monitor'
 
 
+
 enamldef MonitorManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BinaryStore:
+            name = 'recording'
+            continuous_inputs = ['selected_input']
 
     Extension:
         id = EXPERIMENT + '.monitor.context'

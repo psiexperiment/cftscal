@@ -41,18 +41,18 @@ from cftscal.util import (
 )
 
 
-def initialize_input(name, event):
+def initialize_input(manifest_id, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
     try:
         input_name = os.environ[f'CFTS_INPUT']
-        item_input = context.get_item(f'{name})_input')
+        item_input = context.get_item(f'{manifest_id}_input')
         item_input.expression = f'"{input_name}"'
         item_input.editable = False
 
         gain = os.environ[f'CFTS_INPUT_{input_name.upper()}_GAIN']
-        item_gain = context.get_item(f'{name}_gain')
+        item_gain = context.get_item(f'{manifest_id}_gain')
         item_gain.set_value(gain)
         item_gain.editable = False
     except:

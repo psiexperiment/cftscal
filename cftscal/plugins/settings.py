@@ -9,9 +9,9 @@ from psi.util import get_tagged_members, get_tagged_values
 
 
 from cftscal.objects import (
-    generic_microphone_manager, input_amplifier_manager, inear_manager,
-    measurement_microphone_manager, speaker_manager, starship_manager,
-    CalibrationManager,
+    generic_microphone_manager, input_amplifier_manager, input_manager,
+    inear_manager, measurement_microphone_manager, speaker_manager,
+    starship_manager, CalibrationManager,
 )
 
 
@@ -52,73 +52,90 @@ class CalibrationSettings(Atom):
         subprocess.check_output(args, env=env)
 
 
-class BaseMicrophoneSettings(PersistentSettings):
+class InputSettings(PersistentSettings):
 
-    #: Name of input as defined in IO manifest
+    #: Name of input channel as defined in IO manifest
     input_name = Str()
 
-    #: Label of input as defined in IO manifest
+    #: Label of input channel as defined in IO manifest
     input_label = Str()
 
-    #: Name of the actual microphone. This is not necessarily the same as the
+    #: Name of the connected sensor. This is not necessarily the same as the
     #: channel in the IO manifest. For example, one can connect a different
-    #: microphone to the same channel, so the name may indicate which of
-    #: several microphones available in the lab is currently connected.
-    name = Str().tag(persist=True)
+    #: sensor to the same channel, so the name may indicate which of several
+    #: sensors available in the lab is currently connected.
+    sensor_name = Str().tag(persist=True)
 
-    #: Gain of microphone. Some microphone premaps/power supplies have a
-    #: hardware switch to configure the gain. This value must match the gain
-    #: set on the preamp.
-    gain = Float(20).tag(persist=True)
+    #: Gain of the device. Some preamps/power supplies have a hardware switch
+    #: to configure the gain. This value must match the gain set on the preamp.
+    sensor_gain = Float(0).tag(persist=True)
 
-    #: List of microphones that have been calibrated previously.
-    available_microphones = Property()
+    #: List of available sensors.
+    available_sensors = Property()
+
+    #: Name of the stimulus generator that the sensor is reading. Can be blank
+    #: (e.g., if we are calibrating a microphone).
+    generator_name = Str().tag(persist=True)
+
+    #: List of available generators.
+    available_generators = Property()
+
+    #: Prefix to add to environment variable names for passing to psi.
+    env_prefix = Str('CFTS_INPUT')
+
+    def _get_available_sensors(self):
+        return [
+            *sorted(input_manager.list_names()),
+        ]
+
+    def _get_available_generators(self):
+        return []
 
     def get_env_vars(self, include_cal=True):
-        raise NotImplementedError
+        env = {
+            self.env_prefix: self.sensor_name,
+            f'{self.env_prefix}_{self.sensor_name.upper()}_GAIN': str(self.sensor_gain),
+        }
+        if include_cal:
+            obj = input_manager.get_object(self.sensor_name)
+            cal = obj.get_current_calibration()
+            env[f'{self.env_prefix}_{self.sensor_name.upper()}'] = cal.to_string()
+        return env
 
     def _get_settings_filename(self):
-        return f'microphone_{self.input_name}.json'
+        return f'device_{self.generator_name}.json'
 
-    def _default_name(self):
+    def _default_sensor_name(self):
         try:
-            return self.available_microphones[0]
+            return self.available_sensors[0]
+        except IndexError:
+            return ''
+
+    def _default_generator_name(self):
+        try:
+            return self.available_generators[0]
         except IndexError:
             return ''
 
 
+class BaseMicrophoneSettings(InputSettings):
+
+    env_prefix = set_default('CFTS_MICROPHONE')
+
+    def _get_settings_filename(self):
+        return f'microphone_{self.sensor_name}.json'
+
+
 class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
 
-    def _get_available_microphones(self):
+    def _get_available_devices(self):
         return sorted(measurement_microphone_manager.list_names())
-
-    def get_env_vars(self, include_cal=True, env_prefix='CFTS_MICROPHONE'):
-        env = {
-            env_prefix: self.input_name,
-            f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.gain),
-        }
-        if include_cal:
-            mic = measurement_microphone_manager.get_object(self.name)
-            cal = mic.get_current_calibration()
-            env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
-        return env
 
 
 class GenericMicrophoneSettings(BaseMicrophoneSettings):
 
-    def _get_available_microphones(self):
+    def _get_available_devices(self):
         return sorted(generic_microphone_manager.list_names())
-
-    def get_env_vars(self, include_cal=True, env_prefix='CFTS_GENERIC_MICROPHONE'):
-        env = {
-            env_prefix: self.input_name,
-            f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.gain),
-        }
-        if include_cal:
-            mic = generic_microphone_manager.get_object(self.name)
-            cal = mic.get_current_calibration()
-            env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
-        return env
 
 
 class PistonphoneSettings(PersistentSettings):

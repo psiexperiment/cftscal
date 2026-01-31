@@ -60,7 +60,8 @@ class Calibration:
         return hash(self._get_cmp_key(self))
 
     def to_string(self):
-        return f'{self.qualname}::{self.name}::{self.filename}'
+        qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
+        return f'{qualname}::{self.name}::{self.filename}'
 
     @classmethod
     def from_string(cls, string):
@@ -77,7 +78,6 @@ class CalibratedObject:
     '''
     Represents a calibrated object
     '''
-
     def __init__(self, name, loaders):
         self.name = name
         self.loaders = loaders
@@ -201,6 +201,28 @@ class CFTSBaseLoader(CalibrationLoader):
 
 
 ################################################################################
+# Special calibration objects
+################################################################################
+class UnityInputCalibration(Calibration):
+
+    def __init__(self, *args):
+        self.name = 'unity'
+        self.filename = ''
+
+    def load(self):
+        return FlatCalibration.unity()
+
+
+class UnityInputCalibrationLoader(CalibrationLoader):
+
+    def list_names(self):
+        return ['unity']
+
+    def list_calibrations(self, name):
+        return [UnityInputCalibration()]
+
+
+################################################################################
 # Starship calibration management
 ################################################################################
 class Starship(CalibratedObject):
@@ -216,7 +238,6 @@ class EPLStarshipCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     def _get_cmp_key(self, obj):
         if obj is None:
@@ -293,7 +314,6 @@ class CFTSStarshipCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
     def datetime(self):
@@ -370,7 +390,6 @@ class CFTSSpeakerCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
     def datetime(self):
@@ -419,7 +438,6 @@ class CFTSInputAmplifierCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
     def datetime(self):
@@ -444,7 +462,17 @@ class CFTSInputAmplifierLoader(CFTSBaseLoader):
 ################################################################################
 # Microphone calibration management
 ################################################################################
-class Microphone(CalibratedObject):
+class Input(CalibratedObject):
+    '''
+    Base class for all inputs.
+    '''
+    pass
+
+
+class Microphone(Input):
+    '''
+    Base class for all microphones.
+    '''
     pass
 
 
@@ -469,7 +497,6 @@ class CFTSMicrophoneCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
     def datetime(self):
@@ -558,6 +585,47 @@ class CFTSGenericMicrophoneLoader(CFTSBaseLoader):
 
 
 ################################################################################
+# Managing input recordings
+################################################################################
+class InputRecording(CalibratedObject):
+    '''
+    Base class for all input devices.
+    '''
+    pass
+
+
+class CFTSInputRecording(Calibration):
+    '''
+    Input monitor recording created by CFTS
+    '''
+    def __init__(self, name, filename):
+        self.name = name
+        self.filename = Path(filename)
+
+    @cached_property
+    def datetime(self):
+        datestr = self.filename.stem.split('_')[0]
+        return dt.datetime.strptime(datestr, '%Y%m%d-%H%M%S')
+
+    @cached_property
+    def generator(self):
+        return self.filename.stem.split('_')[1]
+
+    @cached_property
+    def sensor(self):
+        return self.filename.stem.split('_')[2]
+
+    def load(self):
+        return Recording(self.filename)
+
+
+class CFTSInputRecordingLoader(CFTSBaseLoader):
+
+    subfolder = 'input_recording'
+    cal_class = CFTSInputRecording
+
+
+################################################################################
 # InEar calibration management
 ################################################################################
 class InEar(CalibratedObject):
@@ -569,7 +637,6 @@ class CFTSInEarCalibration(Calibration):
     def __init__(self, name, filename):
         self.name = name
         self.filename = Path(filename)
-        self.qualname = f'{self.__class__.__module__}.{self.__class__.__name__}'
 
     @cached_property
     def starship(self):
@@ -626,12 +693,20 @@ class CFTSInEarLoader(CFTSBaseLoader):
 input_amplifier_manager = CalibrationManager(InputAmplifier)
 input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
+input_recording_manager = CalibrationManager(InputRecording)
+input_recording_manager.register('cftscal.objects.CFTSInputRecordingLoader')
+
 measurement_microphone_manager = CalibrationManager(MeasurementMicrophone)
 measurement_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
 
 generic_microphone_manager = CalibrationManager(GenericMicrophone)
 generic_microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
 generic_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+
+input_manager = CalibrationManager(Input)
+input_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
+input_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+input_manager.register('cftscal.objects.UnityInputCalibrationLoader')
 
 starship_manager = CalibrationManager(Starship)
 starship_manager.register('cftscal.objects.EPLStarshipLoader')
@@ -644,8 +719,9 @@ inear_manager = CalibrationManager(InEar)
 inear_manager.register('cftscal.objects.CFTSInEarLoader')
 
 
-def show_objects():
-    def printer(d, show_calibrations=False):
+def show_objects(show_calibrations):
+
+    def printer(d):
         for loader in d.loaders:
             print(f'  - {loader.label}')
             for name in sorted(d.list_names(loader.label)):
@@ -657,6 +733,9 @@ def show_objects():
 
     print('Looking for calibrated objects')
 
+    print('* Input Recordings')
+    printer(input_recording_manager)
+
     print('* Starships')
     printer(starship_manager)
 
@@ -666,5 +745,10 @@ def show_objects():
     print('* Generic Microphones')
     printer(generic_microphone_manager)
 
+
 if __name__ == '__main__':
-    show_objects()
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--show-calibrations', action='store_true')
+    args = parser.parse_args()
+    show_objects(args.show_calibrations)

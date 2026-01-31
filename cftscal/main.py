@@ -1,5 +1,5 @@
 from psi.application import configure_logging
-configure_logging('DEBUG')
+#configure_logging('DEBUG')
 
 import importlib
 
@@ -56,22 +56,23 @@ def main():
     workbench.register(CalibrationManifest())
 
     to_register = [
-        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
-        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
-        ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
-        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
-        ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
+        #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
+        #('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
+        #('cftscal.plugins.inear.manifest', 'InEarManifest'),
+        #('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
     ]
 
     with enaml.imports():
         for module_name, class_name in to_register:
-            print(module_name)
             try:
                 module = importlib.import_module(module_name)
-                print(module.available())
                 if args.load_all or getattr(module, 'available')():
                     workbench.register(getattr(module, class_name)())
+                else:
+                    print(f'{module_name} is not available')
             except ModuleNotFoundError as e:
                 print(f'Could not load {module_name}.{class_name} plugin')
 

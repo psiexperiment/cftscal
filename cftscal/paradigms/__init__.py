@@ -214,7 +214,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'input_monitor', 'Microphone Monitor', 'calibration', [
+    'input_recording', 'Input Recording', 'calibration', [
         selectable_input_mixin,
         {'manifest': PATH + 'monitor.MonitorManifest'},
         {

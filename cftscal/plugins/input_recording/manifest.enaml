@@ -1,0 +1,50 @@
+import enaml
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.ui.api import ActionItem, Workspace
+
+
+from cftscal.util import list_inputs
+from .settings import InputRecordingSettings
+from .view import InputRecordingView
+
+
+def available():
+    try:
+        list_inputs()
+        return True
+    except:
+        return False
+
+
+def workspace_factory(workbench, title):
+    space = Workspace()
+    space.window_title = title
+    try:
+        connections = list_inputs()
+        settings = InputRecordingSettings(connections)
+        space.content = InputRecordingView(settings=settings)
+    except:
+        space.content = InputRecordingView()
+    return space
+
+
+enamldef InputRecordingManifest(PluginManifest): manifest:
+
+    id = 'input-recording'
+    attr title = 'Input Recording'
+
+    Extension:
+        id = 'input_recording_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/' + manifest.id
+            label = manifest.title
+            shortcut = 'Ctrl+i'
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': manifest.id + '.workspace'}
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = lambda w: workspace_factory(w, manifest.title)

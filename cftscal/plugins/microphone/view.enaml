@@ -146,7 +146,7 @@ enamldef MicrophoneView(Container):
                                 text = microphone.input_label
 
                             ObjectCombo: mic_select:
-                                items = sorted(microphone.available_microphones)
+                                items = sorted(microphone.available_devices)
                                 selected := microphone.name
 
                             PushButton: mic_add:
