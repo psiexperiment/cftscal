@@ -13,11 +13,11 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import speaker_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
 )
 
 
-class SpeakerPlotManager(BasePlotManager):
+class SpeakerPlotManager(SinglePlotManager):
 
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
@@ -101,12 +101,12 @@ enamldef SpeakerView(Container):
                             to_string = lambda m: m.input_label
 
                         ObjectCombo: mic_select:
-                            items = sorted(microphone.available_microphones)
-                            selected := microphone.name
+                            items = sorted(microphone.available_sensors)
+                            selected := microphone.sensor_name
 
                         ObjectCombo: mic_gain:
                             items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := microphone.gain
+                            selected := microphone.sensor_gain
 
                         Label: mic_gain_label:
                             text = 'dB gain'
@@ -147,7 +147,7 @@ enamldef SpeakerView(Container):
 
                             PushButton: golay_start:
                                 text = 'Golay'
-                                enabled << bool(mic_settings.name) \
+                                enabled << bool(mic_settings.sensor_name) \
                                     and bool(speaker.name) \
                                     and '(' not in speaker.name
                                 clicked ::
@@ -156,7 +156,7 @@ enamldef SpeakerView(Container):
 
                             PushButton: chirp_start:
                                 text = 'Chirp'
-                                enabled << bool(mic_settings.name) \
+                                enabled << bool(mic_settings.sensor_name) \
                                     and bool(speaker.name) \
                                     and '(' not in speaker.name
                                 clicked ::

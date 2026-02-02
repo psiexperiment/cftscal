@@ -128,13 +128,13 @@ class BaseMicrophoneSettings(InputSettings):
 
 class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
 
-    def _get_available_devices(self):
+    def _get_available_sensors(self):
         return sorted(measurement_microphone_manager.list_names())
 
 
 class GenericMicrophoneSettings(BaseMicrophoneSettings):
 
-    def _get_available_devices(self):
+    def _get_available_sensors(self):
         return sorted(generic_microphone_manager.list_names())
 
 

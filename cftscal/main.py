@@ -56,13 +56,13 @@ def main():
     workbench.register(CalibrationManifest())
 
     to_register = [
-        #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
         ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
-        #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
-        #('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
-        #('cftscal.plugins.inear.manifest', 'InEarManifest'),
-        #('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
+        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
+        ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
+        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
+        ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
     ]
 
     with enaml.imports():

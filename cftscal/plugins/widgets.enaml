@@ -106,7 +106,12 @@ class BasePlotManager(Atom):
 
         linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
         pen = pg.mkPen(color, width=width, style=linestyle)
-        return color, pg.PlotCurveItem(pen=pen)
+        return color, pg.PlotCurveItem(
+            pen=pen,
+            autoDownsample=True,
+            clipToView=True,
+            skipFiniteCheck=True,
+        )
 
     def create_empty_plots(self, color=None, width=2, line='solid'):
         color, plot = self.create_plot(color=color, width=width, line=line)
@@ -185,6 +190,14 @@ class SinglePlotManager(BasePlotManager):
     def get_plot_id(self, item):
         return item
 
+    def remove_plots(self, plot_id):
+        # Override to provide the single viewbox needed.
+        return super().remove_plots(plot_id, self.vb)
+
+    def get_plots(self, plot_id):
+        # Override to provide the single viewbox needed.
+        return super().get_plots(plot_id, self.vb)
+
     def _update(self, item, remove=False):
         if remove:
             self.remove_plots(item, self.vb)
@@ -237,6 +250,7 @@ class TimePSDPlotManager(BasePlotManager):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
         x_axis.setLabel('Frequency', units='Hz')
+        x_axis.setLogMode(True)
         y_axis = pg.AxisItem('left')
         y_axis.setGrid(64)
         if self.apply_calibration:
@@ -269,9 +283,10 @@ class TimePSDPlotManager(BasePlotManager):
                 new_region = (self._initial_x, point.x())
                 self._selecting = False
             region = self.region_select.setRegion(new_region)
+            self._region_select_updated()
 
     def _mouse_move(self, pos):
-        return
+        # Update the bounding box as we view the region.
         if self.time_vb.sceneBoundingRect().contains(pos):
             point = self.time_vb.mapSceneToView(pos)
             if not self._selecting:
@@ -286,17 +301,21 @@ class TimePSDPlotManager(BasePlotManager):
             return
         xlb, xub = self.region_select.getRegion()
         info = []
+
         for item, d in self.data.items():
             x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
             m = (x >= xlb) & (x < xub)
             if m.any():
-                psd = cal.get_db(util.psd_df(y[m], fs=fs))
-                d['psd_plot'][0].setData(np.log10(psd.index.values), psd.values)
+                # Drop the DC component since this cannot be shown on log
+                # scales and affects the autorange.
+                pa = cal.get_level(util.psd_df(y[m], fs=fs)).iloc[1:]
+                db = util.patodb(pa)
+                d['psd_plot'][0].setData(np.log10(db.index.values), db.values)
                 y_cal = cal.get_level(y[m])
                 info.append({
                     'color': d['color'],
                     'run': str(item),
-                    'ptp': util.patodb(np.ptp(y_cal)),
+                    'pe': util.patodb(np.ptp(y_cal) * 0.5),
                     'rms': util.patodb(util.rms(y_cal)),
                     'duration': x[m].max() - x[m].min(),
                 })
@@ -305,7 +324,7 @@ class TimePSDPlotManager(BasePlotManager):
                 info.append({
                     'color': d['color'],
                     'run': str(item),
-                    'ptp': np.nan,
+                    'pe': np.nan,
                     'rms': np.nan,
                     'duration': 0,
                 })
@@ -334,37 +353,18 @@ class TimePSDPlotManager(BasePlotManager):
                 nonlocal self
                 self._region_select_updated()
 
-            self.region_select = region = pg.LinearRegionItem(values=(0, 0), movable=False)
+            self.region_select = region = \
+                pg.LinearRegionItem(values=(0, 0), movable=False)
             region.setZValue(10)
             region.sigRegionChanged.connect(update)
             self.time_vb.addItem(region, ignoreBounds=True)
 
         color, time_plot = self.get_plots(item, self.time_vb)
-        _, psd_plot = self.get_plots(item, self.psd_vb)
+        _, psd_plot = self.get_plots(item, self.psd_vb, color=color)
         self.data[item] = self._plot(item, time_plot, psd_plot)
         self.data[item]['color'] = color
         self._region_select_updated()
         return {'color': color}
-
-    def _plot(self, item, time_plot, psd_plot):
-        fh = item.load_recording()
-        epochs = fh.hw_ai.get_epochs(fh.epoch_metadata, offset=0,
-                                     duration=fh.get_setting('duration'))
-        y = epochs.mean(axis=0)
-        if self.apply_calibration:
-            cal = fh.hw_ai.get_calibration()
-        else:
-            cal = FlatCalibration.unity()
-        y_cal = cal.get_level(y)
-        time_plot[0].setData(y.index.values, y_cal.values)
-        return {
-            'x': y.index.values,
-            'y': y.values,
-            'fs': fh.hw_ai.fs,
-            'calibration': cal,
-            'time_plot': time_plot,
-            'psd_plot': psd_plot,
-        }
 
 
 ################################################################################

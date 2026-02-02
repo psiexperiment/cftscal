@@ -1,6 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
+import pyqtgraph as pg
+pg.setConfigOptions(antialias=False)
+pg.setConfigOptions(useOpenGL=True)
+
 import os
 from pathlib import Path
 

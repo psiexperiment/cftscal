@@ -9,13 +9,15 @@ from cftscal import CAL_ROOT
 
 class InputRecordingSettings(CalibrationSettings):
 
-    inputs = List(Typed(InputSettings, ()))
+    available_inputs = List(Typed(InputSettings, ()))
+    selected_input = Typed(InputSettings, ())
 
     def __init__(self, inputs):
-        self.inputs = [InputSettings(input_label=k, input_name=v) for k, v in inputs.items()]
+        self.available_inputs = [InputSettings(input_label=k, input_name=v) for k, v in inputs.items()]
+        self.selected_input = self.available_inputs[0]
 
     def save_config(self):
-        for i in self.inputs:
+        for i in self.available_inputs:
             i.save_config()
 
     def run_input_recording(self, obj):
