@@ -144,8 +144,8 @@ enamldef MicrophoneView(Container):
                                 text = loop_item.input_label
 
                             ObjectCombo: mic_select:
-                                items = sorted(loop_item.available_sensors)
-                                selected := loop_item.sensor_name
+                                items = sorted(loop_item.sensor.available_sensors)
+                                selected := loop_item.sensor.name
 
                             PushButton: mic_add:
                                 text = '+'
@@ -155,14 +155,14 @@ enamldef MicrophoneView(Container):
 
                             ObjectCombo: mic_gain:
                                 items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := loop_item.sensor_gain
+                                selected := loop_item.sensor.gain
 
                             Label: mic_gain_label:
                                 text = 'dB gain'
 
                             PushButton: mic_cal_start:
                                 text = 'Calibrate'
-                                enabled << bool(loop_item.sensor_name)
+                                enabled << bool(loop_item.sensor.name)
                                 clicked ::
                                     settings.run_mic_cal(loop_item)
                                     mic_tree.collection.update_groups()

@@ -25,6 +25,7 @@ def workspace_factory(workbench, title):
         settings = MicrophoneCalibrationSettings(connections)
         space.content = MicrophoneView(settings=settings)
     except:
+        raise
         space.content = MicrophoneView()
     return space
 

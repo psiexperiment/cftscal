@@ -121,12 +121,12 @@ enamldef InputRecordingView(Container):
                             text = 'Sensor'
 
                         ObjectCombo: sensor_select:
-                            items = sorted(settings.selected_input.available_sensors)
-                            selected := settings.selected_input.sensor_name
+                            items = sorted(settings.selected_input.sensor.available_sensors)
+                            selected := settings.selected_input.sensor.name
 
                         ObjectCombo: sensor_gain:
                             items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := settings.selected_input.sensor_gain
+                            selected := settings.selected_input.sensor.gain
 
                         Label: sensor_gain_label:
                             text = 'dB gain'
@@ -141,18 +141,18 @@ enamldef InputRecordingView(Container):
                             text = 'Generator'
 
                         ObjectCombo: generator_select:
-                            items = sorted(settings.selected_input.available_generators)
-                            selected := settings.selected_input.generator_name
+                            items := settings.selected_input.generator.available_generators
+                            selected := settings.selected_input.generator.name
 
                         PushButton: generator_add:
                             text = '+'
                             clicked ::
-                                popup = AddItem(self, combo=generator_select, label='Sensor')
+                                popup = AddItem(self, combo=generator_select, label='Generator')
                                 popup.show()
 
                     PushButton: start:
                         text = 'Record'
-                        enabled << bool(settings.selected_input.sensor_name)
+                        enabled << bool(settings.selected_input.sensor.name)
                         clicked ::
                             settings.run_input_recording(settings.selected_input)
                             input_tree.collection.update_groups()

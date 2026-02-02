@@ -17,30 +17,43 @@ from cftscal.objects import (
 
 class PersistentSettings(Atom):
 
-    settings_filename = Property()
-    calibration_filename = Property()
+    def get_persistence(self):
+        config = get_tagged_values(self, 'persist')
+        for k, v in config.items():
+            if isinstance(v, PersistentSettings):
+                config[k] = v.get_persistence()
+            if v and isinstance(v, (list, tuple)) and isinstance(v[0], PersistentSettings):
+                config[k] = [i.get_persistence() for i in v]
+        return config
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.load_config()
+    def set_persistence(self, config):
+        for name in get_tagged_members(self, 'persist'):
+            if name in config:
+                obj = getattr(self, name)
+                if hasattr(obj, 'set_persistence'):
+                    obj.set_persistence(config[name])
+                else:
+                    setattr(self, name, config[name])
+
+
+class CalibrationSettings(Atom):
+
+    settings_filename = Str()
 
     def save_config(self):
         file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
+        file = file.with_suffix('.json')
         file.parent.mkdir(exist_ok=True, parents=True)
-        config = get_tagged_values(self, 'persist')
+        config = self.get_config()
         file.write_text(json.dumps(config, indent=2))
 
     def load_config(self):
         file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
+        file = file.with_suffix('.json')
         if not file.exists():
             return
         config = json.loads(file.read_text())
-        for name in get_tagged_members(self, 'persist'):
-            if name in config:
-                setattr(self, name, config[name])
-
-
-class CalibrationSettings(Atom):
+        self.set_config(config)
 
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
@@ -52,33 +65,81 @@ class CalibrationSettings(Atom):
         subprocess.check_output(args, env=env)
 
 
-class InputSettings(PersistentSettings):
+class GeneratorSettings(PersistentSettings):
 
-    #: Name of input channel as defined in IO manifest
-    input_name = Str()
+    #: Name of generator.
+    name = Str().tag(persist=True)
 
-    #: Label of input channel as defined in IO manifest
-    input_label = Str()
+    #: List of available generators.
+    available_generators = List().tag(persist=True)
+
+    def _default_name(self):
+        try:
+            return self.available_generators[0]
+        except IndexError:
+            return ''
+
+
+class PistonphoneSettings(GeneratorSettings):
+
+    frequency = Float(1e3).tag(persist=True)
+    level = Float(114).tag(persist=True)
+
+    def get_env_vars(self):
+        return {
+            'CFTS_PISTONPHONE_LEVEL': str(self.level),
+            'CFTS_PISTONPHONE_FREQUENCY': str(self.frequency),
+        }
+
+
+class SensorSettings(PersistentSettings):
 
     #: Name of the connected sensor. This is not necessarily the same as the
     #: channel in the IO manifest. For example, one can connect a different
     #: sensor to the same channel, so the name may indicate which of several
     #: sensors available in the lab is currently connected.
-    sensor_name = Str().tag(persist=True)
+    name = Str().tag(persist=True)
 
     #: Gain of the device. Some preamps/power supplies have a hardware switch
     #: to configure the gain. This value must match the gain set on the preamp.
-    sensor_gain = Float(0).tag(persist=True)
+    gain = Float(0).tag(persist=True)
 
-    #: List of available sensors.
-    available_sensors = Property()
+    def _sensor_name(self):
+        try:
+            return self.available_sensors[0]
+        except IndexError:
+            return ''
 
-    #: Name of the stimulus generator that the sensor is reading. Can be blank
-    #: (e.g., if we are calibrating a microphone).
-    generator_name = Str().tag(persist=True)
+    @property
+    def available_sensors(self):
+        return sorted(generic_microphone_manager.list_names())
 
-    #: List of available generators.
-    available_generators = Property()
+
+class MeasurementMicrophoneSettings(SensorSettings):
+
+    @property
+    def available_sensors(self):
+        return sorted(measurement_microphone_manager.list_names())
+
+
+class GenericMicrophoneSettings(SensorSettings):
+
+    @property
+    def available_sensors(self):
+        return sorted(generic_microphone_manager.list_names())
+
+
+class InputSettings(PersistentSettings):
+
+    #: Name of input channel as defined in IO manifest. This is not supposed to
+    #: be settable.
+    input_name = Str().tag(persist=True)
+
+    #: Label of input channel as defined in IO manifest
+    input_label = Str()
+
+    sensor = Typed(SensorSettings, ()).tag(persist=True)
+    generator = Typed(GeneratorSettings, ()).tag(persist=True)
 
     #: Prefix to add to environment variable names for passing to psi.
     env_prefix = Str('CFTS_INPUT')
@@ -94,64 +155,18 @@ class InputSettings(PersistentSettings):
     def get_env_vars(self, include_cal=True):
         env = {
             self.env_prefix: self.input_name,
-            f'{self.env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor_gain),
+            f'{self.env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
         }
         if include_cal:
-            obj = input_manager.get_object(self.sensor_name)
+            obj = input_manager.get_object(self.sensor.name)
             cal = obj.get_current_calibration()
-            env[f'{self.env_prefix}_{self.sensor_name.upper()}'] = cal.to_string()
+            env[f'{self.env_prefix}_{self.sensor.name.upper()}'] = cal.to_string()
         return env
-
-    def _get_settings_filename(self):
-        return f'device_{self.generator_name}.json'
-
-    def _default_sensor_name(self):
-        try:
-            return self.available_sensors[0]
-        except IndexError:
-            return ''
-
-    def _default_generator_name(self):
-        try:
-            return self.available_generators[0]
-        except IndexError:
-            return ''
 
 
 class BaseMicrophoneSettings(InputSettings):
 
     env_prefix = set_default('CFTS_MICROPHONE')
-
-    def _get_settings_filename(self):
-        return f'microphone_{self.sensor_name}.json'
-
-
-class MeasurementMicrophoneSettings(BaseMicrophoneSettings):
-
-    def _get_available_sensors(self):
-        return sorted(measurement_microphone_manager.list_names())
-
-
-class GenericMicrophoneSettings(BaseMicrophoneSettings):
-
-    def _get_available_sensors(self):
-        return sorted(generic_microphone_manager.list_names())
-
-
-class PistonphoneSettings(PersistentSettings):
-
-    name = Str().tag(persist=True)
-    frequency = Float(1e3).tag(persist=True)
-    level = Float(114).tag(persist=True)
-
-    def _get_settings_filename(self):
-        return 'pistonphone.json'
-
-    def get_env_vars(self):
-        return {
-            'CFTS_PISTONPHONE_LEVEL': str(self.level),
-            'CFTS_PISTONPHONE_FREQUENCY': str(self.frequency),
-        }
 
 
 class SpeakerSettings(PersistentSettings):
@@ -167,13 +182,10 @@ class SpeakerSettings(PersistentSettings):
     #: speaker to the same channel, so the name may indicate which of
     #: several speakers available in the lab that is currently connected.
     name = Str().tag(persist=True)
-    available_speakers = Property()
 
-    def _get_available_speakers(self):
+    @property
+    def available_speakers(self):
         return sorted(speaker_manager.list_names())
-
-    def _get_settings_filename(self):
-        return f'speaker_{self.output_name}.json'
 
     def _default_name(self):
         try:
@@ -197,13 +209,10 @@ class StarshipSettings(PersistentSettings):
     output = Str()
     name = Str().tag(persist=True)
     gain = Float(40).tag(persist=True)
-    available_starships = Property()
 
-    def _get_available_starships(self):
+    @property
+    def available_starships(self):
         return sorted(starship_manager.list_names())
-
-    def _get_settings_filename(self):
-        return f'starship_{self.output}.json'
 
     def _default_name(self):
         try:
@@ -226,17 +235,15 @@ class StarshipSettings(PersistentSettings):
 class InEarSettings(StarshipSettings):
 
     ear = Str().tag(persist=True)
-    available_ears = Property()
 
-    def _get_available_starships(self):
+    @property
+    def available_starships(self):
         choices = set(starship_manager.list_names() + inear_manager.list_names())
         return sorted(choices)
 
-    def _get_available_ears(self):
+    @property
+    def available_ears(self):
         return sorted(inear_manager.get_property('ear'))
-
-    def _get_settings_filename(self):
-        return f'inear_{self.output}.json'
 
 
 class InputAmplifierSettings(PersistentSettings):
@@ -251,9 +258,6 @@ class InputAmplifierSettings(PersistentSettings):
     total_gain = Property()
 
     available_input_amplifiers = Property()
-
-    def _get_settings_filename(self):
-        return f'input_amplifier_{self.input_name}.json'
 
     def _get_total_gain(self):
         return self.gain * self.gain_mult

@@ -621,7 +621,7 @@ class CFTSInputRecording(Calibration):
 
 class CFTSInputRecordingLoader(CFTSBaseLoader):
 
-    subfolder = 'input_recording'
+    subfolder = 'input-recording'
     cal_class = CFTSInputRecording
 
 
