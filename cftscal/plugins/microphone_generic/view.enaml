@@ -11,11 +11,11 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import generic_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
 )
 
 
-class MicrophoneComparisonPlotManager(BasePlotManager):
+class MicrophoneComparisonPlotManager(SinglePlotManager):
 
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
@@ -141,8 +141,8 @@ enamldef MicrophoneComparisonView(Container): view:
                                 to_string = lambda m: m.input_label
 
                             ObjectCombo: test_select:
-                                items = sorted(settings.generic_input.available_microphones)
-                                selected := settings.generic_input.name
+                                items = sorted(settings.generic_input.available_sensors)
+                                selected := settings.generic_input.sensor_name
 
                             PushButton:
                                 text = '+'
@@ -152,7 +152,7 @@ enamldef MicrophoneComparisonView(Container): view:
 
                             ObjectCombo:
                                 items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := settings.generic_input.gain
+                                selected := settings.generic_input.sensor_gain
 
                         HGroup:
                             share_layout = True
@@ -169,8 +169,8 @@ enamldef MicrophoneComparisonView(Container): view:
                                 to_string = lambda m: m.input_label
 
                             ObjectCombo: ref_select:
-                                items = sorted(settings.measurement_input.available_microphones)
-                                selected := settings.measurement_input.name
+                                items = sorted(settings.measurement_input.available_sensors)
+                                selected := settings.measurement_input.sensor_name
 
                             PushButton:
                                 text = '+'
@@ -180,7 +180,7 @@ enamldef MicrophoneComparisonView(Container): view:
 
                             ObjectCombo:
                                 items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := settings.measurement_input.gain
+                                selected := settings.measurement_input.sensor_gain
 
                         HGroup:
                             padding = 0
@@ -227,5 +227,5 @@ enamldef MicrophoneComparisonView(Container): view:
             CalibratedObjects: device_tree:
                 headers = ['Name', 'Microphone', 'Stimulus']
                 collection = ObjectCollection(
-                    generic_microphone_manager, device_plot.manager
+                    generic_microphone_manager, [device_plot.manager],
                 )
