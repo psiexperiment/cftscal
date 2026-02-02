@@ -112,7 +112,7 @@ class SensorSettings(PersistentSettings):
 
     @property
     def available_sensors(self):
-        return sorted(generic_microphone_manager.list_names())
+        return sorted(input_manager.list_names())
 
 
 class MeasurementMicrophoneSettings(SensorSettings):
@@ -160,7 +160,7 @@ class InputSettings(PersistentSettings):
         if include_cal:
             obj = input_manager.get_object(self.sensor.name)
             cal = obj.get_current_calibration()
-            env[f'{self.env_prefix}_{self.sensor.name.upper()}'] = cal.to_string()
+            env[f'{self.env_prefix}_{self.input_name.upper()}'] = cal.to_string()
         return env
 
 

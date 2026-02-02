@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 from psi.application import get_default_io, load_io_manifest
