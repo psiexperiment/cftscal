@@ -299,6 +299,11 @@ class TimePSDPlotManager(BasePlotManager):
         # Don't update PSD until region select complete
         if self._selecting:
             return
+        self._update_analysis()
+
+    def _update_analysis(self):
+        if self.region_select is None:
+            return
         xlb, xub = self.region_select.getRegion()
         info = []
 
@@ -330,6 +335,24 @@ class TimePSDPlotManager(BasePlotManager):
                 })
         self.analysis = info
 
+    def _default_region_select(self):
+        def click(event):
+            nonlocal self
+            self._mouse_click(event)
+        def move(pos):
+            nonlocal self
+            self._mouse_move(pos)
+        def update():
+            nonlocal self
+            self._region_select_updated()
+        self.time_vb.scene().sigMouseClicked.connect(click)
+        self.time_vb.scene().sigMouseMoved.connect(move)
+        region = pg.LinearRegionItem(values=(0, 0), movable=False)
+        region.setZValue(10)
+        region.sigRegionChanged.connect(update)
+        self.time_vb.addItem(region, ignoreBounds=True)
+        return region
+
     def remove(self, recording):
         self._update(recording, True)
 
@@ -337,27 +360,9 @@ class TimePSDPlotManager(BasePlotManager):
         if remove:
             self.remove_plots(item, self.time_vb)
             self.remove_plots(item, self.psd_vb)
+            self.data.pop(item, None)
+            self._update_analysis()
             return
-
-        if self.region_select is None:
-            def click(event):
-                nonlocal self
-                self._mouse_click(event)
-            def move(pos):
-                nonlocal self
-                self._mouse_move(pos)
-            self.time_vb.scene().sigMouseClicked.connect(click)
-            self.time_vb.scene().sigMouseMoved.connect(move)
-
-            def update():
-                nonlocal self
-                self._region_select_updated()
-
-            self.region_select = region = \
-                pg.LinearRegionItem(values=(0, 0), movable=False)
-            region.setZValue(10)
-            region.sigRegionChanged.connect(update)
-            self.time_vb.addItem(region, ignoreBounds=True)
 
         color, time_plot = self.get_plots(item, self.time_vb)
         _, psd_plot = self.get_plots(item, self.psd_vb, color=color)
