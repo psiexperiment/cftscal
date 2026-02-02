@@ -29,13 +29,15 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     def _plot(self, item, time_plot, psd_plot):
         fh = item.load()
         y = fh.selected_input[0]
+
         if self.apply_calibration:
             cal = fh.selected_input.get_calibration()
         else:
             cal = FlatCalibration.unity()
-        y_cal = cal.get_level(y)
+
         x = np.arange(len(y)) / fh.selected_input.fs
-        time_plot[0].setData(x, y_cal)
+        time_plot[0].setData(x, cal.get_level(y))
+
         return {
             'time_plot': time_plot,
             'psd_plot': psd_plot,
@@ -165,7 +167,7 @@ enamldef InputRecordingView(Container):
 
             Container:
                 PGCanvas: input_recording_plot:
-                    attr manager = InputRecordingPlotManager()
+                    attr manager = InputRecordingPlotManager(apply_calibration=True)
                     component << manager.component
 
         DockItem:

@@ -121,7 +121,7 @@ enamldef MicrophoneView(Container):
                             text = 'dB SPL'
 
                     Looper:
-                        iterable << settings.measurement_inputs
+                        iterable << settings.available_inputs
 
                         Container:
                             share_layout = True

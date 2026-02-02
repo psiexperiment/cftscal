@@ -5,6 +5,7 @@ from palettable.tableau import Tableau_20
 import pyqtgraph as pg
 
 from atom.api import Atom, Bool, Dict, Float, List, Str, Tuple, Typed, Value
+
 import enaml
 with enaml.imports():
     from psi.data.plots_manifest import PGCanvas
@@ -212,12 +213,12 @@ class SinglePlotManager(BasePlotManager):
 
 class TimePSDPlotManager(BasePlotManager):
 
+    apply_calibration = Bool(True)
+
     region_select = Value()
     time_vb = Value()
     psd_vb = Value()
     data = Value()
-
-    apply_calibration = Bool(True)
 
     analysis = List()
 
