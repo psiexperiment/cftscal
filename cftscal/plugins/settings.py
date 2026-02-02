@@ -93,8 +93,8 @@ class InputSettings(PersistentSettings):
 
     def get_env_vars(self, include_cal=True):
         env = {
-            self.env_prefix: self.sensor_name,
-            f'{self.env_prefix}_{self.sensor_name.upper()}_GAIN': str(self.sensor_gain),
+            self.env_prefix: self.input_name,
+            f'{self.env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor_gain),
         }
         if include_cal:
             obj = input_manager.get_object(self.sensor_name)

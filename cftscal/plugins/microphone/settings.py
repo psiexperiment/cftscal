@@ -23,12 +23,12 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             m.save_config()
         self.pistonphone.save_config()
 
-    def run_mic_cal(self, microphone):
-        filename = f'{{date_time}}_{microphone.name}_{self.pistonphone.name}'
+    def run_mic_cal(self, channel):
+        filename = f'{{date_time}}_{channel.sensor_name}_{self.pistonphone.name}'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone' / microphone.name / filename
+        pathname = CAL_ROOT / 'microphone' / channel.sensor_name / filename
         env = {
-            **microphone.get_env_vars(include_cal=False),
+            **channel.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),
         }
         self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration', env)
