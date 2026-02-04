@@ -56,20 +56,21 @@ def main():
     workbench.register(CalibrationManifest())
 
     to_register = [
-        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
         ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
-        ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
-        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
-        ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
-        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
-        ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
+        #('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
+        #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
+        #('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
+        #('cftscal.plugins.inear.manifest', 'InEarManifest'),
+        #('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
     ]
 
     with enaml.imports():
         for module_name, class_name in to_register:
             try:
                 module = importlib.import_module(module_name)
-                if args.load_all or getattr(module, 'available')():
+                instance = getattr(module, class_name)()
+                if instance.available:
                     workbench.register(getattr(module, class_name)())
                 else:
                     print(f'{module_name} is not available')

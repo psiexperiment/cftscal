@@ -1,6 +1,10 @@
+from atom.api import Dict, Property, Str, Value
+from enaml.core.api import d_
+
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import Branding, ActionItem, MenuItem, ItemGroup
+from enaml.workbench.ui.api import (Branding, ActionItem, MenuItem, ItemGroup,
+                                    Workspace)
 from .calibration_window import CalibrationWindow
 
 
@@ -45,3 +49,53 @@ enamldef CalibrationManifest(PluginManifest):
             label = 'Set Defaults'
             shortcut = 'Ctrl+d'
             command = 'psical.set_defaults'
+
+
+def workspace_factory(window, manifest):
+    space = Workspace()
+    space.window_title = manifest.title
+    try:
+        kwargs = {k: v() for k, v in manifest.settings_config.items()}
+        settings = manifest.settings_class(**kwargs)
+        space.content = manifest.view_class(settings=settings)
+    except:
+        space.content = manifest.view_class()
+    return space
+
+
+class _CalibrationPluginManifest(PluginManifest):
+
+    title = d_(Str())
+    shortcut = d_(Str())
+    view_class = d_(Value())
+    settings_class = d_(Value())
+    settings_config = d_(Dict())
+    available = Property()
+
+    def _get_available(self):
+        try:
+            for cb in self.settings_config.values():
+                cb()
+            return True
+        except:
+            raise
+            return False
+
+
+enamldef CalibrationPluginManifest(_CalibrationPluginManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/workspace/' + manifest.id
+            label = manifest.title
+            shortcut = manifest.shortcut
+            group = 'spaces'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': manifest.id + '.workspace'}
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = lambda w: workspace_factory(w, manifest)

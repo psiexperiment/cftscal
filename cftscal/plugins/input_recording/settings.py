@@ -1,10 +1,6 @@
 from atom.api import set_default, List, Typed
 
-from psi import get_config
-
 from ..settings import CalibrationSettings, InputSettings
-
-from cftscal import CAL_ROOT
 
 
 class InputRecordingSettings(CalibrationSettings):
@@ -28,7 +24,7 @@ class InputRecordingSettings(CalibrationSettings):
     def run_input_recording(self, obj):
         filename = f'{{date_time}}_{obj.generator.name}_{obj.sensor.name}'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'input-recording' / obj.generator.name / filename
+        pathname = self.data_folder / 'input-recording' / obj.generator.name / filename
         env = {
             **obj.get_env_vars(),
         }

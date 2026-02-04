@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import subprocess
 
 from atom.api import set_default, Atom, Enum, Float, List, Property, Str, Typed
@@ -39,6 +40,11 @@ class PersistentSettings(Atom):
 class CalibrationSettings(Atom):
 
     settings_filename = Str()
+    data_folder = Typed(Path)
+
+    def _default_data_folder(self):
+        from cftscal import CAL_ROOT
+        return CAL_ROOT
 
     def save_config(self):
         file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
