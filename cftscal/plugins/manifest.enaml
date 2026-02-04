@@ -59,6 +59,7 @@ def workspace_factory(window, manifest):
         settings = manifest.settings_class(**kwargs)
         space.content = manifest.view_class(settings=settings)
     except:
+        raise
         space.content = manifest.view_class()
     return space
 
@@ -78,7 +79,6 @@ class _CalibrationPluginManifest(PluginManifest):
                 cb()
             return True
         except:
-            raise
             return False
 
 

@@ -40,9 +40,9 @@ class PersistentSettings(Atom):
 class CalibrationSettings(Atom):
 
     settings_filename = Str()
-    data_folder = Typed(Path)
+    data_path = Typed(Path)
 
-    def _default_data_folder(self):
+    def _default_data_path(self):
         from cftscal import CAL_ROOT
         return CAL_ROOT
 
@@ -59,7 +59,44 @@ class CalibrationSettings(Atom):
         if not file.exists():
             return
         config = json.loads(file.read_text())
-        self.set_config(config)
+        if config is not None:
+            self.set_config(config)
+
+    def get_config(self):
+        config = {}
+        if hasattr(self, 'available_inputs'):
+            config['available_inputs'] = {i.input_name: i.get_persistence() for i in self.available_inputs}
+        if hasattr(self, 'selected_input'):
+            config['selected_input'] = self.selected_input.input_name
+        if hasattr(self, 'available_outputs'):
+            config['available_outputs'] = {o.output_name: o.get_persistence() for o in self.available_outputs}
+        if hasattr(self, 'selected_output'):
+            config['selected_output'] = self.selected_output.output_name
+        return config
+
+    def set_config(self, config):
+        if hasattr(self, 'available_inputs'):
+            for name, settings in config.get('available_inputs', {}).items():
+                for i in self.available_inputs:
+                    if i.input_name == name:
+                        i.set_persistence(settings)
+                        break
+        if hasattr(self, 'available_input'):
+            selected_name = config['selected_input']
+            for i in self.available_inputs:
+                if i.input_name == selected_name:
+                    self.selected_input = i
+        if hasattr(self, 'available_outputs'):
+            for name, settings in config.get('available_outputs', {}).items():
+                for o in self.available_outputs:
+                    if o.output_name == name:
+                        o.set_persistence(settings)
+                        break
+        if hasattr(self, 'available_output'):
+            selected_name = config['selected_output']
+            for i in self.available_outputs:
+                if i.output_name == selected_name:
+                    self.selected_output = i
 
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
@@ -129,28 +166,31 @@ class SensorSettings(PersistentSettings):
     #: to configure the gain. This value must match the gain set on the preamp.
     gain = Float(0).tag(persist=True)
 
+    #: List of availble sensors. Can be seeded at initialization.
+    available_sensors = List()
+
+    def __init__(self, *args, **kwargs):
+        self.available_sensors = sorted(input_manager.list_names())
+
     def _sensor_name(self):
         try:
             return self.available_sensors[0]
         except IndexError:
             return ''
 
-    @property
-    def available_sensors(self):
+    def get_available_sensors(self):
         return sorted(input_manager.list_names())
 
 
 class MeasurementMicrophoneSettings(SensorSettings):
 
-    @property
-    def available_sensors(self):
+    def get_available_sensors(self):
         return sorted(measurement_microphone_manager.list_names())
 
 
 class GenericMicrophoneSettings(SensorSettings):
 
-    @property
-    def available_sensors(self):
+    def get_available_sensors(self):
         return sorted(generic_microphone_manager.list_names())
 
 
@@ -163,19 +203,11 @@ class InputSettings(PersistentSettings):
     #: Label of input channel as defined in IO manifest
     input_label = Str()
 
+    #: Sensor attached to input channel.
     sensor = Typed(SensorSettings, ()).tag(persist=True)
-    generator = Typed(GeneratorSettings, ()).tag(persist=True)
 
     #: Prefix to add to environment variable names for passing to psi.
     env_prefix = Str('CFTS_INPUT')
-
-    def _get_available_sensors(self):
-        return [
-            *sorted(input_manager.list_names()),
-        ]
-
-    def _get_available_generators(self):
-        return []
 
     def get_env_vars(self, include_cal=True):
         env = {

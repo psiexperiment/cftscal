@@ -1,52 +1,16 @@
-import enaml
-from enaml.workbench.api import Extension, PluginManifest
-from enaml.workbench.ui.api import ActionItem, Workspace
-
-
 from cftscal.util import list_measurement_microphone_connections
+from ..manifest import CalibrationPluginManifest
 from .settings import MicrophoneCalibrationSettings
 from .view import MicrophoneView
 
 
-
-def available():
-    try:
-        list_measurement_microphone_connections()
-        return True
-    except:
-        return False
-
-
-def workspace_factory(workbench, title):
-    space = Workspace()
-    space.window_title = title
-    try:
-        connections = list_measurement_microphone_connections()
-        settings = MicrophoneCalibrationSettings(connections)
-        space.content = MicrophoneView(settings=settings)
-    except:
-        raise
-        space.content = MicrophoneView()
-    return space
-
-
-enamldef MeasurementMicrophoneManifest(PluginManifest): manifest:
+enamldef MeasurementMicrophoneManifest(CalibrationPluginManifest): manifest:
 
     id = 'microphone-measurement'
-    attr title = 'Measurement Microphone Calibration'
+    title = 'Measurement Microphone Calibration'
 
-    Extension:
-        id = 'microphone_actions'
-        point = 'enaml.workbench.ui.actions'
-        ActionItem:
-            path = '/workspace/' + manifest.id
-            label = manifest.title
-            shortcut = 'Ctrl+m'
-            group = 'spaces'
-            command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': manifest.id + '.workspace'}
-
-    Extension:
-        id = 'workspace'
-        point = 'enaml.workbench.ui.workspaces'
-        factory = lambda w: workspace_factory(w, manifest.title)
+    view_class = MicrophoneView
+    settings_class = MicrophoneCalibrationSettings
+    settings_config = {
+        'inputs': list_measurement_microphone_connections,
+    }

@@ -4,7 +4,26 @@ log = logging.getLogger(__name__)
 from functools import partial
 
 from psi.application import get_default_io, load_io_manifest
-from psi.controller.api import Channel, HardwareAIChannel
+from psi.controller.api import Channel, HardwareAIChannel, HardwareAOChannel
+
+
+NO_OUTPUT_ERROR = '''
+No output channels could be found in the IO manifest. To use this plugin, you
+must have at least one analog output channel.
+'''
+
+
+def list_outputs():
+    outputs = {}
+    manifest = load_io_manifest()()
+    for obj in manifest.traverse():
+        if isinstance(obj, HardwareAIChannel):
+            outputs[obj.label] = obj.name
+
+    if len(outputs) == 0:
+        raise ValueError(NO_INPUT_ERROR)
+
+    return outputs
 
 
 NO_INPUT_ERROR = '''

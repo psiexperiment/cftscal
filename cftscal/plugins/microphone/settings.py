@@ -1,7 +1,4 @@
-from pathlib import Path
 from atom.api import set_default, List, Typed
-
-from psi import get_config
 
 from ..settings import (
     CalibrationSettings,
@@ -9,8 +6,6 @@ from ..settings import (
     MeasurementMicrophoneSettings,
     PistonphoneSettings
 )
-
-from cftscal import CAL_ROOT
 
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
@@ -34,25 +29,19 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
         self.load_config()
 
     def get_config(self):
-        return {
-            'available_inputs': {i.input_name: i.get_persistence() for i in self.available_inputs},
-            'pistonphone': self.pistonphone.get_persistence(),
-        }
+        config = super().get_config()
+        config['pistonphone'] = self.pistonphone.get_persistence()
 
     def set_config(self, config):
-        for name, settings in config.get('available_inputs', {}).items():
-            for i in self.available_inputs:
-                if i.input_name == name:
-                    i.set_persistence(settings)
-                    break
+        super().set_config(config)
         self.pistonphone.set_persistence(config.get('pistonphone', {}))
 
-    def run_mic_cal(self, channel):
-        filename = f'{{date_time}}_{channel.sensor.name}_{channel.generator.name}'
+    def run_calibration(self, ai):
+        filename = f'{{date_time}}_{ai.sensor.name}_{ai.generator.name}'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'microphone' / channel.sensor.name / filename
+        pathname = self.data_path / 'microphone' / ai.sensor.name / filename
         env = {
-            **channel.get_env_vars(include_cal=False),
+            **ai.get_env_vars(include_cal=False),
             **self.pistonphone.get_env_vars(),
         }
         self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration', env)

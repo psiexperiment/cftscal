@@ -4,14 +4,16 @@ from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo,
+    PushButton
 )
 
 from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, ObjectCollection, SinglePlotManager,
+    AddItem, CalibratedObjects, SensorView, ObjectCollection,
+    SinglePlotManager,
 )
 
 
@@ -123,48 +125,21 @@ enamldef MicrophoneView(Container):
                     Looper:
                         iterable << settings.available_inputs
 
-                        Container:
-                            share_layout = True
+                        HGroup:
                             padding = 0
-                            constraints = [
-                                hbox(
-                                    mic_label,
-                                    hbox(mic_select, mic_add, mic_gain, spacing=0),
-                                    mic_gain_label,
-                                    spacer(0),
-                                    mic_cal_start,
-                                    spacing=5,
-                                ),
-                                align('v_center', mic_label, mic_select, mic_add,
-                                        mic_gain, mic_gain_label, mic_cal_start),
-                                mic_add.width == 25,
-                            ]
+                            spacing = 5
+                            align_widths = False
 
-                            Label: mic_label:
-                                text = loop_item.input_label
-
-                            ObjectCombo: mic_select:
-                                items = sorted(loop_item.sensor.available_sensors)
-                                selected := loop_item.sensor.name
-
-                            PushButton: mic_add:
-                                text = '+'
-                                clicked ::
-                                    popup = AddItem(self, combo=mic_select, label='Microphone')
-                                    popup.show()
-
-                            ObjectCombo: mic_gain:
-                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := loop_item.sensor.gain
-
-                            Label: mic_gain_label:
-                                text = 'dB gain'
+                            SensorView:
+                                sensor << loop_item.sensor
+                                label = 'Microphone'
+                                mode = 'add'
 
                             PushButton: mic_cal_start:
                                 text = 'Calibrate'
                                 enabled << bool(loop_item.sensor.name)
                                 clicked ::
-                                    settings.run_mic_cal(loop_item)
+                                    settings.run_calibration(loop_item)
                                     mic_tree.collection.update_groups()
 
         DockItem:

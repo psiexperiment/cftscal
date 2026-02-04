@@ -11,7 +11,7 @@ with enaml.imports():
     from psi.data.plots_manifest import PGCanvas
 
 from enaml.colors import Color
-from enaml.core.api import DynamicTemplate, Looper
+from enaml.core.api import Conditional, DynamicTemplate, Looper
 from enaml.layout.api import (
     align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout, TabLayout
 )
@@ -19,13 +19,16 @@ from enaml.stdlib.fields import FloatField, RegexField
 from enaml.stdlib.message_box import question
 from enaml.qt import QtCore
 from enaml.widgets.api import (
-    Action, ActionGroup, Container, Label, Field, Form, MainWindow, Menu, MenuBar,
+    Action, ActionGroup, Container, Label, Field, Form, HGroup, MainWindow, Menu, MenuBar,
     ObjectCombo, PopupView, PushButton, DockArea, DockItem,
 )
 from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
 from psiaudio import util
+
+from . import settings
+
 from cftscal.objects import (
     CFTSInEarCalibration,
     CFTSInputAmplifierCalibration,
@@ -599,3 +602,66 @@ enamldef CalibratedObjects(Container):
                         DynamicTemplate:
                             base = CalibratedObjectTemplate
                             args = (loop_item.item, type(loop_item.item))
+
+
+enamldef SensorView(HGroup):
+
+    attr sensor
+    attr mode = 'static'
+    attr label = 'Sensor'
+    share_layout = True
+    align_widths = False
+    padding = 0
+    spacing = 5
+
+    Label:
+        text = label
+
+    ObjectCombo: select:
+        items := sensor.available_sensors
+        selected := sensor.name
+
+    Conditional:
+        condition = mode != 'static'
+
+        PushButton: add:
+            text = '+'
+            constraints = [width == 25]
+            clicked ::
+                popup = AddItem(self, combo=select, label=label)
+                popup.show()
+
+    ObjectCombo:
+        items = [-20, -10, 0, 10, 20, 30, 40, 50]
+        selected := sensor.gain
+
+    Label:
+        text = 'dB gain'
+
+
+enamldef GeneratorView(HGroup):
+
+    attr generator
+    attr mode = 'static'
+    attr label = 'Generator'
+    share_layout = True
+    align_widths = False
+    padding = 0
+    spacing = 5
+
+    Label:
+        text = label
+
+    ObjectCombo: select:
+        items := generator.available_generators
+        selected := generator.name
+
+    Conditional:
+        condition = mode != 'static'
+
+        PushButton: add:
+            text = '+'
+            constraints = [width == 25]
+            clicked ::
+                popup = AddItem(self, combo=select, label=label)
+                popup.show()

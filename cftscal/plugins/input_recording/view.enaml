@@ -18,6 +18,7 @@ from psiaudio import util
 from cftscal.objects import input_recording_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
+    GeneratorView, SensorView,
 )
 
 
@@ -95,7 +96,6 @@ enamldef InputRecordingView(Container):
                                 spacing=0,
                             ),
                             align('left', *second),
-                            generator_add.width == 25,
                         ]
                         return constraints
 
@@ -106,51 +106,19 @@ enamldef InputRecordingView(Container):
                         spacing = 5
 
                         Label:
-                            text = 'Channel'
+                            text = 'Input Channel'
 
                         ObjectCombo:
                             items = settings.available_inputs
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
-                    HGroup:
-                        share_layout = True
-                        align_widths = False
-                        padding = 0
-                        spacing = 5
+                    SensorView:
+                        sensor << settings.selected_input.sensor
 
-                        Label:
-                            text = 'Sensor'
-
-                        ObjectCombo: sensor_select:
-                            items = sorted(settings.selected_input.sensor.available_sensors)
-                            selected := settings.selected_input.sensor.name
-
-                        ObjectCombo: sensor_gain:
-                            items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := settings.selected_input.sensor.gain
-
-                        Label: sensor_gain_label:
-                            text = 'dB gain'
-
-                    HGroup:
-                        share_layout = True
-                        align_widths = False
-                        padding = 0
-                        spacing = 5
-
-                        Label:
-                            text = 'Generator'
-
-                        ObjectCombo: generator_select:
-                            items := settings.selected_input.generator.available_generators
-                            selected := settings.selected_input.generator.name
-
-                        PushButton: generator_add:
-                            text = '+'
-                            clicked ::
-                                popup = AddItem(self, combo=generator_select, label='Generator')
-                                popup.show()
+                    GeneratorView:
+                        generator << settings.generator
+                        mode = 'add'
 
                     PushButton: start:
                         text = 'Record'
