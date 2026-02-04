@@ -1,25 +1,50 @@
 from pathlib import Path
 
-from atom.api import List, Typed
+from atom.api import set_default, List, Typed
 
 from psi import get_config
 
-from ..settings import (CalibrationSettings, MeasurementMicrophoneSettings,
-                        SpeakerSettings)
+from ..settings import (
+    CalibrationSettings,
+    InputSettings,
+    MeasurementMicrophoneSettings,
+    OutputSettings,
+    SpeakerSettings,
+)
 
 from cftscal import CAL_ROOT
 
 
 class SpeakerCalibrationSettings(CalibrationSettings):
 
-    speakers = List(Typed(SpeakerSettings))
-    microphones = List(Typed(MeasurementMicrophoneSettings))
-    selected_microphone = Typed(MeasurementMicrophoneSettings)
+    available_outputs = List(Typed(OutputSettings, ()))
+    available_inputs = List(Typed(InputSettings, ()))
+    selected_input = Typed(InputSettings, ())
+    settings_filename = set_default('speaker.json')
 
     def __init__(self, outputs, inputs):
-        self.speakers = [SpeakerSettings(output_name=n, output_label=l) for l, n in outputs.items()]
-        self.microphones = [MeasurementMicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
-        self.selected_microphone = self.microphones[0]
+        settings = []
+        for label, name in outputs.items():
+            setting = OutputSettings(
+                output_label=label,
+                output_name=name,
+                generator=SpeakerSettings(),
+                env_prefix='CFTS_SPEAKER',
+            )
+            settings.append(setting)
+        self.available_outputs = settings
+
+        settings = []
+        for label, name in inputs.items():
+            setting = InputSettings(
+                input_label=label,
+                input_name=name,
+                sensor=MeasurementMicrophoneSettings(),
+                env_prefix='CFTS_MICROPHONE',
+            )
+            settings.append(setting)
+        self.available_inputs = settings
+        self.selected_input = self.available_inputs[0]
 
     def save_config(self):
         for m in self.microphones:
@@ -27,18 +52,9 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         for s in self.speakers:
             s.save_config()
 
-    def run_cal_golay(self, speaker, microphone):
-        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_golay'
-        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
-
-        env = microphone.get_env_vars()
-        env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'cftscal.paradigms.speaker_calibration_golay', env)
-
-    def run_cal_chirp(self, speaker, microphone):
-        filename = f'{{date_time}}_{speaker.name}_{microphone.name}_chirp'
-        pathname = CAL_ROOT / 'speaker' / speaker.name / filename
-
-        env = microphone.get_env_vars()
-        env.update(speaker.get_env_vars(include_cal=False))
-        self._run_cal(pathname, 'cftscal.paradigms.speaker_calibration_chirp', env)
+    def run_cal(self, ao, ai, which):
+        filename = f'{{date_time}}_{ao.generator.name}_{ai.sensor.name}_{which}'
+        pathname = CAL_ROOT / 'speaker' / ao.generator.name / filename
+        env = ai.get_env_vars()
+        env.update(ao.get_env_vars(include_cal=False))
+        self._run_cal(pathname, f'cftscal.paradigms.speaker_calibration_{which}', env)

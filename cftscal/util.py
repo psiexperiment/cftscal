@@ -131,17 +131,22 @@ def list_input_amplifier_connections():
 
 def show_connections():
     print(f'Looking for connections in {get_default_io()}')
-    fn_list = [
-        list_starship_connections,
-        list_input_amplifier_connections,
-        list_speaker_connections,
-        list_measurement_microphone_connections,
-        list_generic_microphone_connections,
-    ]
+    fn_list = {
+        'Starship': list_starship_connections,
+        'Input Amplifier': list_input_amplifier_connections,
+        'Speaker': list_speaker_connections,
+        'Measurement Microphone': list_measurement_microphone_connections,
+        'Generic Microphone': list_generic_microphone_connections,
+    }
 
-    for fn in fn_list:
+    for name, fn in fn_list.items():
         try:
-            print(fn())
+            options = fn()
+            print('============================================')
+            print(f' {name} ')
+            print('============================================')
+            for k, v in options.items():
+                print(f' * {k}: {v}')
         except ValueError as e:
             print(e)
 

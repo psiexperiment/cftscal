@@ -9,7 +9,7 @@ from cftscal import CAL_ROOT
 
 class InputRecordingSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ()))
     selected_input = Typed(InputSettings, ())
     settings_filename = set_default('input-recording.json')
 

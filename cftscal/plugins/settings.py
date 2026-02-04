@@ -10,8 +10,8 @@ from psi.util import get_tagged_members, get_tagged_values
 
 from cftscal.objects import (
     generic_microphone_manager, input_amplifier_manager, input_manager,
-    inear_manager, measurement_microphone_manager, speaker_manager,
-    starship_manager, CalibrationManager,
+    inear_manager, measurement_microphone_manager, output_manager,
+    speaker_manager, starship_manager, CalibrationManager,
 )
 
 
@@ -92,6 +92,25 @@ class PistonphoneSettings(GeneratorSettings):
         }
 
 
+class SpeakerSettings(GeneratorSettings):
+
+    #: Name of the actual speaker. This is not necessarily the same as the
+    #: channel in the IO manifest. For example, one can connect a different
+    #: speaker to the same channel, so the name may indicate which of
+    #: several speakers available in the lab that is currently connected.
+    name = Str().tag(persist=True)
+
+    def _default_name(self):
+        try:
+            return self.available_speakers[0]
+        except IndexError:
+            return ''
+
+    @property
+    def available_speakers(self):
+        return sorted(speaker_manager.list_names())
+
+
 class SensorSettings(PersistentSettings):
 
     #: Name of the connected sensor. This is not necessarily the same as the
@@ -164,12 +183,7 @@ class InputSettings(PersistentSettings):
         return env
 
 
-class BaseMicrophoneSettings(InputSettings):
-
-    env_prefix = set_default('CFTS_MICROPHONE')
-
-
-class SpeakerSettings(PersistentSettings):
+class OutputSettings(PersistentSettings):
 
     #: Name of output as defined in IO manifest
     output_name = Str()
@@ -177,30 +191,20 @@ class SpeakerSettings(PersistentSettings):
     #: Label of output as defined in IO manifest
     output_label = Str()
 
-    #: Name of the actual speaker. This is not necessarily the same as the
-    #: channel in the IO manifest. For example, one can connect a different
-    #: speaker to the same channel, so the name may indicate which of
-    #: several speakers available in the lab that is currently connected.
-    name = Str().tag(persist=True)
+    #: Generator attached to output
+    generator = Typed(GeneratorSettings, ()).tag(persist=True)
 
-    @property
-    def available_speakers(self):
-        return sorted(speaker_manager.list_names())
+    #: Prefix to add to environment variable names for passing to psi.
+    env_prefix = Str('CFTS_OUTPUT')
 
-    def _default_name(self):
-        try:
-            return self.available_speakers[0]
-        except IndexError:
-            return ''
-
-    def get_env_vars(self, include_cal=True, env_prefix='CFTS_SPEAKER'):
+    def get_env_vars(self, include_cal=True):
         env = {
-            env_prefix: self.output_name,
+            self.env_prefix: self.output_name,
         }
         if include_cal:
-            speaker = speaker_manager.get_object(self.name)
-            cal = speaker.get_current_calibration()
-            env[f'{env_prefix}_{self.output_name.upper()}'] = cal.to_string()
+            generator = output_manager.get_object(self.generator.name)
+            cal = generator.get_current_calibration()
+            env[f'{self.env_prefix}_{self.output_name.upper()}'] = cal.to_string()
         return env
 
 

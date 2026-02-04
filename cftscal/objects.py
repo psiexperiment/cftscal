@@ -390,7 +390,17 @@ class CFTSStarshipLoader(CFTSBaseLoader):
 ################################################################################
 # Speaker calibration management
 ################################################################################
-class Speaker(CalibratedObject):
+class Output(CalibratedObject):
+    '''
+    Base class for all inputs.
+    '''
+    pass
+
+
+class Speaker(Output):
+    '''
+    Base class for all speakers.
+    '''
     pass
 
 
@@ -703,33 +713,46 @@ class CFTSInEarLoader(CFTSBaseLoader):
 ################################################################################
 # Basic cal registration
 ################################################################################
+# Only measurement microphones
+measurement_microphone_manager = CalibrationManager(MeasurementMicrophone)
+measurement_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+
+# Only generic microphones
+generic_microphone_manager = CalibrationManager(GenericMicrophone)
+generic_microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
+
+# All microphones
+microphone_manager = CalibrationManager(GenericMicrophone)
+microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
+microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+
+# All inputs including passthrough inputs
+input_manager = CalibrationManager(Input)
+input_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
+input_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
+input_manager.register('cftscal.objects.UnityInputCalibrationLoader')
+
+# All outputs. Eventually we may add more outputs and/or incorporate some sort
+# of passthrough output (e.g., unity/attenuation).
+output_manager = CalibrationManager(Output)
+output_manager.register('cftscal.objects.CFTSSpeakerLoader')
+
+speaker_manager = CalibrationManager(Speaker)
+speaker_manager.register('cftscal.objects.CFTSSpeakerLoader')
+
+# The following items need to be examined to see if they should subclass Input/Output
 input_amplifier_manager = CalibrationManager(InputAmplifier)
 input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
 input_recording_manager = CalibrationManager(InputRecording)
 input_recording_manager.register('cftscal.objects.CFTSInputRecordingLoader')
 
-measurement_microphone_manager = CalibrationManager(MeasurementMicrophone)
-measurement_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
-
-generic_microphone_manager = CalibrationManager(GenericMicrophone)
-generic_microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
-generic_microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
-
-input_manager = CalibrationManager(Input)
-input_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
-input_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
-input_manager.register('cftscal.objects.UnityInputCalibrationLoader')
+inear_manager = CalibrationManager(InEar)
+inear_manager.register('cftscal.objects.CFTSInEarLoader')
 
 starship_manager = CalibrationManager(Starship)
 starship_manager.register('cftscal.objects.EPLStarshipLoader')
 starship_manager.register('cftscal.objects.CFTSStarshipLoader')
-
-speaker_manager = CalibrationManager(Speaker)
-speaker_manager.register('cftscal.objects.CFTSSpeakerLoader')
-
-inear_manager = CalibrationManager(InEar)
-inear_manager.register('cftscal.objects.CFTSInEarLoader')
 
 
 def show_objects(show_calibrations):

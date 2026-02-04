@@ -30,7 +30,7 @@ class SpeakerPlotManager(SinglePlotManager):
         x = cal.frequency[1:]
         y = cal.get_db(x, 1.0)
         plots[0].setData(np.log10(x), y)
-        return color
+        return {'color': color}
 
 
 enamldef SpeakerView(Container):
@@ -76,7 +76,7 @@ enamldef SpeakerView(Container):
                         return constraints
 
                     Container:
-                        attr microphone << settings.selected_microphone
+                        attr ai << settings.selected_input
                         share_layout = True
                         padding = 0
                         constraints = [
@@ -96,27 +96,28 @@ enamldef SpeakerView(Container):
                             text = 'Microphone'
 
                         ObjectCombo: mic_out_select:
-                            items = sorted(settings.microphones, key=lambda x: x.input_label)
-                            selected := settings.selected_microphone
+                            items = sorted(settings.available_inputs, key=lambda x: x.input_label)
+                            selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
                         ObjectCombo: mic_select:
-                            items = sorted(microphone.available_sensors)
-                            selected := microphone.sensor_name
+                            items = sorted(ai.sensor.available_sensors)
+                            selected := ai.sensor.name
 
                         ObjectCombo: mic_gain:
                             items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := microphone.sensor_gain
+                            selected := ai.sensor.gain
 
                         Label: mic_gain_label:
                             text = 'dB gain'
 
                     Looper:
-                        iterable << settings.speakers
+                        iterable << settings.available_outputs
 
                         Container:
-                            attr speaker = loop_item
-                            attr mic_settings << settings.selected_microphone
+                            attr ao = loop_item
+                            attr ai << settings.selected_input
+
                             share_layout = True
                             padding = 0
                             constraints = [
@@ -133,11 +134,11 @@ enamldef SpeakerView(Container):
                             ]
 
                             Label: speaker_label:
-                                text = speaker.output_label
+                                text = ao.output_label
 
                             ObjectCombo: speaker_select:
-                                items = speaker.available_speakers
-                                selected := speaker.name
+                                items = ao.generator.available_speakers
+                                selected := ao.generator.name
 
                             PushButton: speaker_add:
                                 text = '+'
@@ -147,20 +148,18 @@ enamldef SpeakerView(Container):
 
                             PushButton: golay_start:
                                 text = 'Golay'
-                                enabled << bool(mic_settings.sensor_name) \
-                                    and bool(speaker.name) \
-                                    and '(' not in speaker.name
+                                enabled << bool(ai.sensor.name) \
+                                    and bool(ao.generator.name)
                                 clicked ::
-                                    settings.run_cal_golay(speaker, mic_settings)
+                                    settings.run_cal(ao, ai, 'golay')
                                     speaker_tree.collection.update_groups()
 
                             PushButton: chirp_start:
                                 text = 'Chirp'
-                                enabled << bool(mic_settings.sensor_name) \
-                                    and bool(speaker.name) \
-                                    and '(' not in speaker.name
+                                enabled << bool(ai.sensor.name) \
+                                    and bool(ao.generator.name)
                                 clicked ::
-                                    settings.run_cal_chirp(speaker, mic_settings)
+                                    settings.run_cal(speaker, ai, 'chirp')
                                     speaker_tree.collection.update_groups()
 
         DockItem:
@@ -183,5 +182,5 @@ enamldef SpeakerView(Container):
             CalibratedObjects: speaker_tree:
                 headers = ['Name', 'Microphone', 'Method']
                 collection = ObjectCollection(
-                    speaker_manager, speaker_plot.manager
+                    speaker_manager, [speaker_plot.manager],
                 )
