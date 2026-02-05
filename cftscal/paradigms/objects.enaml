@@ -33,7 +33,6 @@ from cftscal import util
 from cftscal.util import (
     # TODO: Deprecate this.
     list_connections,
-    list_inputs,
     list_input_amplifier_connections,
     list_generic_microphone_connections,
     list_measurement_microphone_connections,
@@ -49,7 +48,7 @@ def initialize_input(manifest_id, env_prefix, event):
     if (input_name := os.environ.get(env_prefix, None)) is None:
         log.warning('Expected environment variable "%s"', env_prefix)
         return
-    item_input = context.get_item(f'{manifest_id}_input')
+    item_input = context.get_item(manifest_id)
     # Quots around the name are important!
     item_input.expression = f'"{input_name}"'
     item_input.editable = False
@@ -83,7 +82,7 @@ enamldef Input(ExperimentManifest): manifest:
     CFTS_INPUT_GAIN
         Indicates the current gain setting on the input amplifier.
 
-    Once successfully initialized, a continous input named `{id}_input`
+    Once successfully initialized, a continous input named `{id}`
     will be available for use by other plugins.
     '''
 
@@ -113,8 +112,8 @@ enamldef Input(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         ContinuousInput:
-            name = f'{manifest.id}_input'
-            source_name = 'hw_ai::' + getattr(C, f'{manifest.id}_input')
+            name = manifest.id
+            source_name = 'hw_ai::' + getattr(C, manifest.id)
             source::
                 channel.gain = getattr(C, f'{manifest.id}_gain')
 
@@ -124,13 +123,13 @@ enamldef Input(ExperimentManifest): manifest:
 
         ContextRow:
             fmt = [f'{manifest.title}', microphone, 'with', gain, 'dB gain']
-            name = f'{manifest.id}_input_settings'
+            name = f'{manifest.id}_settings'
             group_name = 'hardware_settings'
 
             EnumParameter: microphone:
-                name = f'{manifest.id}_input'
+                name = manifest.id
                 label = f'{manifest.title}'
-                choices = {k: f'"{v}"' for k, v in list_inputs().items()}
+                choices = {k: f'"{v}"' for k, v in util.list_inputs().items()}
                 scope = 'experiment'
 
             Parameter: gain:
@@ -141,57 +140,56 @@ enamldef Input(ExperimentManifest): manifest:
                 scope = 'experiment'
 
 
-def initialize_speaker(name, env_prefix, event):
+def initialize_output(manifest_id, env_prefix, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    try:
-        input_name = os.environ[env_prefix]
-        item_speaker = context.get_item(f'{name}_output')
-        item_speaker.expression = f'"{input_name}"'
-        item_speaker.editable = False
+    if (output_name := os.environ.get(env_prefix, None)) is None:
+        log.warning('Expected environment variable "%s"', env_prefix)
+        return
+    item_output = context.get_item(manifest_id)
+    # Quotes around the name are important!
+    item_output.expression = f'"{output_name}"'
+    item_output.editable = False
 
-        if (name := os.environ.get(f'{env_prefix}_{input_name.upper()}', None)):
-            channel = controller.get_channel(f'hw_ao::{input_name}')
-            channel.calibration = speaker_manager.from_string(name).load()
-    except:
-        raise
-        pass
+    env_cal = f'{env_prefix}_{output_name.upper()}'
+    if (cal_str := os.environ.get(env_cal, None)) is None:
+        log.warning('Use environment variable "%s" to load calibration', env_cal)
+    else:
+        channel = controller.get_channel(f'hw_ai::{output_name}')
+        channel.calibration = output_manager.from_string(cal_str).load()
 
 
-enamldef Speaker(ExperimentManifest): manifest:
+enamldef Output(ExperimentManifest): manifest:
     '''
-    Defines a speaker. The IO manifest will be scanned for all hardware AO
-    channels that contain `speaker` in the supported device list.
+    Defines a generic output. The IO manifest will be scanned for all channels
+    that are subclasses of `HardwareAOChannel`.
 
-    An output will be made available to all experiments named `<id>`.
-
-    Environment variables can also be optionally used to auto-configure the
-    speaker and calibration. The env_prefix is configured using the
-    `env_prefix` attribute.
+    Environment variables are also needed to configure the input.
 
     <env_prefix>
         Indicates which output channel to use.
 
     <env_prefix>_<name>
         A calibration string (provided by cftscal) that will load the correct
-        calibration when passed to `speaker_manager.from_string`.
+        calibration when passed to `output_manager.from_string`.
+
+    Once successfully initialized, a continous input named `{id}`
+    will be available for use by other plugins.
     '''
-    id = 'system_speaker'
+
+    id = 'output'
     title = manifest.id.capitalize().replace('_', ' ')
-    attr env_prefix = 'CFTS_SPEAKER'
-
-    attr label_fmt = lambda x: re.sub(r'\bspeaker\b', '', x, flags=re.IGNORECASE)
-    attr connections = list_connections('hw_ao', 'speaker', as_expression=True, label_fmt=label_fmt)
-
+    attr env_prefix = 'CFTS_OUTPUT'
 
     Extension:
         id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.initialize_speaker_settings'
-            handler = functools.partial(initialize_speaker, manifest.id, manifest.env_prefix)
+            id = manifest.id + '.initialize_output_settings'
+            handler = functools.partial(initialize_output, manifest.id,
+                                        manifest.env_prefix)
 
     Extension:
         id = manifest.id + '.actions'
@@ -199,7 +197,7 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         ExperimentAction:
             event = 'plugins_started'
-            command = manifest.id + '.initialize_speaker_settings'
+            command = manifest.id + '.initialize_output_settings'
 
     Extension:
         id = manifest.id + '.io'
@@ -207,18 +205,24 @@ enamldef Speaker(ExperimentManifest): manifest:
 
         MUXOutput:
             name = manifest.id
-            target_name = 'hw_ao::' + getattr(C, f'{manifest.id}_output')
+            target_name = 'hw_ao::' + getattr(C, manifest.id)
 
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
 
         EnumParameter:
-            name = manifest.id + '_output'
-            label = manifest.title
-            choices = manifest.connections
+            name = manifest.id
+            label = f'{manifest.title}'
+            choices = {k: f'"{v}"' for k, v in util.list_outputs().items()}
             scope = 'experiment'
             group_name = 'hardware_settings'
+
+
+enamldef Speaker(Output): manifest:
+
+    id = 'system_speaker'
+    env_prefix = 'CFTS_SPEAKER'
 
 
 def initialize_microphone(name, microphone_type, env_prefix, event):

@@ -12,16 +12,20 @@ No output channels could be found in the IO manifest. To use this plugin, you
 must have at least one analog output channel.
 '''
 
+# Cache IO manifest on load because this can sometimes be slow on some systems
+# (e.g., TDT).
+IO_MANIFEST = load_io_manifest()()
+
 
 def list_outputs():
     outputs = {}
-    manifest = load_io_manifest()()
+    manifest = IO_MANIFEST
     for obj in manifest.traverse():
-        if isinstance(obj, HardwareAIChannel):
+        if isinstance(obj, HardwareAOChannel):
             outputs[obj.label] = obj.name
 
     if len(outputs) == 0:
-        raise ValueError(NO_INPUT_ERROR)
+        raise ValueError(NO_OUTPUT_ERROR)
 
     return outputs
 
@@ -34,7 +38,7 @@ have at least one analog input channel.
 
 def list_inputs():
     inputs = {}
-    manifest = load_io_manifest()()
+    manifest = IO_MANIFEST
     for obj in manifest.traverse():
         if isinstance(obj, HardwareAIChannel):
             inputs[obj.label] = obj.name
@@ -59,7 +63,7 @@ def list_starship_connections():
     List all starships found in the IO Manifest
     '''
     starships = {}
-    manifest = load_io_manifest()()
+    manifest = IO_MANIFEST
     for channel in manifest.find_all('^starship_', regex=True):
         # Strip quotation marks off
         _, starship_id, starship_output = channel.name.split('_')
@@ -92,7 +96,7 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
     if label_fmt is None:
         label_fmt = lambda x: x
     choices = {}
-    manifest = load_io_manifest()()
+    manifest = IO_MANIFEST
     for obj in manifest.traverse():
         if isinstance(obj, Channel):
             if channel_type_code == obj.type_code:
@@ -138,7 +142,7 @@ def list_input_amplifier_connections():
     List all input amplifiers found in the IO Manifest
     '''
     choices = {}
-    manifest = load_io_manifest()()
+    manifest = IO_MANIFEST
     for channel in manifest.find_all('^amplifier_', regex=True):
         choices[channel.label] = channel.name.split('_', 1)[1]
 

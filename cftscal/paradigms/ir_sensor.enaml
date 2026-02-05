@@ -1,0 +1,143 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
+
+from psiaudio.stim import SquareWaveFactory, ToneFactory
+from psiaudio import pipeline
+from psiaudio import util
+from psi.controller.api import (
+    ContinuousCallbackOutput,
+    ExperimentAction,
+    Discard,
+    ContinuousInput,
+)
+from psi.data.sinks.api import TextStore
+from .record import RecordManifest
+
+EXPERIMENT = 'ir_sensor'
+
+
+def configure(event):
+    log.error('configuring')
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('wavegen')
+    generator = ToneFactory(
+        fs=output.fs,
+        frequency=1e3,
+        level=1,
+    )
+    output.callback = lambda s, _: generator.next(s)
+    output.active = True
+
+
+def analyze(event):
+    log.error('analyzing')
+    data = event.workbench.get_plugin('psi.data')
+    sink = data.find_sink('sensor-data')
+    recording = data.find_sink('recording').get_source('selected_input')
+    window_size = int(0.005 * recording.fs)
+    windows = sliding_window_view(recording[0], window_shape=window_size)
+    s = np.apply_along_axis(util.tone_power_conv, arr=windows[::window_size],
+                            axis=1, fs=recording.fs, frequency=1e3)
+    result = util.db(s)
+    lb, ub = np.percentile(s, [5, 95])
+
+    results = {
+        'lower': lb,
+        'upper': ub,
+        'frequency': 1e3,
+        'percentile': [5, 95],
+        'window_size': 0.01,
+        'signal': s.tolist(),
+    }
+    sink.save_mapping('sensitivity', results)
+
+
+from enaml.core.api import d_
+from atom.api import Float
+
+class ExtractPower(ContinuousInput):
+    '''
+    Chunk data based on time
+    '''
+    #: Duration, in seconds, of each chunk. This is rounded to the nearest
+    #: integer number of samples and each block will always have the exact same
+    #: number of samples.
+    duration = d_(Float()).tag(metadata=True)
+
+    def _get_fs(self):
+        samples = self.duration * self.parent.fs
+        return self.parent.fs / samples
+
+    def configure_callback(self):
+        if self.duration <= 0:
+            m = 'Duration for {} must be > 0'.format(self.name)
+            raise ValueError(m)
+        cb = super().configure_callback()
+        samples = round(self.duration * self.parent.fs)
+        return pipeline.blocked(
+            samples,
+            pipeline.transform(
+                extract_power,
+                cb,
+            ).send,
+        ).send
+
+
+def extract_power(s):
+    p = util.tone_power_conv(s, fs=s.fs, frequency=1e3)[:, np.newaxis]
+    return pipeline.PipelineData(
+        p,
+        s0=s.s0 / s.n_time,
+        fs=s.fs / s.n_time,
+        metadata=s.metadata, channel=s.channel,
+    )
+
+
+enamldef IRSensorManifest(RecordManifest):
+
+    Extension:
+        id = EXPERIMENT + '_io'
+        point = 'psi.controller.io'
+
+        ContinuousCallbackOutput:
+            target_name = 'selected_output'
+            name = 'wavegen'
+
+        Discard:
+            source_name = 'selected_input'
+            duration = 0.01
+            ExtractPower:
+                duration = 0.01
+                name = 'ir_power'
+
+    Extension:
+        id = EXPERIMENT + '_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = EXPERIMENT + '.configure'
+            handler = configure
+        Command:
+            id = EXPERIMENT + '.analyze'
+            handler = analyze
+
+    Extension:
+        id = EXPERIMENT + '_actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = EXPERIMENT + '.configure'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = EXPERIMENT + '.analyze'
+
+    Extension:
+        id = EXPERIMENT + '_data'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'sensor-data'

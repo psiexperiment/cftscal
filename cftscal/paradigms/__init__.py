@@ -21,7 +21,7 @@ selectable_starship_mixin = {
 selectable_input_mixin = {
     'manifest': PATH + 'objects.Input',
     'required': True,
-    'attrs': {'id': 'selected', 'title': 'Input'},
+    'attrs': {'id': 'selected_input', 'title': 'Input'},
 }
 
 
@@ -33,6 +33,13 @@ selectable_microphone_mixin = {
         'title': 'Microphone',
         'microphone_type': 'measurement_microphone'
     },
+}
+
+
+selectable_output_mixin = {
+    'manifest': PATH + 'objects.Output',
+    'required': True,
+    'attrs': {'id': 'selected_output', 'title': 'Output'},
 }
 
 
@@ -216,7 +223,7 @@ ParadigmDescription(
 ParadigmDescription(
     'input_recording', 'Input Recording', 'calibration', [
         selectable_input_mixin,
-        {'manifest': PATH + 'monitor.MonitorManifest'},
+        {'manifest': PATH + 'record.RecordManifest'},
         {
             'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
             'required': True,
@@ -226,6 +233,44 @@ ParadigmDescription(
                 'time_span': 10,
                 'time_delay': 0.125,
                 'source_name': 'selected_input',
+                'y_label': 'Signal (V)'
+            },
+        },
+        {
+            'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
+            'required': True,
+            'attrs': {
+                'id': 'input_psd',
+                'title': 'PSD',
+                'fft_time_span': 0.25,
+                'fft_freq_lb': 500,
+                'fft_freq_ub': 50000,
+                'source_name': 'selected_input',
+                'y_label': 'Level (dB)',
+                'apply_calibration': True,
+            },
+        },
+    ],
+)
+
+
+ParadigmDescription(
+    'ir_sensor', 'IR Sensor', 'calibration', [
+        selectable_input_mixin,
+        selectable_output_mixin,
+        {'manifest': PATH + 'ir_sensor.IRSensorManifest'},
+        {
+            'manifest': CORE_PATH + 'signal_mixins.MultiSignalViewManifest',
+            'required': True,
+            'attrs': {
+                'id': 'input_signal',
+                'title': 'Time',
+                'time_span': 2,
+                'time_delay': 0,
+                'sources': {
+                    #'selected_input': {},
+                    'ir_power': {'color': 'black'},
+                },
                 'y_label': 'Signal (V)'
             },
         },

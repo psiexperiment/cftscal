@@ -5,14 +5,13 @@ from psi.controller.api import ControllerManifest, ExperimentAction
 from psi.data.sinks.api import BinaryStore
 
 
-EXPERIMENT = 'monitor'
+EXPERIMENT = 'basic'
 
 
-
-enamldef MonitorManifest(ControllerManifest): manifest:
+enamldef RecordManifest(ControllerManifest): manifest:
 
     Extension:
-        id = 'data'
+        id = EXPERIMENT + '_data'
         point = 'psi.data.sinks'
 
         BinaryStore:
@@ -20,7 +19,7 @@ enamldef MonitorManifest(ControllerManifest): manifest:
             continuous_inputs = ['selected_input']
 
     Extension:
-        id = EXPERIMENT + '.monitor.context'
+        id = EXPERIMENT + '_context'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -28,7 +27,7 @@ enamldef MonitorManifest(ControllerManifest): manifest:
             label = 'Hardware'
 
     Extension:
-        id = EXPERIMENT + '.monitor.actions'
+        id = EXPERIMENT + '_actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:

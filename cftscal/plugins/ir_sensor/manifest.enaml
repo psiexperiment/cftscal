@@ -1,0 +1,18 @@
+from cftscal.util import list_inputs, list_outputs
+from cftscal.plugins.manifest import CalibrationPluginManifest
+
+from .settings import IRSensorSettings
+from .view import IRSensorView
+
+
+enamldef IRSensorManifest(CalibrationPluginManifest):
+
+    id = 'ir-sensor'
+    title = 'IR Sensor Calibration'
+
+    view_class = IRSensorView
+    settings_class = IRSensorSettings
+    settings_config = {
+        'inputs': list_inputs,
+        'outputs': list_outputs,
+    }

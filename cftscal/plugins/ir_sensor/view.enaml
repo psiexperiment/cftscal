@@ -1,0 +1,205 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+import pyqtgraph as pg
+
+from enaml.core.api import Conditional
+from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, Field, HGroup, Label,
+    ObjectCombo, PushButton,
+)
+
+from psi.core.enaml.api import ListDictTable
+from psi.data.plots_manifest import PGCanvas
+from psiaudio import util
+
+from cftscal.objects import input_recording_manager
+from cftscal.plugins.widgets import (
+    AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
+    SensorView, GeneratorView,
+)
+
+
+from atom.api import Bool, Value
+
+
+class IRSensorPlotManager(TimePSDPlotManager):
+
+    def _plot(self, item, time_plot, psd_plot):
+        fh = item.load()
+        y = fh.selected_input[0]
+
+        if self.apply_calibration:
+            cal = fh.selected_input.get_calibration()
+        else:
+            cal = FlatCalibration.unity()
+
+        x = np.arange(len(y)) / fh.selected_input.fs
+        time_plot[0].setData(x, cal.get_level(y))
+
+        return {
+            'time_plot': time_plot,
+            'psd_plot': psd_plot,
+            'x': x,
+            'y': y,
+            'fs': fh.selected_input.fs,
+            'calibration': cal,
+        }
+
+
+enamldef IRSensorView(Container):
+
+    attr settings
+
+    DockArea: area:
+        layout = AreaLayout(
+            HSplitLayout(
+                VSplitLayout(
+                    'settings',
+                    'input_list',
+                    'input_analysis',
+                    sizes=[25, 200, 50],
+                ),
+                'input_recording_plot',
+                sizes=[250, 900],
+            ),
+        )
+        DockItem:
+            name = 'settings'
+            title = 'Settings'
+            closable = False
+            stretch = 0
+
+            Conditional:
+                condition << settings is None
+
+                Container:
+                    Label:
+                        text = 'No inputs found on system. View mode only.'
+
+            Conditional:
+                condition << settings is not None
+
+                Container:
+                    layout_constraints => ():
+                        # For some reason aligning right edge of first widget
+                        # (label) does not produce nicely-aligned widgets, so we
+                        # align the left edge of second widget.
+                        widgets = self.visible_widgets()
+                        second = [w.children[1] for w in widgets if isinstance(w, HGroup)]
+                        constraints = [
+                            vbox(
+                                *widgets[:-1],
+                                hbox(spacer(0), widgets[-1]),
+                                spacing=0,
+                            ),
+                            align('left', *second),
+                        ]
+                        return constraints
+
+                    HGroup:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
+
+                        Label:
+                            text = 'Output Channel'
+
+                        ObjectCombo:
+                            items = settings.available_outputs
+                            selected := settings.selected_output
+                            to_string = lambda m: m.output_label
+
+                    GeneratorView:
+                        generator << settings.selected_output.generator
+                        mode = 'add'
+
+                    HGroup:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
+
+                        Label:
+                            text = 'Input Channel'
+
+                        ObjectCombo:
+                            items = settings.available_inputs
+                            selected := settings.selected_input
+                            to_string = lambda m: m.input_label
+
+                    SensorView:
+                        sensor << settings.selected_input.sensor
+                        mode = 'add'
+
+                    PushButton: start:
+                        text = 'Record'
+                        enabled << bool(settings.selected_input.sensor.name) and \
+                            bool(settings.selected_output.generator.name)
+                        clicked ::
+                            settings.run_recording(
+                                settings.selected_input,
+                                settings.selected_output
+                            )
+                            input_tree.collection.update_groups()
+
+        DockItem:
+            name = 'input_recording_plot'
+            title = 'Input Recording'
+            closable = False
+            stretch = 10
+
+            Container:
+                PGCanvas: input_recording_plot:
+                    attr manager = IRSensorPlotManager(apply_calibration=True)
+                    component << manager.component
+
+        DockItem:
+            name = 'input_list'
+            title = 'Recordings'
+            closable = False
+            stretch = 0
+
+            CalibratedObjects: input_tree:
+                headers = ['Generator', 'Sensor']
+                collection = ObjectCollection(
+                    input_recording_manager,
+                    [input_recording_plot.manager],
+                )
+
+        DockItem:
+            name = 'input_analysis'
+            title = 'Analysis'
+            closable = False
+
+            Container:
+                ListDictTable:
+                    stretch_last_section = False
+                    data << input_recording_plot.manager.analysis
+                    columns = ['duration', 'pe', 'rms']
+                    column_info = {
+                        'duration': {
+                            'label': 'Dur (s)',
+                            'to_string': lambda x: '{:.2f}'.format(x),
+                            'width': 20,
+                        },
+                        'pe': {
+                            'label': 'pe SPL',
+                            'to_string': lambda x: '{:.1f}'.format(x),
+                            'width': 20,
+                        },
+                        'rms': {
+                            'label': 'dB SPL',
+                            'to_string': lambda x: '{:.1f}'.format(x),
+                            'width': 20,
+                        },
+                    }
+
+                    get_cell_color => (row, column):
+                        if column != 0:
+                            return 'white'
+                        return data[row]['color']
