@@ -57,8 +57,8 @@ def main():
 
     to_register = [
         #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
-        ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
-        ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
+        #('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
+        #('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         ('cftscal.plugins.ir_sensor.manifest', 'IRSensorManifest'),
         #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         #('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),

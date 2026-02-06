@@ -15,10 +15,10 @@ from enaml.widgets.api import (
 from psi.core.enaml.api import ListDictTable
 from psi.data.plots_manifest import PGCanvas
 from psiaudio import util
+from psiaudio.calibration import FlatCalibration
 
-from cftscal.objects import input_recording_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
     SensorView, GeneratorView,
 )
 
@@ -26,28 +26,22 @@ from cftscal.plugins.widgets import (
 from atom.api import Bool, Value
 
 
-class IRSensorPlotManager(TimePSDPlotManager):
+from .objects import manager
 
-    def _plot(self, item, time_plot, psd_plot):
+
+class IRSensorPlotManager(SinglePlotManager):
+
+    x_units = 'seconds'
+    x_label = 'Time'
+    y_label = 'Signal'
+    y_units = 'volts'
+    x_log_mode = False
+
+    def _plot(self, item, plot):
         fh = item.load()
-        y = fh.selected_input[0]
-
-        if self.apply_calibration:
-            cal = fh.selected_input.get_calibration()
-        else:
-            cal = FlatCalibration.unity()
-
-        x = np.arange(len(y)) / fh.selected_input.fs
-        time_plot[0].setData(x, cal.get_level(y))
-
-        return {
-            'time_plot': time_plot,
-            'psd_plot': psd_plot,
-            'x': x,
-            'y': y,
-            'fs': fh.selected_input.fs,
-            'calibration': cal,
-        }
+        y = fh.ir_power[0]
+        x = np.arange(len(y)) / fh.ir_power.fs
+        plot.setData(x, y)
 
 
 enamldef IRSensorView(Container):
@@ -60,10 +54,9 @@ enamldef IRSensorView(Container):
                 VSplitLayout(
                     'settings',
                     'input_list',
-                    'input_analysis',
                     sizes=[25, 200, 50],
                 ),
-                'input_recording_plot',
+                'ir_sensor_plot',
                 sizes=[250, 900],
             ),
         )
@@ -148,15 +141,15 @@ enamldef IRSensorView(Container):
                             input_tree.collection.update_groups()
 
         DockItem:
-            name = 'input_recording_plot'
+            name = 'ir_sensor_plot'
             title = 'Input Recording'
             closable = False
             stretch = 10
 
             Container:
-                PGCanvas: input_recording_plot:
-                    attr manager = IRSensorPlotManager(apply_calibration=True)
-                    component << manager.component
+                PGCanvas: ir_sensor_plot:
+                    attr plot_manager = IRSensorPlotManager()
+                    component << plot_manager.component
 
         DockItem:
             name = 'input_list'
@@ -165,41 +158,22 @@ enamldef IRSensorView(Container):
             stretch = 0
 
             CalibratedObjects: input_tree:
-                headers = ['Generator', 'Sensor']
+                mapping = {
+                    'Input': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Range': {
+                        'to_str': lambda x: f'{x.v_min:.3f} to {x.v_max:.3f}',
+                    },
+                }
                 collection = ObjectCollection(
-                    input_recording_manager,
-                    [input_recording_plot.manager],
+                    manager,
+                    [ir_sensor_plot.plot_manager],
                 )
-
-        DockItem:
-            name = 'input_analysis'
-            title = 'Analysis'
-            closable = False
-
-            Container:
-                ListDictTable:
-                    stretch_last_section = False
-                    data << input_recording_plot.manager.analysis
-                    columns = ['duration', 'pe', 'rms']
-                    column_info = {
-                        'duration': {
-                            'label': 'Dur (s)',
-                            'to_string': lambda x: '{:.2f}'.format(x),
-                            'width': 20,
-                        },
-                        'pe': {
-                            'label': 'pe SPL',
-                            'to_string': lambda x: '{:.1f}'.format(x),
-                            'width': 20,
-                        },
-                        'rms': {
-                            'label': 'dB SPL',
-                            'to_string': lambda x: '{:.1f}'.format(x),
-                            'width': 20,
-                        },
-                    }
-
-                    get_cell_color => (row, column):
-                        if column != 0:
-                            return 'white'
-                        return data[row]['color']

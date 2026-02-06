@@ -1,4 +1,6 @@
-from cftscal.util import list_inputs, list_outputs
+from functools import partial
+
+from cftscal.util import list_connections
 from cftscal.plugins.manifest import CalibrationPluginManifest
 
 from .settings import IRSensorSettings
@@ -13,6 +15,6 @@ enamldef IRSensorManifest(CalibrationPluginManifest):
     view_class = IRSensorView
     settings_class = IRSensorSettings
     settings_config = {
-        'inputs': list_inputs,
-        'outputs': list_outputs,
+        'inputs': partial(list_connections, 'hw_ai', 'ir_sensor'),
+        'outputs': partial(list_connections, 'hw_ao', 'ir_emitter'),
     }

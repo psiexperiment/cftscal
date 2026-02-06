@@ -89,8 +89,22 @@ the supported_devices list attribute on that channel.
 '''
 
 
+valid_type_codes = [
+    'hw_ai',
+    'hw_ao',
+    'hw_di',
+    'hw_do',
+    'sw_ai',
+    'sw_ao',
+    'sw_di',
+    'sw_do',
+]
+
+
 def list_connections(channel_type_code, device_types, label_fmt=None,
                      as_expression=False):
+    if channel_type_code not in valid_type_codes:
+        raise ValueError(f'Invalid channel type code: {channel_type_code}')
     if isinstance(device_types, str):
         device_types = [device_types]
     if label_fmt is None:

@@ -10,13 +10,15 @@ EXPERIMENT = 'basic'
 
 enamldef RecordManifest(ControllerManifest): manifest:
 
+    attr continuous_inputs = ['selected_input']
+
     Extension:
         id = EXPERIMENT + '_data'
         point = 'psi.data.sinks'
 
         BinaryStore:
             name = 'recording'
-            continuous_inputs = ['selected_input']
+            continuous_inputs = manifest.continuous_inputs
 
     Extension:
         id = EXPERIMENT + '_context'

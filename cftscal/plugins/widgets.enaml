@@ -151,6 +151,7 @@ class SinglePlotManager(BasePlotManager):
 
     x_label = Str('Frequency')
     x_units = Str('Hz')
+    x_log_mode = Bool(True)
     y_label = Str('Sensitivity')
     y_units = Str('dB re 1 Vrms')
 
@@ -188,19 +189,11 @@ class SinglePlotManager(BasePlotManager):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
         x_axis.setLabel(self.x_label, units=self.x_units)
-        x_axis.setLogMode(True)
+        x_axis.setLogMode(self.x_log_mode)
         return x_axis
 
     def get_plot_id(self, item):
         return item
-
-    def remove_plots(self, plot_id):
-        # Override to provide the single viewbox needed.
-        return super().remove_plots(plot_id, self.vb)
-
-    def get_plots(self, plot_id):
-        # Override to provide the single viewbox needed.
-        return super().get_plots(plot_id, self.vb)
 
     def _update(self, item, remove=False):
         if remove:
@@ -556,52 +549,67 @@ template CalibratedObjectTemplate(item, MemberType: CFTSInputRecording):
         text << item.sensor
 
 
-template CalibratedObjectTemplate(item, MemberType):
-    pass
+from .ir_sensor.objects import CFTSIRSensorRecording
+
+template CalibratedObjectTemplate(item, MemberType: CFTSIRSensorRecording):
+    TreeViewColumn:
+        text << item.input_channel
+    TreeViewColumn:
+        text << f'{item.v_min:.3f} to {item.v_max:.3f}'
 
 
-enamldef CalibratedObjects(Container):
-    alias headers: tree.horizontal_headers
+#template CalibratedObjectTemplate(item, MemberType):
+#    pass
+
+
+enamldef CalibratedObjects(Container): container:
     attr collection
+    attr mapping
+
+    attr group_attrs = [k for k, v in mapping.items() if v.get('groupby', False)]
+    attr id_attrs = [k for k, v in mapping.items() if v.get('id', False)]
+    attr attrs = [k for k in mapping.keys() if k not in id_attrs]
 
     TreeView: tree:
-        horizontal_headers << ['Name']
+        horizontal_headers << [''] + container.attrs
         resize_mode = 'resize_to_contents'
         horizontal_stretch = True
         items << collection.groups
+
         Looper:
+            # Create the nodes by grouping and assign the name as defined by the groupby keys.
             iterable << parent.items
             TreeViewItem: tree_group:
                 attr group << loop_item
-                text << loop_item.item.name
-                items << loop_item.subitems
+                text << ' '.join([container.mapping[a]['to_str'](group.item) for a in group_attrs])
+                items << group.subitems
                 checkable = True
-                checked := loop_item.selected
-                background << loop_item.color
+                checked := group.selected
+                background << group.color
+
                 Looper:
-                    iterable << parent.items
+                    # Now, go through each group
+                    iterable << group.subitems
                     TreeViewItem: tree_node:
+                        attr subitem << loop_item
                         checkable = True
-                        checked := loop_item.selected
-                        text << str(loop_item.item.datetime)
-                        background << loop_item.color
+                        checked := subitem.selected
+                        text << str(subitem.item.datetime)
+                        background << subitem.color
                         Menu:
-                            Action:
-                                text = 'Set as reference'
-                            Action:
-                                separator = True
                             Action:
                                 text = 'Delete'
                                 triggered ::
-                                    name = f'{loop_item.item.datetime} from {loop_item.item.name}'
+                                    name = f'{subitem.item.datetime} from {subitem.item.name}'
                                     q = f'Are you sure you want to delete {name}?'
                                     button = question(tree_node, '', q)
                                     if button.text == 'Yes':
-                                        shutil.rmtree(loop_item.item.filename)
+                                        shutil.rmtree(subitem.item.filename)
                                         collection.update_groups()
-                        DynamicTemplate:
-                            base = CalibratedObjectTemplate
-                            args = (loop_item.item, type(loop_item.item))
+                        Looper:
+                            iterable << container.attrs
+                            TreeViewColumn:
+                                text << container.mapping[loop_item]['to_str'](subitem.item)
 
 
 enamldef SensorView(HGroup):

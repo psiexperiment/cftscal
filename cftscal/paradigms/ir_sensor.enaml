@@ -6,23 +6,22 @@ from enaml.workbench.core.api import Command
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from psiaudio.stim import SquareWaveFactory, ToneFactory
-from psiaudio import pipeline
 from psiaudio import util
 from psi.controller.api import (
     ContinuousCallbackOutput,
     ExperimentAction,
+    ExtractPower,
     Discard,
     ContinuousInput,
 )
+from psiaudio.stim import ToneFactory
 from psi.data.sinks.api import TextStore
 from .record import RecordManifest
 
 EXPERIMENT = 'ir_sensor'
 
 
-def configure(event):
-    log.error('configuring')
+def configure_wavegen(event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('wavegen')
     generator = ToneFactory(
@@ -35,7 +34,6 @@ def configure(event):
 
 
 def analyze(event):
-    log.error('analyzing')
     data = event.workbench.get_plugin('psi.data')
     sink = data.find_sink('sensor-data')
     recording = data.find_sink('recording').get_source('selected_input')
@@ -57,48 +55,9 @@ def analyze(event):
     sink.save_mapping('sensitivity', results)
 
 
-from enaml.core.api import d_
-from atom.api import Float
-
-class ExtractPower(ContinuousInput):
-    '''
-    Chunk data based on time
-    '''
-    #: Duration, in seconds, of each chunk. This is rounded to the nearest
-    #: integer number of samples and each block will always have the exact same
-    #: number of samples.
-    duration = d_(Float()).tag(metadata=True)
-
-    def _get_fs(self):
-        samples = self.duration * self.parent.fs
-        return self.parent.fs / samples
-
-    def configure_callback(self):
-        if self.duration <= 0:
-            m = 'Duration for {} must be > 0'.format(self.name)
-            raise ValueError(m)
-        cb = super().configure_callback()
-        samples = round(self.duration * self.parent.fs)
-        return pipeline.blocked(
-            samples,
-            pipeline.transform(
-                extract_power,
-                cb,
-            ).send,
-        ).send
-
-
-def extract_power(s):
-    p = util.tone_power_conv(s, fs=s.fs, frequency=1e3)[:, np.newaxis]
-    return pipeline.PipelineData(
-        p,
-        s0=s.s0 / s.n_time,
-        fs=s.fs / s.n_time,
-        metadata=s.metadata, channel=s.channel,
-    )
-
-
 enamldef IRSensorManifest(RecordManifest):
+
+    continuous_inputs = ['selected_input', 'ir_power']
 
     Extension:
         id = EXPERIMENT + '_io'
@@ -113,14 +72,15 @@ enamldef IRSensorManifest(RecordManifest):
             duration = 0.01
             ExtractPower:
                 duration = 0.01
+                frequency = 1e3
                 name = 'ir_power'
 
     Extension:
         id = EXPERIMENT + '_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = EXPERIMENT + '.configure'
-            handler = configure
+            id = EXPERIMENT + '.configure_wavegen'
+            handler = configure_wavegen
         Command:
             id = EXPERIMENT + '.analyze'
             handler = analyze
@@ -130,7 +90,7 @@ enamldef IRSensorManifest(RecordManifest):
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'experiment_prepare'
-            command = EXPERIMENT + '.configure'
+            command = EXPERIMENT + '.configure_wavegen'
         ExperimentAction:
             event = 'experiment_end'
             command = EXPERIMENT + '.analyze'
