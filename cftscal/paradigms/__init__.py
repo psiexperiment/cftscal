@@ -256,21 +256,26 @@ ParadigmDescription(
 
 ParadigmDescription(
     'ir_sensor', 'IR Sensor', 'calibration', [
+        {'manifest': PATH + 'ir_sensor.IRSensorManifest'},
         selectable_input_mixin,
         selectable_output_mixin,
-        {'manifest': PATH + 'ir_sensor.IRSensorManifest'},
         {
-            'manifest': CORE_PATH + 'signal_mixins.MultiSignalViewManifest',
+            'manifest': PATH + 'ir_sensor.StrobedIR',
+            'required': 'True',
+            'attrs': {
+                'output_names': ['selected_output'],
+                'input_names': ['selected_input'],
+            },
+        },
+        {
+            'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
             'required': True,
             'attrs': {
                 'id': 'input_signal',
                 'title': 'Time',
                 'time_span': 2,
                 'time_delay': 0,
-                'sources': {
-                    #'selected_input': {},
-                    'ir_power': {'color': 'black'},
-                },
+                'source_name': 'selected_input_ir_power',
                 'y_label': 'Signal (V)'
             },
         },
@@ -280,12 +285,11 @@ ParadigmDescription(
             'attrs': {
                 'id': 'input_psd',
                 'title': 'PSD',
-                'fft_time_span': 0.25,
+                'fft_time_span': 1,
                 'fft_freq_lb': 500,
                 'fft_freq_ub': 50000,
                 'source_name': 'selected_input',
                 'y_label': 'Level (dB)',
-                'apply_calibration': True,
             },
         },
     ],

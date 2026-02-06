@@ -1,4 +1,5 @@
 from .util import (
+    list_connections,
     list_generic_microphone_connections,
     list_input_amplifier_connections,
     list_measurement_microphone_connections,

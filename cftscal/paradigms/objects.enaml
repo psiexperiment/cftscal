@@ -22,6 +22,7 @@ from psi.paradigms.core.io_mixins import ChannelInput, ChannelInputManifest
 from cftscal.objects import (
     generic_microphone_manager,
     input_manager,
+    output_manager,
     measurement_microphone_manager,
     speaker_manager,
     starship_manager
@@ -156,7 +157,7 @@ def initialize_output(manifest_id, env_prefix, event):
     if (cal_str := os.environ.get(env_cal, None)) is None:
         log.warning('Use environment variable "%s" to load calibration', env_cal)
     else:
-        channel = controller.get_channel(f'hw_ai::{output_name}')
+        channel = controller.get_channel(f'hw_ao::{output_name}')
         channel.calibration = output_manager.from_string(cal_str).load()
 
 

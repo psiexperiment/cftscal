@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from enaml.core.api import Looper
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 import numpy as np
@@ -13,12 +14,16 @@ from psi.controller.api import (
     ExtractPower,
     Discard,
     ContinuousInput,
+    Threshold,
+    Edges,
 )
 from psiaudio.stim import ToneFactory
+from psi.core.enaml.api import ExperimentManifest
 from psi.data.sinks.api import TextStore
 from .record import RecordManifest
 
 EXPERIMENT = 'ir_sensor'
+FREQUENCY = 1e3
 
 
 def configure_wavegen(event):
@@ -26,7 +31,7 @@ def configure_wavegen(event):
     output = controller.get_output('wavegen')
     generator = ToneFactory(
         fs=output.fs,
-        frequency=1e3,
+        frequency=FREQUENCY,
         level=1,
     )
     output.callback = lambda s, _: generator.next(s)
@@ -36,28 +41,19 @@ def configure_wavegen(event):
 def analyze(event):
     data = event.workbench.get_plugin('psi.data')
     sink = data.find_sink('sensor-data')
-    recording = data.find_sink('recording').get_source('selected_input')
-    window_size = int(0.005 * recording.fs)
-    windows = sliding_window_view(recording[0], window_shape=window_size)
-    s = np.apply_along_axis(util.tone_power_conv, arr=windows[::window_size],
-                            axis=1, fs=recording.fs, frequency=1e3)
-    result = util.db(s)
+    s = data.find_sink('recording').get_source('selected_input_analog')[0]
     lb, ub = np.percentile(s, [5, 95])
-
     results = {
         'lower': lb,
         'upper': ub,
-        'frequency': 1e3,
-        'percentile': [5, 95],
-        'window_size': 0.01,
-        'signal': s.tolist(),
+        'frequency': FREQUENCY,
     }
     sink.save_mapping('sensitivity', results)
 
 
 enamldef IRSensorManifest(RecordManifest):
 
-    continuous_inputs = ['selected_input', 'ir_power']
+    continuous_inputs = ['selected_input_analog']
 
     Extension:
         id = EXPERIMENT + '_io'
@@ -66,14 +62,6 @@ enamldef IRSensorManifest(RecordManifest):
         ContinuousCallbackOutput:
             target_name = 'selected_output'
             name = 'wavegen'
-
-        Discard:
-            source_name = 'selected_input'
-            duration = 0.01
-            ExtractPower:
-                duration = 0.01
-                frequency = 1e3
-                name = 'ir_power'
 
     Extension:
         id = EXPERIMENT + '_commands'
@@ -89,9 +77,6 @@ enamldef IRSensorManifest(RecordManifest):
         id = EXPERIMENT + '_actions'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = EXPERIMENT + '.configure_wavegen'
-        ExperimentAction:
             event = 'experiment_end'
             command = EXPERIMENT + '.analyze'
 
@@ -101,3 +86,65 @@ enamldef IRSensorManifest(RecordManifest):
 
         TextStore:
             name = 'sensor-data'
+
+
+def sanitize(x):
+    if '::' in x:
+        return x.split('::')[1]
+    return x
+
+
+enamldef StrobedIR(ExperimentManifest): manifest:
+    '''
+    Defines an IR where the emitter is strobed at a given frequency.
+
+    Input and output names must match the channel names.
+    '''
+    id = 'strobed_ir'
+
+    attr output_names = ['selected_output']
+    attr input_names = ['selected_input']
+
+    Extension:
+        id = manifest.id + '_io'
+        point = 'psi.controller.io'
+
+        Looper:
+            iterable << manifest.output_names
+
+            ContinuousCallbackOutput:
+                name = f'{sanitize(loop_item)}_wavegen'
+                target_name = loop_item
+
+        Looper:
+            iterable << manifest.input_names
+
+            Discard:
+                name = f'{sanitize(loop_item)}_discard'
+                source_name = loop_item
+                duration = 0.01
+                ExtractPower:
+                    duration = 0.01
+                    frequency = 1e3
+                    name = f'{sanitize(loop_item)}_analog'
+                    Threshold:
+                        threshold = 2.5
+                        Edges: e:
+                            name << f'{sanitize(loop_item)}_digital'
+                            debounce = 2
+                            detect = 'both'
+                            min_events = 1
+
+    Extension:
+        id = manifest.id + '_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.configure_wavegen'
+            handler = configure_wavegen
+
+    Extension:
+        id = manifest.id + '_actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.configure_wavegen'

@@ -206,18 +206,15 @@ class InputSettings(PersistentSettings):
     #: Sensor attached to input channel.
     sensor = Typed(SensorSettings, ()).tag(persist=True)
 
-    #: Prefix to add to environment variable names for passing to psi.
-    env_prefix = Str('CFTS_INPUT')
-
-    def get_env_vars(self, include_cal=True):
+    def get_env_vars(self, include_cal=True, env_prefix='CFTS_INPUT'):
         env = {
-            self.env_prefix: self.input_name,
-            f'{self.env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
+            env_prefix: self.input_name,
+            f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
         }
         if include_cal:
             obj = input_manager.get_object(self.sensor.name)
             cal = obj.get_current_calibration()
-            env[f'{self.env_prefix}_{self.input_name.upper()}'] = cal.to_string()
+            env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
         return env
 
 
@@ -232,17 +229,14 @@ class OutputSettings(PersistentSettings):
     #: Generator attached to output
     generator = Typed(GeneratorSettings, ()).tag(persist=True)
 
-    #: Prefix to add to environment variable names for passing to psi.
-    env_prefix = Str('CFTS_OUTPUT')
-
-    def get_env_vars(self, include_cal=True):
+    def get_env_vars(self, include_cal=True, env_prefix='CFTS_OUTPUT'):
         env = {
-            self.env_prefix: self.output_name,
+            env_prefix: self.output_name,
         }
         if include_cal:
             generator = output_manager.get_object(self.generator.name)
             cal = generator.get_current_calibration()
-            env[f'{self.env_prefix}_{self.output_name.upper()}'] = cal.to_string()
+            env[f'{env_prefix}_{self.output_name.upper()}'] = cal.to_string()
         return env
 
 
