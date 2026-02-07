@@ -22,9 +22,9 @@ class SpeakerPlotManager(SinglePlotManager):
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
         if remove:
-            self.remove_plots(plot_id)
+            self.remove_plots(plot_id, self.vb)
             return None
-        color, plots = self.get_plots(plot_id)
+        color, plots = self.get_plots(plot_id, self.vb)
 
         cal = calibration.load()
         x = cal.frequency[1:]
@@ -180,7 +180,25 @@ enamldef SpeakerView(Container):
             stretch = 0
 
             CalibratedObjects: speaker_tree:
-                headers = ['Name', 'Microphone', 'Method']
+                mapping = {
+                    'Name': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Microphone': {
+                        'to_str': lambda x: x.microphone,
+                    },
+                    'Method': {
+                        'to_str': lambda x: x.method,
+                    },
+                }
+
                 collection = ObjectCollection(
                     speaker_manager, [speaker_plot.manager],
                 )

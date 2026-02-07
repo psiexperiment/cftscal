@@ -522,13 +522,6 @@ template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):
         text << item.stimulus
 
 
-template CalibratedObjectTemplate(item, MemberType: CFTSSpeakerCalibration):
-    TreeViewColumn:
-        text << item.microphone
-    TreeViewColumn:
-        text << item.method
-
-
 template CalibratedObjectTemplate(item, MemberType: CFTSInputAmplifierCalibration):
     TreeViewColumn:
         text << f'{item.measured_gain:.0f}'

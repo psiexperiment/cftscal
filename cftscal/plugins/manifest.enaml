@@ -79,6 +79,7 @@ class _CalibrationPluginManifest(PluginManifest):
                 cb()
             return True
         except:
+            raise
             return False
 
 

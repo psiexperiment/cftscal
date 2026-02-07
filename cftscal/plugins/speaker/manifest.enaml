@@ -1,52 +1,20 @@
-import enaml
-from enaml.workbench.api import Extension, PluginManifest
-from enaml.workbench.ui.api import ActionItem, Workspace
+from functools import partial
 
-
-from ...util import list_measurement_microphone_connections, list_speaker_connections
+from cftscal.util import list_connections
+from ..manifest import CalibrationPluginManifest
 from .settings import SpeakerCalibrationSettings
 from .view import SpeakerView
 
 
-def available():
-    try:
-        list_speaker_connections()
-        list_measurement_microphone_connections()
-        return True
-    except:
-        return False
+enamldef SpeakerManifest(CalibrationPluginManifest):
 
-
-def speaker_workspace_factory(workbench):
-    space = Workspace()
-    space.window_title = 'Speaker Calibration'
-    try:
-        settings = SpeakerCalibrationSettings(
-            list_speaker_connections(),
-            list_measurement_microphone_connections(),
-        )
-        space.content = SpeakerView(settings=settings)
-    except:
-        raise
-        space.content = SpeakerView()
-    return space
-
-
-enamldef SpeakerManifest(PluginManifest):
     id = 'speaker'
+    title = 'Speaker Calibration'
+    shortcut = 'Ctrl+p'
 
-    Extension:
-        id = 'speaker_actions'
-        point = 'enaml.workbench.ui.actions'
-        ActionItem:
-            path = '/workspace/speaker'
-            label = 'Speaker'
-            shortcut = 'Ctrl+p'
-            group = 'spaces'
-            command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'speaker.workspace'}
-
-    Extension:
-        id = 'workspace'
-        point = 'enaml.workbench.ui.workspaces'
-        factory = speaker_workspace_factory
+    view_class = SpeakerView
+    settings_class = SpeakerCalibrationSettings
+    settings_config = {
+        'outputs': partial(list_connections, 'hw_ao', 'speaker'),
+        'inputs': partial(list_connections, 'hw_ai', 'measurement_microphone'),
+    }

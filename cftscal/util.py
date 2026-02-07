@@ -135,8 +135,7 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
 
 list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
 list_measurement_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
-list_generic_microphone_connections = partial(list_connections, 'hw_ai',
-                                              ['generic_microphone', 'measurement_microphone'])
+list_generic_microphone_connections = partial(list_connections, 'hw_ai', ['generic_microphone', 'measurement_microphone'])
 # Set this up as an alias since some third-party libraries are expecting this
 # function and it was renamed once we added support for generic microphones.
 list_microphone_connections = list_measurement_microphone_connections

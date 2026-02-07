@@ -12,8 +12,6 @@ from ..settings import (
     SpeakerSettings,
 )
 
-from cftscal import CAL_ROOT
-
 
 class SpeakerCalibrationSettings(CalibrationSettings):
 
@@ -29,7 +27,6 @@ class SpeakerCalibrationSettings(CalibrationSettings):
                 output_label=label,
                 output_name=name,
                 generator=SpeakerSettings(),
-                env_prefix='CFTS_SPEAKER',
             )
             settings.append(setting)
         self.available_outputs = settings
@@ -40,21 +37,14 @@ class SpeakerCalibrationSettings(CalibrationSettings):
                 input_label=label,
                 input_name=name,
                 sensor=MeasurementMicrophoneSettings(),
-                env_prefix='CFTS_MICROPHONE',
             )
             settings.append(setting)
         self.available_inputs = settings
         self.selected_input = self.available_inputs[0]
 
-    def save_config(self):
-        for m in self.microphones:
-            m.save_config()
-        for s in self.speakers:
-            s.save_config()
-
     def run_cal(self, ao, ai, which):
         filename = f'{{date_time}}_{ao.generator.name}_{ai.sensor.name}_{which}'
-        pathname = CAL_ROOT / 'speaker' / ao.generator.name / filename
-        env = ai.get_env_vars()
-        env.update(ao.get_env_vars(include_cal=False))
+        pathname = self.data_path / 'speaker' / ao.generator.name / filename
+        env = ai.get_env_vars(env_prefix='CFTS_MICROPHONE')
+        env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
         self._run_cal(pathname, f'cftscal.paradigms.speaker_calibration_{which}', env)
