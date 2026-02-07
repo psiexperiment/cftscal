@@ -24,9 +24,9 @@ class MicrophonePlotManager(SinglePlotManager):
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
         if remove:
-            self.remove_plots(plot_id)
+            self.remove_plots(plot_id, self.vb)
             return None
-        color, plots = self.get_plots(plot_id)
+        color, plots = self.get_plots(plot_id, self.vb)
 
         fh = calibration.load_recording()
         psd = fh.get_psd(average_seconds=1).iloc[1:]
@@ -160,7 +160,28 @@ enamldef MicrophoneView(Container):
             stretch = 0
 
             CalibratedObjects: mic_tree:
-                headers = ['Name', 'Sens', 'Sens (dB)', 'Pistonphone']
+                mapping = {
+                    'Name': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Sens': {
+                        'to_str': lambda x: f'{x.sens:.2f} mV/Pa',
+                    },
+                    'Sens (dB)': {
+                        'to_str': lambda x: f'{x.sens_db:.2f} dB(mV/Pa)',
+                    },
+                    'Pistonphone': {
+                        'to_str': lambda x: x.pistonphone,
+                    },
+                }
+
                 collection = ObjectCollection(
                     measurement_microphone_manager, [microphone_plot.manager],
                 )

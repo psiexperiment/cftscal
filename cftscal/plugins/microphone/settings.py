@@ -21,7 +21,6 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
                 input_name=name,
                 input_label=label,
                 sensor=MeasurementMicrophoneSettings(),
-                env_prefix='CFTS_MICROPHONE',
             )
             settings.append(setting)
         self.available_inputs = settings
@@ -30,6 +29,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
     def get_config(self):
         config = super().get_config()
         config['pistonphone'] = self.pistonphone.get_persistence()
+        return config
 
     def set_config(self, config):
         super().set_config(config)
@@ -40,7 +40,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
         filename = ' '.join(filename.split())
         pathname = self.data_path / 'microphone' / ai.sensor.name / filename
         env = {
-            **ai.get_env_vars(include_cal=False),
+            **ai.get_env_vars(include_cal=False, env_prefix='CFTS_MICROPHONE'),
             **self.pistonphone.get_env_vars(),
         }
         self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration', env)

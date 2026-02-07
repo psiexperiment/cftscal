@@ -34,7 +34,6 @@ from cftscal.objects import (
     CFTSInputAmplifierCalibration,
     CFTSInputRecording,
     CFTSGenericMicrophoneCalibration,
-    CFTSMeasurementMicrophoneCalibration,
     CFTSStarshipCalibration,
     CFTSSpeakerCalibration,
 )
@@ -502,15 +501,6 @@ class ObjectCollection(Atom):
                 node.color = None
             elif result is not None and 'color' in result:
                 node.color = result['color']
-
-
-template CalibratedObjectTemplate(item, MemberType: CFTSMeasurementMicrophoneCalibration):
-    TreeViewColumn:
-        text << f'{item.sens:.2f} mV/Pa'
-    TreeViewColumn:
-        text << f'{item.sens_db:.2f} dB(mV/Pa)'
-    TreeViewColumn:
-        text << item.pistonphone
 
 
 template CalibratedObjectTemplate(item, MemberType: CFTSGenericMicrophoneCalibration):
