@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
+
 from enaml.core.api import Looper
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -9,9 +11,11 @@ from numpy.lib.stride_tricks import sliding_window_view
 
 from psiaudio import util
 from psi.controller.api import (
+    AutoScale,
     ContinuousCallbackOutput,
     ExperimentAction,
     ExtractPower,
+    DecimateTo,
     Discard,
     ContinuousInput,
     Threshold,
@@ -23,37 +27,36 @@ from psi.data.sinks.api import TextStore
 from .record import RecordManifest
 
 EXPERIMENT = 'ir_sensor'
-FREQUENCY = 1e3
 
 
-def configure_wavegen(event):
+def configure_wavegen(output_names, frequency, event):
     controller = event.workbench.get_plugin('psi.controller')
-    output = controller.get_output('wavegen')
-    generator = ToneFactory(
-        fs=output.fs,
-        frequency=FREQUENCY,
-        level=1,
-    )
-    output.callback = lambda s, _: generator.next(s)
-    output.active = True
+    for name in output_names:
+        output = controller.get_output(f'{name}_wavegen')
+        generator = ToneFactory(
+            fs=output.fs,
+            frequency=frequency,
+            level=1,
+        )
+        output.callback = lambda s, _: generator.next(s)
+        output.active = True
 
 
 def analyze(event):
     data = event.workbench.get_plugin('psi.data')
     sink = data.find_sink('sensor-data')
-    s = data.find_sink('recording').get_source('selected_input_analog')[0]
+    s = data.find_sink('recording').get_source('selected_input_raw')[0]
     lb, ub = np.percentile(s, [5, 95])
     results = {
         'lower': lb,
         'upper': ub,
-        'frequency': FREQUENCY,
     }
     sink.save_mapping('sensitivity', results)
 
 
 enamldef IRSensorManifest(RecordManifest):
 
-    continuous_inputs = ['selected_input_analog']
+    continuous_inputs = ['selected_input_raw']
 
     Extension:
         id = EXPERIMENT + '_io'
@@ -104,6 +107,7 @@ enamldef StrobedIR(ExperimentManifest): manifest:
 
     attr output_names = ['selected_output']
     attr input_names = ['selected_input']
+    attr frequency = 500
 
     Extension:
         id = manifest.id + '_io'
@@ -123,24 +127,33 @@ enamldef StrobedIR(ExperimentManifest): manifest:
                 name = f'{sanitize(loop_item)}_discard'
                 source_name = loop_item
                 duration = 0.01
-                ExtractPower:
-                    duration = 0.01
-                    frequency = 1e3
-                    name = f'{sanitize(loop_item)}_analog'
-                    Threshold:
-                        threshold = 2.5
-                        Edges: e:
-                            name << f'{sanitize(loop_item)}_digital'
-                            debounce = 2
-                            detect = 'both'
-                            min_events = 1
+                DecimateTo:
+                    target_fs = manifest.frequency * 8
+                    ExtractPower:
+                        duration = 0.05
+                        frequency = manifest.frequency
+                        name = f'{sanitize(loop_item)}_raw'
+                        AutoScale:
+                            name = f'{sanitize(loop_item)}_analog'
+                            Threshold:
+                                threshold = 0.5
+                                mode = '<'
+                                Edges: e:
+                                    name << f'{sanitize(loop_item)}_digital'
+                                    debounce = 2
+                                    detect = 'both'
+                                    min_events = 1
 
     Extension:
         id = manifest.id + '_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.configure_wavegen'
-            handler = configure_wavegen
+            handler = partial(
+                configure_wavegen,
+                [sanitize(n) for n in output_names],
+                manifest.frequency
+            )
 
     Extension:
         id = manifest.id + '_actions'

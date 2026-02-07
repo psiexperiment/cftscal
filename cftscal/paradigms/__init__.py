@@ -275,7 +275,7 @@ ParadigmDescription(
                 'title': 'Time',
                 'time_span': 2,
                 'time_delay': 0,
-                'source_name': 'selected_input_ir_power',
+                'source_name': 'selected_input_raw',
                 'y_label': 'Signal (V)'
             },
         },
