@@ -419,19 +419,32 @@ class CFTSSpeakerCalibration(FileCalibration):
     def method(self):
         return self.filename.stem.split('_')[3]
 
-    def load(self):
+    @cached_property
+    def max_frequency(self):
+        return self.sens.index.unique('frequency').max()
+
+    @cached_property
+    def n_bits(self):
+        return int(self.sens.index.unique('n_bits').max())
+
+    @cached_property
+    def output_gain(self):
+        return float(self.sens.index.unique('output_gain').max())
+
+    @cached_property
+    def sens(self):
         index_col = ['n_bits', 'output_gain', 'frequency']
-        sens = pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
-        n_bits = int(sens.index.unique('n_bits').max())
-        output_gain = float(sens.index.unique('output_gain').max())
-        s = sens.loc[n_bits, output_gain]
-        attrs ={
+        return pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
+
+    def load(self):
+        s = self.sens.loc[self.n_bits, self.output_gain]
+        attrs = {
             'calibration_file': str(self.filename),
             'name': self.name,
             'string': self.to_string(),
             'class': self.qualname,
-            'n_bits': n_bits,
-            'output_gain': output_gain,
+            'n_bits': self.n_bits,
+            'output_gain': self.output_gain,
         }
         return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
 
@@ -557,24 +570,37 @@ class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
     def stimulus(self):
         return self.filename.stem.rsplit('_', 1)[1]
 
+    @cached_property
+    def max_frequency(self):
+        return self.sens.index.unique('frequency').max()
+
+    @cached_property
+    def n_bits(self):
+        return int(self.sens.index.unique('n_bits').max())
+
+    @cached_property
+    def output_gain(self):
+        return float(self.sens.index.unique('output_gain').max())
+
+    @cached_property
+    def sens(self):
+        index_col = ['n_bits', 'output_gain', 'frequency']
+        return pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
+
     def load(self):
         '''
         Load calibration that was run at the highest output gain and number of
         bits under the assumption that this represents the calibration with the
         highest SNR and resolution.
         '''
-        index_col = ['n_bits', 'output_gain', 'frequency']
-        sens = pd.read_csv(self.filename / 'golay_sens.csv', index_col=index_col)
-        n_bits = int(sens.index.unique('n_bits').max())
-        output_gain = int(sens.index.unique('output_gain').max())
-        s = sens.loc[n_bits, output_gain]
+        s = self.sens.loc[self.n_bits, self.output_gain]
         attrs ={
             'calibration_file': str(self.filename),
             'name': self.name,
             'string': self.to_string(),
             'class': self.qualname,
-            'n_bits': n_bits,
-            'output_gain': output_gain,
+            'n_bits': self.n_bits,
+            'output_gain': self.output_gain,
         }
         return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
 

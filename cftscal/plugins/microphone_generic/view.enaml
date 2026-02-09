@@ -221,6 +221,9 @@ enamldef MicrophoneComparisonView(Container): view:
                     'Meas. Mic.': {
                         'to_str': lambda x: x.measurement_microphone,
                     },
+                    'Max. Freq.': {
+                        'to_str': lambda x: f'{x.max_frequency*1e-3:.0f} kHz',
+                    },
                 }
 
                 collection = ObjectCollection(
