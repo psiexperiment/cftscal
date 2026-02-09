@@ -89,7 +89,10 @@ class CalibrationSettings(Atom):
                     for obj in value:
                         obj.set_persistence(config[name][obj.name])
             elif isinstance(value, (InputSettings, OutputSettings)):
-                for obj in getattr(self, f'{name}s'):
+                member = self.get_member(name)
+                choice_name_guess = name.replace('selected', 'available') + 's'
+                choice_name = member.metadata.get('choices', choice_name_guess)
+                for obj in getattr(self, choice_name):
                     if obj.name == config[name]:
                         setattr(self, name, obj)
             else:

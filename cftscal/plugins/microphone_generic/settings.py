@@ -53,7 +53,6 @@ class MicrophoneComparisonSettings(CalibrationSettings):
             settings.append(setting)
         self.speaker_outputs = settings
         self.speaker_output = self.speaker_outputs[0]
-        self.load_config()
 
     def run_calibration(self, which):
         filename = f'{{date_time}}_{self.generic_input.sensor.name}_{self.measurement_input.sensor.name}_{which}'

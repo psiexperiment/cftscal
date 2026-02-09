@@ -57,6 +57,7 @@ def workspace_factory(window, manifest):
     try:
         kwargs = {k: v() for k, v in manifest.settings_config.items()}
         settings = manifest.settings_class(**kwargs)
+        settings.load_config()
         space.content = manifest.view_class(settings=settings)
     except:
         raise

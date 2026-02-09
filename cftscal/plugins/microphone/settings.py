@@ -24,7 +24,6 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             )
             settings.append(setting)
         self.available_inputs = settings
-        self.load_config()
 
     def run_calibration(self, ai):
         filename = f'{{date_time}}_{ai.sensor.name}_{self.pistonphone.name}'

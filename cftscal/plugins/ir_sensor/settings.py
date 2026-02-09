@@ -31,7 +31,6 @@ class IRSensorSettings(CalibrationSettings):
             settings.append(setting)
         self.available_outputs = settings
         self.selected_output = settings[0]
-        self.load_config()
 
     def run_recording(self, ai, ao):
         filename = f'{{date_time}}_{ai.input_name}'
