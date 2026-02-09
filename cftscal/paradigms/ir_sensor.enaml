@@ -16,7 +16,6 @@ from psi.controller.api import (
     ExperimentAction,
     ExtractPower,
     DecimateTo,
-    Discard,
     ContinuousInput,
     Threshold,
     Edges,
@@ -123,26 +122,24 @@ enamldef StrobedIR(ExperimentManifest): manifest:
         Looper:
             iterable << manifest.input_names
 
-            Discard:
-                name = f'{sanitize(loop_item)}_discard'
+            DecimateTo:
+                name = f'{sanitize(loop_item)}_decimate'
                 source_name = loop_item
-                duration = 0.01
-                DecimateTo:
-                    target_fs = manifest.frequency * 8
-                    ExtractPower:
-                        duration = 0.05
-                        frequency = manifest.frequency
-                        name = f'{sanitize(loop_item)}_raw'
-                        AutoScale:
-                            name = f'{sanitize(loop_item)}_analog'
-                            Threshold:
-                                threshold = 0.5
-                                mode = '<'
-                                Edges: e:
-                                    name << f'{sanitize(loop_item)}_digital'
-                                    debounce = 2
-                                    detect = 'both'
-                                    min_events = 1
+                target_fs = manifest.frequency * 8
+                ExtractPower:
+                    duration = 0.05
+                    frequency = manifest.frequency
+                    name = f'{sanitize(loop_item)}_raw'
+                    AutoScale:
+                        name = f'{sanitize(loop_item)}_analog'
+                        Threshold:
+                            threshold = 0.5
+                            mode = '<'
+                            Edges: e:
+                                name << f'{sanitize(loop_item)}_digital'
+                                debounce = 2
+                                detect = 'both'
+                                min_events = 1
 
     Extension:
         id = manifest.id + '_commands'
