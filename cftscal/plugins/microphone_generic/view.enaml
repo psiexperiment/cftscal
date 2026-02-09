@@ -12,6 +12,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import generic_microphone_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
+    SensorView,
 )
 
 
@@ -29,7 +30,7 @@ class MicrophoneComparisonPlotManager(SinglePlotManager):
         x = np.log10(cal.frequency[1:])
         y = cal.sensitivity[1:]
         plots[0].setData(x, y)
-        return color
+        return {'color': color}
 
 
 enamldef MicrophoneComparisonView(Container): view:
@@ -123,9 +124,6 @@ enamldef MicrophoneComparisonView(Container): view:
                             Label:
                                 text = ''
 
-                            Label:
-                                text = 'Gain (dB)'
-
                         HGroup:
                             share_layout = True
                             align_widths = False
@@ -140,19 +138,11 @@ enamldef MicrophoneComparisonView(Container): view:
                                 selected := settings.generic_input
                                 to_string = lambda m: m.input_label
 
-                            ObjectCombo: test_select:
-                                items = sorted(settings.generic_input.available_sensors)
-                                selected := settings.generic_input.sensor_name
-
-                            PushButton:
-                                text = '+'
-                                clicked ::
-                                    popup = AddItem(self, combo=test_select, label='Test Microphone Name')
-                                    popup.show()
-
-                            ObjectCombo:
-                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := settings.generic_input.sensor_gain
+                            SensorView:
+                                mode = 'add'
+                                label = 'Test Microphone'
+                                show_label = False
+                                sensor << settings.generic_input.sensor
 
                         HGroup:
                             share_layout = True
@@ -168,19 +158,11 @@ enamldef MicrophoneComparisonView(Container): view:
                                 selected := settings.measurement_input
                                 to_string = lambda m: m.input_label
 
-                            ObjectCombo: ref_select:
-                                items = sorted(settings.measurement_input.available_sensors)
-                                selected := settings.measurement_input.sensor_name
-
-                            PushButton:
-                                text = '+'
-                                clicked ::
-                                    popup = AddItem(self, combo=ref_select, label='Reference Microphone Name')
-                                    popup.show()
-
-                            ObjectCombo:
-                                items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                                selected := settings.measurement_input.sensor_gain
+                            SensorView:
+                                mode = 'static'
+                                label = 'Reference Microphone'
+                                show_label = False
+                                sensor << settings.measurement_input.sensor
 
                         HGroup:
                             padding = 0
@@ -198,13 +180,13 @@ enamldef MicrophoneComparisonView(Container): view:
                             PushButton: golay_start:
                                 text = 'Golay'
                                 clicked ::
-                                    settings.run_cal_golay()
+                                    settings.run_calibration('golay')
                                     device_tree.collection.update_groups()
 
                             PushButton: chirp_start:
                                 text = 'Chirp'
                                 clicked ::
-                                    settings.run_cal_chirp()
+                                    settings.run_calibration('chirp')
                                     device_tree.collection.update_groups()
 
         DockItem:
@@ -225,7 +207,22 @@ enamldef MicrophoneComparisonView(Container): view:
             stretch = 0
 
             CalibratedObjects: device_tree:
-                headers = ['Name', 'Microphone', 'Stimulus']
+                mapping = {
+                    'Name': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Meas. Mic.': {
+                        'to_str': lambda x: x.measurement_microphone,
+                    },
+                }
+
                 collection = ObjectCollection(
                     generic_microphone_manager, [device_plot.manager],
                 )

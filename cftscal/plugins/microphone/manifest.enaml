@@ -1,4 +1,5 @@
-from cftscal.util import list_measurement_microphone_connections
+from functools import partial
+from cftscal.util import list_connections
 from ..manifest import CalibrationPluginManifest
 from .settings import MicrophoneCalibrationSettings
 from .view import MicrophoneView
@@ -12,5 +13,5 @@ enamldef MeasurementMicrophoneManifest(CalibrationPluginManifest): manifest:
     view_class = MicrophoneView
     settings_class = MicrophoneCalibrationSettings
     settings_config = {
-        'inputs': list_measurement_microphone_connections,
+        'inputs': partial(list_connections, 'hw_ai', 'measurement_microphone'),
     }

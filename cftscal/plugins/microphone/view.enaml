@@ -24,9 +24,9 @@ class MicrophonePlotManager(SinglePlotManager):
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
         if remove:
-            self.remove_plots(plot_id, self.vb)
+            self.remove_plots(plot_id)
             return None
-        color, plots = self.get_plots(plot_id, self.vb)
+        color, plots = self.get_plots(plot_id)
 
         fh = calibration.load_recording()
         psd = fh.get_psd(average_seconds=1).iloc[1:]

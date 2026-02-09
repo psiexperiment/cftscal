@@ -15,9 +15,9 @@ from ..settings import (
 
 class SpeakerCalibrationSettings(CalibrationSettings):
 
-    available_outputs = List(Typed(OutputSettings, ()))
-    available_inputs = List(Typed(InputSettings, ()))
-    selected_input = Typed(InputSettings, ())
+    available_outputs = List(Typed(OutputSettings, ())).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    selected_input = Typed(InputSettings, ()).tag(persist=True)
     settings_filename = set_default('speaker.json')
 
     def __init__(self, outputs, inputs):

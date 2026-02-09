@@ -33,7 +33,6 @@ from cftscal.objects import (
     CFTSInEarCalibration,
     CFTSInputAmplifierCalibration,
     CFTSInputRecording,
-    CFTSGenericMicrophoneCalibration,
     CFTSStarshipCalibration,
     CFTSSpeakerCalibration,
 )
@@ -204,6 +203,16 @@ class SinglePlotManager(BasePlotManager):
 
     def _plot(self, item, plot):
         raise NotImplementedError
+
+    def remove_plots(self, plot, vb=None):
+        if vb is None:
+            vb = self.vb
+        return super().remove_plots(plot, vb)
+
+    def get_plots(self, plot, vb=None):
+        if vb is None:
+            vb = self.vb
+        return super().get_plots(plot, vb)
 
 
 class TimePSDPlotManager(BasePlotManager):
@@ -503,11 +512,6 @@ class ObjectCollection(Atom):
                 node.color = result['color']
 
 
-template CalibratedObjectTemplate(item, MemberType: CFTSGenericMicrophoneCalibration):
-    TreeViewColumn:
-        text << item.measurement_microphone
-
-
 template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):
     TreeViewColumn:
         text << item.ear
@@ -600,13 +604,17 @@ enamldef SensorView(HGroup):
     attr sensor
     attr mode = 'static'
     attr label = 'Sensor'
+    attr show_label = True
     share_layout = True
     align_widths = False
     padding = 0
     spacing = 5
 
-    Label:
-        text = label
+    Conditional:
+        condition << show_label
+
+        Label:
+            text = label
 
     ObjectCombo: select:
         items := sensor.available_sensors
@@ -635,13 +643,17 @@ enamldef GeneratorView(HGroup):
     attr generator
     attr mode = 'static'
     attr label = 'Generator'
+    attr show_label = True
     share_layout = True
     align_widths = False
     padding = 0
     spacing = 5
 
-    Label:
-        text = label
+    Conditional:
+        condition << show_label
+
+        Label:
+            text = label
 
     ObjectCombo: select:
         items := generator.available_generators

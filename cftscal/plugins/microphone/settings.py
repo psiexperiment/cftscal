@@ -10,8 +10,8 @@ from ..settings import (
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ()))
-    pistonphone = Typed(PistonphoneSettings, ())
+    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    pistonphone = Typed(PistonphoneSettings, ()).tag(persist=True)
     settings_filename = set_default('microphone-measurement.json')
 
     def __init__(self, inputs):
@@ -25,15 +25,6 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             settings.append(setting)
         self.available_inputs = settings
         self.load_config()
-
-    def get_config(self):
-        config = super().get_config()
-        config['pistonphone'] = self.pistonphone.get_persistence()
-        return config
-
-    def set_config(self, config):
-        super().set_config(config)
-        self.pistonphone.set_persistence(config.get('pistonphone', {}))
 
     def run_calibration(self, ai):
         filename = f'{{date_time}}_{ai.sensor.name}_{self.pistonphone.name}'

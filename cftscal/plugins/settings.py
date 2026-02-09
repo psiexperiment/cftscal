@@ -64,39 +64,36 @@ class CalibrationSettings(Atom):
 
     def get_config(self):
         config = {}
-        if hasattr(self, 'available_inputs'):
-            config['available_inputs'] = {i.input_name: i.get_persistence() for i in self.available_inputs}
-        if hasattr(self, 'selected_input'):
-            config['selected_input'] = self.selected_input.input_name
-        if hasattr(self, 'available_outputs'):
-            config['available_outputs'] = {o.output_name: o.get_persistence() for o in self.available_outputs}
-        if hasattr(self, 'selected_output'):
-            config['selected_output'] = self.selected_output.output_name
+        for k, v in get_tagged_values(self, 'persist').items():
+            if isinstance(v, list):
+                if len(v) == 0:
+                    config[k] = []
+                elif isinstance(v[0], (InputSettings, OutputSettings)):
+                    config[k] = {o.name: o.get_persistence() for o in v}
+                else:
+                    raise ValueError('Unknown type')
+            elif isinstance(v, (InputSettings, OutputSettings)):
+                config[k] = v.name
+            else:
+                config[k] = v.get_persistence()
         return config
 
     def set_config(self, config):
-        if hasattr(self, 'available_inputs'):
-            for name, settings in config.get('available_inputs', {}).items():
-                for i in self.available_inputs:
-                    if i.input_name == name:
-                        i.set_persistence(settings)
-                        break
-        if hasattr(self, 'available_input'):
-            selected_name = config['selected_input']
-            for i in self.available_inputs:
-                if i.input_name == selected_name:
-                    self.selected_input = i
-        if hasattr(self, 'available_outputs'):
-            for name, settings in config.get('available_outputs', {}).items():
-                for o in self.available_outputs:
-                    if o.output_name == name:
-                        o.set_persistence(settings)
-                        break
-        if hasattr(self, 'available_output'):
-            selected_name = config['selected_output']
-            for i in self.available_outputs:
-                if i.output_name == selected_name:
-                    self.selected_output = i
+        for name, value in get_tagged_values(self, 'persist').items():
+            if name not in config:
+                continue
+            if isinstance(value, list):
+                if len(value) == 0:
+                    continue
+                elif isinstance(value[0], (InputSettings, OutputSettings)):
+                    for obj in value:
+                        obj.set_persistence(config[name][obj.name])
+            elif isinstance(value, (InputSettings, OutputSettings)):
+                for obj in getattr(self, f'{name}s'):
+                    if obj.name == config[name]:
+                        setattr(self, name, obj)
+            else:
+                getattr(self, name).set_persistence(config[name])
 
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
@@ -196,6 +193,11 @@ class GenericMicrophoneSettings(SensorSettings):
 
 class InputSettings(PersistentSettings):
 
+    name = Property()
+
+    def _get_name(self):
+        return self.input_name
+
     #: Name of input channel as defined in IO manifest. This is not supposed to
     #: be settable.
     input_name = Str().tag(persist=True)
@@ -219,6 +221,11 @@ class InputSettings(PersistentSettings):
 
 
 class OutputSettings(PersistentSettings):
+
+    name = Property()
+
+    def _get_name(self):
+        return self.output_name
 
     #: Name of output as defined in IO manifest
     output_name = Str()

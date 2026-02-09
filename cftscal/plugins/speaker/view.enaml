@@ -22,9 +22,9 @@ class SpeakerPlotManager(SinglePlotManager):
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
         if remove:
-            self.remove_plots(plot_id, self.vb)
+            self.remove_plots(plot_id)
             return None
-        color, plots = self.get_plots(plot_id, self.vb)
+        color, plots = self.get_plots(plot_id)
 
         cal = calibration.load()
         x = cal.frequency[1:]
