@@ -82,7 +82,7 @@ enamldef IRSensorView(Container):
                         # (label) does not produce nicely-aligned widgets, so we
                         # align the left edge of second widget.
                         widgets = self.visible_widgets()
-                        second = [w.children[1] for w in widgets if isinstance(w, HGroup)]
+                        second = [w.visible_widgets()[1] for w in widgets if isinstance(w, HGroup)]
                         constraints = [
                             vbox(
                                 *widgets[:-1],
