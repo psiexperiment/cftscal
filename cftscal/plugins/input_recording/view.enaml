@@ -3,7 +3,9 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 import pyqtgraph as pg
+from scipy import signal
 
+from atom.api import Dict, Float
 from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
@@ -22,31 +24,53 @@ from cftscal.plugins.widgets import (
 )
 
 
-from atom.api import Bool, Value
-
-
 class InputRecordingPlotManager(TimePSDPlotManager):
+
+    filt_lb = Float(20)
+    filt_ub = Float(20000)
+
+    def _observe_filt_lb(self, event):
+        self._update_all()
+
+    def _observe_filt_ub(self, event):
+        self._update_all()
+
+    def _update_all(self):
+        if self.data is None:
+            return
+        for item_data in self.data.values():
+            self._update_plot(**item_data)
+
+    def _update_plot(self, x, y, fs, calibration, time_plot, psd_plot,
+                     **kwargs):
+        y = self._y_transform(y, fs)
+        y = calibration.get_level(y)
+        time_plot[0].setData(x, y)
+
+    def _y_transform(self, y, fs):
+        b, a = signal.iirfilter(1, (self.filt_lb, self.filt_ub), fs=fs)
+        return signal.filtfilt(b, a, y)
 
     def _plot(self, item, time_plot, psd_plot):
         fh = item.load()
         y = fh.selected_input[0]
-
-        if self.apply_calibration:
-            cal = fh.selected_input.get_calibration()
-        else:
+        fs = fh.selected_input.fs
+        x = np.arange(len(y)) / fs
+        if not self.apply_calibration:
             cal = FlatCalibration.unity()
+        else:
+            cal = fh.selected_input.get_calibration()
 
-        x = np.arange(len(y)) / fh.selected_input.fs
-        time_plot[0].setData(x, cal.get_level(y))
-
-        return {
+        data = {
             'time_plot': time_plot,
             'psd_plot': psd_plot,
             'x': x,
             'y': y,
-            'fs': fh.selected_input.fs,
+            'fs': fs,
             'calibration': cal,
         }
+        self._update_plot(**data)
+        return data
 
 
 enamldef InputRecordingView(Container):
@@ -88,7 +112,7 @@ enamldef InputRecordingView(Container):
                         # (label) does not produce nicely-aligned widgets, so we
                         # align the left edge of second widget.
                         widgets = self.visible_widgets()
-                        second = [w.children[1] for w in widgets if isinstance(w, HGroup)]
+                        second = [w.visible_widgets()[1] for w in widgets if isinstance(w, HGroup)]
                         constraints = [
                             vbox(
                                 *widgets[:-1],
@@ -134,6 +158,20 @@ enamldef InputRecordingView(Container):
             stretch = 10
 
             Container:
+                HGroup:
+                    align_widths = False
+                    trailing_spacer = spacer(0)
+                    Label:
+                        text = 'Filter from'
+                    FloatField:
+                        value := input_recording_plot.manager.filt_lb
+                    Label:
+                        text = 'to'
+                    FloatField:
+                        value := input_recording_plot.manager.filt_ub
+                    Label:
+                        text = 'Hz'
+
                 PGCanvas: input_recording_plot:
                     attr manager = InputRecordingPlotManager(apply_calibration=True)
                     component << manager.component
@@ -145,7 +183,25 @@ enamldef InputRecordingView(Container):
             stretch = 0
 
             CalibratedObjects: input_tree:
-                headers = ['Generator', 'Sensor']
+                mapping = {
+                    'Name': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Generator': {
+                        'to_str': lambda x: x.generator,
+                    },
+                    'Sensor': {
+                        'to_str': lambda x: x.sensor,
+                    },
+                }
+
                 collection = ObjectCollection(
                     input_recording_manager,
                     [input_recording_plot.manager],

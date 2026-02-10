@@ -602,7 +602,8 @@ class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
             'n_bits': self.n_bits,
             'output_gain': self.output_gain,
         }
-        return InterpCalibration(s.index.values, s['sens'].values, attrs=attrs)
+        return InterpCalibration(s.index.values, s['sens'].values,
+                                 reference='SPL', attrs=attrs)
 
 
 class CFTSMeasurementMicrophoneLoader(CFTSBaseLoader):

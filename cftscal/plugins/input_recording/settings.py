@@ -5,10 +5,10 @@ from ..settings import CalibrationSettings, GeneratorSettings, InputSettings
 
 class InputRecordingSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ()))
-    selected_input = Typed(InputSettings, ())
+    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    selected_input = Typed(InputSettings, ()).tag(persist=True)
+    generator = Typed(GeneratorSettings, ()).tag(persist=True)
     settings_filename = set_default('input-recording.json')
-    generator = Typed(GeneratorSettings, ())
 
     def __init__(self, inputs):
         settings = []
@@ -21,16 +21,6 @@ class InputRecordingSettings(CalibrationSettings):
         self.available_inputs = settings
         self.selected_input = settings[0]
         self.generator = GeneratorSettings()
-        self.load_config()
-
-    def get_config(self):
-        config = super().get_config()
-        config['generator'] = self.generator.get_persistence()
-        return config
-
-    def set_config(self, config):
-        super().set_config(config)
-        self.generator.set_persistence(config.get('generator', {}))
 
     def run_input_recording(self, ai):
         filename = f'{{date_time}}_{self.generator.name}_{ai.sensor.name}'

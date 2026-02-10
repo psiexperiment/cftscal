@@ -59,9 +59,9 @@ def main():
         ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
         ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
+        ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         ('cftscal.plugins.ir_sensor.manifest', 'IRSensorManifest'),
         #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
-        #('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
         #('cftscal.plugins.inear.manifest', 'InEarManifest'),
     ]

@@ -83,6 +83,7 @@ class BasePlotManager(Atom):
     component = Typed(pg.GraphicsLayout)
     color_cycle = Value()
     plots = Dict()
+    items = List()
 
     def _default_color_cycle(self):
         return iter(Tableau_20.colors)
@@ -306,6 +307,9 @@ class TimePSDPlotManager(BasePlotManager):
             return
         self._update_analysis()
 
+    def _y_transform(self, y, fs):
+        return y
+
     def _update_analysis(self):
         if self.region_select is None:
             return
@@ -318,10 +322,11 @@ class TimePSDPlotManager(BasePlotManager):
             if m.any():
                 # Drop the DC component since this cannot be shown on log
                 # scales and affects the autorange.
-                pa = cal.get_level(util.psd_df(y[m], fs=fs)).iloc[1:]
+                y = self._y_transform(y[m], fs)
+                pa = cal.get_level(util.psd_df(y, fs=fs)).iloc[1:]
                 db = util.patodb(pa)
                 d['psd_plot'][0].setData(np.log10(db.index.values), db.values)
-                y_cal = cal.get_level(y[m])
+                y_cal = cal.get_level(y)
                 info.append({
                     'color': d['color'],
                     'run': str(item),
@@ -529,24 +534,6 @@ template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):
 template CalibratedObjectTemplate(item, MemberType: CFTSInputAmplifierCalibration):
     TreeViewColumn:
         text << f'{item.measured_gain:.0f}'
-
-
-template CalibratedObjectTemplate(item, MemberType: CFTSInputRecording):
-    TreeViewColumn:
-        text << item.sensor
-
-
-from .ir_sensor.objects import CFTSIRSensorRecording
-
-template CalibratedObjectTemplate(item, MemberType: CFTSIRSensorRecording):
-    TreeViewColumn:
-        text << item.input_channel
-    TreeViewColumn:
-        text << f'{item.v_min:.3f} to {item.v_max:.3f}'
-
-
-#template CalibratedObjectTemplate(item, MemberType):
-#    pass
 
 
 enamldef CalibratedObjects(Container): container:
