@@ -131,6 +131,7 @@ enamldef StrobedIR(ExperimentManifest): manifest:
                     frequency = manifest.frequency
                     name = f'{sanitize(loop_item)}_raw'
                     AutoScale:
+                        baseline = -1
                         name = f'{sanitize(loop_item)}_analog'
                         Threshold:
                             threshold = 0.5
