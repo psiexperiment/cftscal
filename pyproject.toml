@@ -13,7 +13,7 @@ maintainers = [
 dependencies = [
     "cftsdata",
     "psiexperiment",
-    "enaml[qt5-pyqt] >=0.13.0",
+    "enaml >=0.13.0",
     "enamlx >=0.6.2",
     "tqdm",
 ]
