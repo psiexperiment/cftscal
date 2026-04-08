@@ -165,7 +165,7 @@ class BasePlotManager(Atom):
     def create_plot(self, color=None, width=2, line='solid'):
         if color is None:
             try:
-                color = make_color(next(self.color_cycle))
+                color = make_color(tuple(next(self.color_cycle)))
             except StopIteration:
                 # We have exhausted the color cycle. Just start over again at
                 # the beginning.

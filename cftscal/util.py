@@ -4,6 +4,9 @@ from psi.application import get_default_io, load_io_manifest
 from psi.controller.api import Channel
 
 
+MANIFEST = load_io_manifest()()
+
+
 NO_INPUT_ERROR = '''
 No input channels could be found in the IO manifest. To use this plugin, you must
 have at least one analog input channel.
@@ -12,8 +15,7 @@ have at least one analog input channel.
 
 def list_inputs():
     inputs = {}
-    manifest = load_io_manifest()()
-    for obj in manifest.traverse():
+    for obj in MANIFEST.traverse():
         if isinstance(obj, HardwareAIChannel):
             inputs[obj.label] = obj.name
 
@@ -37,10 +39,12 @@ def list_starship_connections():
     List all starships found in the IO Manifest
     '''
     starships = {}
-    manifest = load_io_manifest()()
-    for channel in manifest.find_all('^starship_', regex=True):
-        # Strip quotation marks off
-        _, starship_id, starship_output = channel.name.split('_')
+    for name in list_connections('hw_ai', 'starship').values():
+        _, starship_id, starship_input = name.split('_')
+        starships.setdefault(starship_id, []).append(starship_input)
+
+    for name in list_connections('hw_ao', 'starship').values():
+        _, starship_id, starship_output = name.split('_')
         starships.setdefault(starship_id, []).append(starship_output)
 
     choices = {}
@@ -70,8 +74,7 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
     if label_fmt is None:
         label_fmt = lambda x: x
     choices = {}
-    manifest = load_io_manifest()()
-    for obj in manifest.traverse():
+    for obj in MANIFEST.traverse():
         if isinstance(obj, Channel):
             if channel_type_code == obj.type_code:
                 for device_type in device_types:
@@ -92,37 +95,14 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
     return choices
 
 
-list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
-list_measurement_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
-list_generic_microphone_connections = partial(list_connections, 'hw_ai',
-                                              ['generic_microphone', 'measurement_microphone'])
-# Set this up as an alias since some third-party libraries are expecting this
-# function and it was renamed once we added support for generic microphones.
-list_microphone_connections = list_measurement_microphone_connections
-
-
-NO_INPUT_AMPLIFIER_ERROR = '''
-No input amplifier could be found in the IO manifest. To use this plugin, you
-must have an analog input channel named amplifier_ID. ID is the name of the
-amplifier that will appear in any drop-down selectors where you can select
-which amplifier to use (assuming your system is configured for more than one
-amplifier).
-'''
-
-
-def list_input_amplifier_connections():
-    '''
-    List all input amplifiers found in the IO Manifest
-    '''
-    choices = {}
-    manifest = load_io_manifest()()
-    for channel in manifest.find_all('^amplifier_', regex=True):
-        choices[channel.label] = channel.name.split('_', 1)[1]
-
-    if len(choices) == 0:
-        raise ValueError(NO_INPUT_AMPLIFIER_ERROR)
-
-    return choices
+list_speaker_connections = \
+    partial(list_connections, 'hw_ao', 'speaker')
+list_measurement_microphone_connections = \
+    partial(list_connections, 'hw_ai', 'measurement_microphone')
+list_generic_microphone_connections = \
+    partial(list_connections, 'hw_ai', ['generic_microphone', 'measurement_microphone'])
+list_input_amplifier_connections = \
+    partial(list_connections, 'hw_ai', 'input_amplifier')
 
 
 def show_connections():
