@@ -14,10 +14,7 @@ from psiaudio import util
 from psiaudio.calibration import FlatCalibration
 
 from psi.context.api import ContextGroup, ContextRow, EnumParameter, Parameter, Result
-from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
-                                get_hw_ai_choices)
-from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
-                            FFTChannelPlot)
+from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction)
 
 from psi.data.sinks.api import BinaryStore, TextStore
 

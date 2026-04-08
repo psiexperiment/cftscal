@@ -84,8 +84,8 @@ def list_starship_connections():
 
 NO_DEVICE_ERROR = '''
 No channel supporting {} could be found in the IO manifest. To use this plugin,
-you must mark at least one analog channel as supporting one of these types via
-the supported_devices list attribute on that channel.
+you must add {} as a supported device to at least one analog channel via the
+supported_devices list attribute on that channel.
 '''
 
 
@@ -129,40 +129,18 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
 
     if len(choices) == 0:
         info = ', '.join(device_types)
-        raise ValueError(NO_DEVICE_ERROR.format(info))
+        raise ValueError(NO_DEVICE_ERROR.format(info, info))
     return choices
 
 
-list_speaker_connections = partial(list_connections, 'hw_ao', 'speaker')
-list_measurement_microphone_connections = partial(list_connections, 'hw_ai', 'measurement_microphone')
-list_generic_microphone_connections = partial(list_connections, 'hw_ai', ['generic_microphone', 'measurement_microphone'])
-# Set this up as an alias since some third-party libraries are expecting this
-# function and it was renamed once we added support for generic microphones.
-list_microphone_connections = list_measurement_microphone_connections
-
-
-NO_INPUT_AMPLIFIER_ERROR = '''
-No input amplifier could be found in the IO manifest. To use this plugin, you
-must have an analog input channel named amplifier_ID. ID is the name of the
-amplifier that will appear in any drop-down selectors where you can select
-which amplifier to use (assuming your system is configured for more than one
-amplifier).
-'''
-
-
-def list_input_amplifier_connections():
-    '''
-    List all input amplifiers found in the IO Manifest
-    '''
-    choices = {}
-    manifest = IO_MANIFEST
-    for channel in manifest.find_all('^amplifier_', regex=True):
-        choices[channel.label] = channel.name.split('_', 1)[1]
-
-    if len(choices) == 0:
-        raise ValueError(NO_INPUT_AMPLIFIER_ERROR)
-
-    return choices
+list_speaker_connections = \
+    partial(list_connections, 'hw_ao', 'speaker')
+list_measurement_microphone_connections = \
+    partial(list_connections, 'hw_ai', 'measurement_microphone')
+list_generic_microphone_connections = \
+    partial(list_connections, 'hw_ai', ['generic_microphone', 'measurement_microphone'])
+list_input_amplifier_connections = \
+    partial(list_connections, 'hw_ai', 'input_amplifier')
 
 
 def show_connections():

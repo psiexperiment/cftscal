@@ -166,7 +166,7 @@ ParadigmDescription(
          },
         {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
          'required': True,
-         'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)'}
+         'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)', 'axis_scale': 'octave'}
          },
         selectable_microphone_mixin,
     ]
@@ -177,7 +177,8 @@ ParadigmDescription(
     'amplifier_calibration', 'Amplifier calibration', 'calibration', [
         {'manifest': PATH + 'amplifier_calibration.AmplifierCalibrationManifest'},
         {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
-         'required': True
+         'required': True,
+         'attrs': {'axis_scale': 'octave'},
          },
         {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
          'required': True
@@ -245,6 +246,7 @@ ParadigmDescription(
                 'fft_time_span': 0.25,
                 'fft_freq_lb': 500,
                 'fft_freq_ub': 50000,
+                'axis_scale': 'octave',
                 'source_name': 'selected_input',
                 'y_label': 'Level (dB)',
                 'apply_calibration': True,

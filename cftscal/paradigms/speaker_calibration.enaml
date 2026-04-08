@@ -28,6 +28,7 @@ EXPERIMENT = 'base_speaker_calibration'
 enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
     attr mic_source_name = 'cal_microphone'
+    attr speaker_target_name = 'cal_microphone'
 
     Extension:
         id = EXPERIMENT + '.data'
@@ -125,6 +126,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'Speaker calibration'
             freq_lb = 50.0
             freq_ub = 50000
+            axis_scale = 'octave'
 
             ViewBox:
                 name = 'spl_result'
@@ -141,6 +143,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'PSD'
             freq_lb = 50.0
             freq_ub = 50000
+            axis_scale = 'octave'
 
             ViewBox:
                 name = 'epoch_psd_viewbox'
@@ -159,6 +162,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'Phase'
             freq_lb = 50.0
             freq_ub = 50000
+            axis_scale = 'octave'
 
             ViewBox:
                 name = 'epoch_phase_viewbox'

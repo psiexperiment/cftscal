@@ -32,7 +32,6 @@ from . import settings
 from cftscal.objects import (
     CFTSInEarCalibration,
     CFTSInputAmplifierCalibration,
-    CFTSInputRecording,
     CFTSStarshipCalibration,
     CFTSSpeakerCalibration,
 )
