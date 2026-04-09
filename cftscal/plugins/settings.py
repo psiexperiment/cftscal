@@ -170,7 +170,7 @@ class SensorSettings(PersistentSettings):
     available_sensors = List()
 
     def __init__(self, *args, **kwargs):
-        self.available_sensors = sorted(input_manager.list_names())
+        self.available_sensors = self.get_available_sensors()
 
     def _sensor_name(self):
         try:
@@ -292,23 +292,19 @@ class InEarSettings(StarshipSettings):
         return sorted(inear_manager.get_property('ear'))
 
 
-class InputAmplifierSettings(PersistentSettings):
+class InputAmplifierSettings(SensorSettings):
 
-    input_name = Str()
-    name = Str().tag(persist=True)
-    gain = Float(50).tag(persist=True)
     gain_mult = Enum(10, 1000).tag(persist=True)
     freq_lb = Float(10).tag(persist=True)
     freq_ub = Float(10000).tag(persist=True)
     filt_60Hz = Enum('input', 'output').tag(persist=True)
     total_gain = Property()
 
-    available_input_amplifiers = Property()
-
     def _get_total_gain(self):
         return self.gain * self.gain_mult
 
-    def _get_available_input_amplifiers(self):
+    def get_available_sensors(self):
+        print('getting sensors')
         return sorted(input_amplifier_manager.list_names())
 
     def get_env_vars(self, include_cal=True):
@@ -319,14 +315,3 @@ class InputAmplifierSettings(PersistentSettings):
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_UB': str(self.freq_ub),
             f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FILT_60Hz': self.filt_60Hz,
         }
-
-    def _get_calibration_filename(self):
-        return f'{{date_time}}_{self.name}' \
-            f'_{self.total_gain}x_{self.freq_lb}-{self.freq_ub}Hz' \
-            f'-filt-60Hz-{self.filt_60Hz}'
-
-    def _default_name(self):
-        try:
-            return self.available_input_amplifiers[0]
-        except IndexError:
-            return ''

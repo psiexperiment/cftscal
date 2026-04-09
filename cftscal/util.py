@@ -17,14 +17,14 @@ must have at least one analog output channel.
 IO_MANIFEST = load_io_manifest()()
 
 
-def list_outputs():
+def list_outputs(raise_error=True):
     outputs = {}
     manifest = IO_MANIFEST
     for obj in manifest.traverse():
         if isinstance(obj, HardwareAOChannel):
             outputs[obj.label] = obj.name
 
-    if len(outputs) == 0:
+    if len(outputs) == 0 and raise_error:
         raise ValueError(NO_OUTPUT_ERROR)
 
     return outputs
@@ -36,14 +36,14 @@ have at least one analog input channel.
 '''
 
 
-def list_inputs():
+def list_inputs(raise_error=True):
     inputs = {}
     manifest = IO_MANIFEST
     for obj in manifest.traverse():
         if isinstance(obj, HardwareAIChannel):
             inputs[obj.label] = obj.name
 
-    if len(inputs) == 0:
+    if len(inputs) == 0 and raise_error:
         raise ValueError(NO_INPUT_ERROR)
 
     return inputs
@@ -63,10 +63,12 @@ def list_starship_connections():
     List all starships found in the IO Manifest
     '''
     starships = {}
-    manifest = IO_MANIFEST
-    for channel in manifest.find_all('^starship_', regex=True):
-        # Strip quotation marks off
-        _, starship_id, starship_output = channel.name.split('_')
+    for name in list_connections('hw_ai', 'starship').values():
+        _, starship_id, starship_input = name.split('_')
+        starships.setdefault(starship_id, []).append(starship_input)
+
+    for name in list_connections('hw_ao', 'starship').values():
+        _, starship_id, starship_output = name.split('_')
         starships.setdefault(starship_id, []).append(starship_output)
 
     choices = {}
@@ -80,6 +82,7 @@ def list_starship_connections():
         raise ValueError(NO_STARSHIP_ERROR)
 
     return choices
+
 
 
 NO_DEVICE_ERROR = '''
@@ -102,7 +105,7 @@ valid_type_codes = [
 
 
 def list_connections(channel_type_code, device_types, label_fmt=None,
-                     as_expression=False):
+                     as_expression=False, raise_error=True):
     if channel_type_code not in valid_type_codes:
         raise ValueError(f'Invalid channel type code: {channel_type_code}')
     if isinstance(device_types, str):
@@ -127,7 +130,7 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
                         choices[label] = name
                         break
 
-    if len(choices) == 0:
+    if len(choices) == 0 and raise_error:
         info = ', '.join(device_types)
         raise ValueError(NO_DEVICE_ERROR.format(info, info))
     return choices

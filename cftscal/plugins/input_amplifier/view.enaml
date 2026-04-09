@@ -2,28 +2,29 @@ import numpy as np
 
 import pyqtgraph as pg
 
-from enaml.core.api import Looper
+from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton, HGroup
 )
 
 from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import input_amplifier_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, BasePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
+    InputAmplifierView
 )
 
 
-class InputAmplifierPlotManager(BasePlotManager):
+class InputAmplifierPlotManager(SinglePlotManager):
 
-    def make_x_axis(self):
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(0.1)
-        x_axis.setLabel('Time', units='sec')
-        return x_axis
+    y_label = 'Measured Voltage'
+    x_label = 'Time'
+    x_units = 'sec'
+    x_log_mode = False
+    y_units = 'V'
 
     def _update(self, calibration, remove=False):
         plot_id = self.get_plot_id(calibration)
@@ -35,10 +36,10 @@ class InputAmplifierPlotManager(BasePlotManager):
         fh = calibration.load_recording()
         waveform = fh.cal_signal
         plots[0].setData(waveform.index.values, waveform['amplitude'].values)
-        return color
+        return {'color': color}
 
 
-enamldef InputAmplifierView(Container):
+enamldef InputAmplifierView(Container): container:
 
     attr settings
 
@@ -60,106 +61,47 @@ enamldef InputAmplifierView(Container):
             closable = False
             stretch = 0
 
-            Container:
-                layout_constraints => ():
-                    widgets = self.visible_widgets()
-                    first = []
-                    for w in widgets:
-                        first.append(w.children[0])
+            Conditional:
+                condition << settings is None
 
-                    constraints = [
-                        vbox(*widgets),
-                        align('right', *first),
-                    ]
-                    return constraints
+                Container:
+                    Label:
+                        text = 'No input amplifiers found on system. View mode only.'
 
-                Looper:
-                    iterable << settings.input_amplifiers
+            Conditional:
+                condition << settings is not None
 
-                    Container:
-                        share_layout = True
-                        padding = 0
+                Container:
+                    layout_constraints => ():
+                        widgets = self.visible_widgets()
+                        first = []
+                        for w in widgets:
+                            first.append(w.visible_widgets()[0])
                         constraints = [
-                            vbox(
-                                hbox(
-                                    amp_label,
-                                    hbox(amp_select, amp_add, amp_gain, spacing=0),
-                                    amp_gain_x_label,
-                                    amp_gain_mult,
-                                    amp_gain_label,
-                                    spacer(0),
-                                    amp_cal_start,
-                                    spacing=5,
-                                ),
-                                hbox(amp_freq_lb, amp_freq_lb_label,
-                                     amp_freq_ub, amp_freq_ub_label,
-                                     amp_filt_60Hz,
-                                     spacer(0)),
-                            ),
-                            align('v_center', amp_label, amp_select, amp_add,
-                                  amp_gain, amp_gain_x_label, amp_gain_mult,
-                                  amp_gain_label, amp_cal_start),
-                            align('v_center', amp_freq_lb, amp_freq_lb_label,
-                                  amp_freq_ub, amp_freq_ub_label, amp_filt_60Hz),
-                            align('left', amp_select, amp_freq_lb),
-                            amp_add.width == 25,
+                            vbox(*widgets),
+                            align('right', *first),
                         ]
+                        return constraints
 
-                        attr amplifier = loop_item
+                    Looper:
+                        iterable << container.settings.available_inputs
 
-                        Label: amp_label:
-                            text = 'Input Amplifier'
+                        HGroup:
+                            padding = 0
+                            spacing = 5
+                            align_widths = False
 
-                        ObjectCombo: amp_select:
-                            items = sorted(amplifier.available_input_amplifiers)
-                            selected := amplifier.name
+                            InputAmplifierView:
+                                sensor << loop_item.sensor
+                                label = 'Amplifier'
+                                mode = 'add'
 
-                        PushButton: amp_add:
-                            text = '+'
-                            clicked ::
-                                popup = AddItem(self, combo=amp_select, label='Input Amplifier')
-                                popup.show()
-
-                        Label: amp_gain_x_label:
-                            text = 'x'
-
-                        Label: amp_gain_label:
-                            text = 'gain'
-
-                        ObjectCombo: amp_gain:
-                            items = [5, 10, 20, 50, 100, 200]
-                            selected := amplifier.gain
-
-                        ObjectCombo: amp_gain_mult:
-                            items = [10, 1000]
-                            selected := amplifier.gain_mult
-
-                        Label: amp_freq_lb_label:
-                            text = 'Hz to'
-
-                        ObjectCombo: amp_freq_lb:
-                            items = [0, 0.1, 0.3, 1, 3, 10, 30, 100, 300]
-                            selected := amplifier.freq_lb
-
-                        Label: amp_freq_ub_label:
-                            text = 'kHz with 60 Hz filter on'
-
-                        ObjectCombo: amp_freq_ub:
-                            items = [0.03, 0.1, 0.3, 1, 3, 10]
-                            selected ::
-                                amplifier.freq_ub = selected * 1e3
-                            selected << amplifier.freq_ub * 1e-3
-
-                        ObjectCombo: amp_filt_60Hz:
-                            items = ['input', 'output']
-                            selected := amplifier.filt_60Hz
-
-                        PushButton: amp_cal_start:
-                            text = 'Calibrate'
-                            enabled << bool(amplifier.name)
-                            clicked ::
-                                settings.run_amp_cal(amplifier)
-                                amp_tree.collection.update_groups()
+                            PushButton: amp_cal_start:
+                                text = 'Calibrate'
+                                enabled << bool(loop_item.sensor.name)
+                                clicked ::
+                                    settings.run_amp_cal(loop_item)
+                                    amp_tree.collection.update_groups()
 
         DockItem:
             name = 'amp_gain_plot'
@@ -179,7 +121,21 @@ enamldef InputAmplifierView(Container):
             stretch = 0
 
             CalibratedObjects: amp_tree:
-                headers = ['Name', 'Meas. Gain']
+                mapping = {
+                    'Name': {
+                        'groupby': True,
+                        'id': True,
+                        'to_str': lambda x: x.name,
+                    },
+                    'Date': {
+                        'groupby': False,
+                        'id': True,
+                        'to_str': lambda x: str(x.datetime),
+                    },
+                    'Meas. Gain': {
+                        'to_str': lambda x: f'{x.measured_gain:.2f} x',
+                    }
+                }
                 collection = ObjectCollection(
-                    input_amplifier_manager, input_amplifier_plot.manager
+                    input_amplifier_manager, [input_amplifier_plot.manager],
                 )

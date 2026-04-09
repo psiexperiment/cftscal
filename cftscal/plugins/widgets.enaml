@@ -20,7 +20,7 @@ from enaml.stdlib.message_box import question
 from enaml.qt import QtCore
 from enaml.widgets.api import (
     Action, ActionGroup, Container, Label, Field, Form, HGroup, MainWindow, Menu, MenuBar,
-    ObjectCombo, PopupView, PushButton, DockArea, DockItem,
+    ObjectCombo, PopupView, PushButton, DockArea, DockItem, VGroup
 )
 from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
@@ -96,7 +96,7 @@ class BasePlotManager(Atom):
     def create_plot(self, color=None, width=2, line='solid'):
         if color is None:
             try:
-                color = make_color(next(self.color_cycle))
+                color = make_color(tuple(next(self.color_cycle)))
             except StopIteration:
                 # We have exhausted the color cycle. Just start over again at
                 # the beginning.
@@ -591,6 +591,8 @@ enamldef SensorView(HGroup):
     attr mode = 'static'
     attr label = 'Sensor'
     attr show_label = True
+    attr gains = [-20, -10, 0, 10, 20, 30, 40, 50]
+    attr gain_unit = 'db gain'
     share_layout = True
     align_widths = False
     padding = 0
@@ -617,11 +619,61 @@ enamldef SensorView(HGroup):
                 popup.show()
 
     ObjectCombo:
-        items = [-20, -10, 0, 10, 20, 30, 40, 50]
+        items = gains
         selected := sensor.gain
 
     Label:
-        text = 'dB gain'
+        text = gain_unit
+
+
+enamldef InputAmplifierView(VGroup):
+
+    alias sensor: sensor_view.sensor
+    alias mode: sensor_view.mode
+    alias label: sensor_view.label
+    share_layout = True
+    padding = 0
+    spacing = 5
+
+    HGroup:
+        share_layout = True
+        align_widths = False
+        padding = 0
+        spacing = 5
+
+        SensorView: sensor_view:
+            gains = [5, 10, 20, 50, 100, 200]
+            gain_unit = 'x'
+
+        ObjectCombo: amp_gain_mult:
+            items = [10, 1000]
+            selected := sensor.gain_mult
+
+    HGroup:
+        share_layout = True
+        align_widths = False
+        padding = 0
+        spacing = 5
+
+        ObjectCombo: amp_freq_lb:
+            items = [0, 0.1, 0.3, 1, 3, 10, 30, 100, 300]
+            selected := sensor.freq_lb
+
+        Label: amp_freq_lb_label:
+            text = 'Hz to'
+
+        ObjectCombo: amp_freq_ub:
+            items = [0.03, 0.1, 0.3, 1, 3, 10]
+            selected ::
+                sensor.freq_ub = selected * 1e3
+            selected << sensor.freq_ub * 1e-3
+
+        Label: amp_freq_ub_label:
+            text = 'kHz, 60 Hz'
+
+        ObjectCombo: amp_filt_60Hz:
+            items = ['input', 'output']
+            selected := sensor.filt_60Hz
 
 
 enamldef GeneratorView(HGroup):

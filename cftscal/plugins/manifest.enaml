@@ -75,13 +75,10 @@ class _CalibrationPluginManifest(PluginManifest):
     available = Property()
 
     def _get_available(self):
-        try:
-            for cb in self.settings_config.values():
-                cb()
-            return True
-        except:
-            raise
-            return False
+        for cb in self.settings_config.values():
+            if not bool(cb(raise_error=False)):
+                return False
+        return True
 
 
 enamldef CalibrationPluginManifest(_CalibrationPluginManifest): manifest:
