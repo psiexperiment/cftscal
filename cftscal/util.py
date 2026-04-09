@@ -58,7 +58,7 @@ which starship to use (assuming your system is configured for more than one
 starship).
 '''
 
-def list_starship_connections():
+def list_starship_connections(raise_error=True):
     '''
     List all starships found in the IO Manifest
     '''
@@ -78,7 +78,7 @@ def list_starship_connections():
                 raise ValueError(f'Must define starship_{name}_{c} channel')
         choices[name] = f'starship_{name}'
 
-    if len(choices) == 0:
+    if len(choices) == 0 and raise_error:
         raise ValueError(NO_STARSHIP_ERROR)
 
     return choices

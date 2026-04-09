@@ -784,6 +784,9 @@ def show_objects(show_calibrations):
     print('* Generic Microphones')
     printer(generic_microphone_manager)
 
+    print('* Inear')
+    printer(inear_manager)
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser

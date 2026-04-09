@@ -1,46 +1,17 @@
-import enaml
-from enaml.workbench.api import Extension, PluginManifest
-from enaml.workbench.ui.api import ActionItem, Workspace
-
 from cftscal.util import list_starship_connections
+from ..manifest import CalibrationPluginManifest
 from .settings import InEarCalibrationSettings
 from .view import InEarView
 
 
-def available():
-    try:
-        list_starship_connections()
-        return True
-    except:
-        return False
+enamldef InEarManifest(CalibrationPluginManifest): manifest:
 
-
-def inear_workspace_factory(workbench):
-    space = Workspace()
-    space.window_title = 'In-Ear Calibration'
-    try:
-        settings = InEarCalibrationSettings(list_starship_connections())
-        space.content = InEarView(settings=settings)
-    except:
-        space.content = InEarView()
-    return space
-
-
-enamldef InEarManifest(PluginManifest):
     id = 'inear'
+    title = 'Starship Check'
+    shortcut = 'Ctrl+i'
 
-    Extension:
-        id = 'inear_actions'
-        point = 'enaml.workbench.ui.actions'
-        ActionItem:
-            path = '/workspace/inear'
-            label = 'In-Ear'
-            shortcut = 'Ctrl+i'
-            group = 'spaces'
-            command = 'enaml.workbench.ui.select_workspace'
-            parameters = {'workspace': 'inear.workspace'}
-
-    Extension:
-        id = 'workspace'
-        point = 'enaml.workbench.ui.workspaces'
-        factory = inear_workspace_factory
+    view_class = InEarView
+    settings_class = InEarCalibrationSettings
+    settings_config = {
+        'outputs': list_starship_connections,
+    }

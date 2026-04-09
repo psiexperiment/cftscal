@@ -19,18 +19,20 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import inear_manager
 from cftscal.plugins.widgets import (
-    AddItem, BasePlotManager, CalibratedObjects, MultiPlotManager,
+    AddItem, SinglePlotManager, CalibratedObjects, MultiPlotManager,
     ObjectCollection,
 )
 
 
-class InEarDeltaPlotManager(BasePlotManager):
+class InEarDeltaPlotManager(SinglePlotManager):
 
     #: Settings for the delta plot
     psd = Dict()
     psd_freq = Value()
     plot_freq = Float()
     plot_freq_i = Int()
+    x_label = 'Time'
+    x_unit = 'Sec'
 
     def update_selected_frequency(self, event):
         self.plot_freq = event['value']
@@ -42,17 +44,13 @@ class InEarDeltaPlotManager(BasePlotManager):
             return
         self.plot_freq_i = int(np.argmin(np.abs(self.psd_freq - self.plot_freq)))
 
-    def make_x_axis(self):
-        x_axis = pg.DateAxisItem('bottom')
-        x_axis.setLabel('Time')
-        return x_axis
-
     def get_plot_id(self, calibration):
         return calibration.starship
 
     def _update(self, calibration, remove=False):
         if remove:
-            del self.psd[calibration.datetime]
+            if calibration.datetime in self.psd:
+                del self.psd[calibration.datetime]
         else:
             fh = calibration.load_recording()
             psd = fh.get_average_psd().iloc[:, 1:].sort_index().iloc[-1]
@@ -77,10 +75,10 @@ class InEarDeltaPlotManager(BasePlotManager):
         i = np.argsort(x)
         color, plots = self.get_plots(plot_id)
         plots[0].setData(x[i], y[i])
-        return color
+        return {'color': color}
 
 
-class InEarPlotManager(BasePlotManager):
+class InEarPlotManager(SinglePlotManager):
 
     #: Show noise floor on the PSD plot?
     show_noise_floor = Bool(False)
@@ -117,7 +115,6 @@ class InEarPlotManager(BasePlotManager):
             return None
 
         color, plots = self.get_plots(plot_id)
-
         fh = calibration.load_recording()
 
         # Sort by index. Plot minimum level and maximum level
@@ -130,12 +127,11 @@ class InEarPlotManager(BasePlotManager):
         y = spl.iloc[0].values
         plots[1].setData(x, y)
         plots[1].setVisible(self.show_noise_floor)
-        return color
+        return {'color': color}
 
     def _observe_show_noise_floor(self, event):
         for _, plots in self.plots.values():
             plots[1].setVisible(self.show_noise_floor)
-            plots[1].invalidate()
 
 
 enamldef InEarView(Container):
@@ -289,11 +285,19 @@ enamldef InEarView(Container):
 
                 CalibratedObjects: inear_tree:
                     padding = 0
-                    headers = ['Starship', 'Ear']
+                    mapping = {
+                        'Starship': {
+                            'groupby': True,
+                            'id': True,
+                            'to_str': lambda x: getattr(x, 'name', ''),
+                        },
+                        'Ear': {
+                            'groupby': False,
+                            'id': False,
+                            'to_str': lambda x: getattr(x, 'ear', ''),
+                        },
+                    }
                     collection = ObjectCollection(
                         inear_manager,
-                        MultiPlotManager(
-                            plot_manager,
-                            delta_plot_manager,
-                        )
+                        [plot_manager, delta_plot_manager],
                     )

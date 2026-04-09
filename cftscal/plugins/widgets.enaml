@@ -516,25 +516,6 @@ class ObjectCollection(Atom):
                 node.color = result['color']
 
 
-template CalibratedObjectTemplate(item, MemberType: CFTSInEarCalibration):
-    TreeViewColumn:
-        text << item.ear
-
-
-template CalibratedObjectTemplate(item, MemberType: CFTSStarshipCalibration):
-    TreeViewColumn:
-        text << item.microphone
-    TreeViewColumn:
-        text << item.coupler
-    TreeViewColumn:
-        text << item.stimulus
-
-
-template CalibratedObjectTemplate(item, MemberType: CFTSInputAmplifierCalibration):
-    TreeViewColumn:
-        text << f'{item.measured_gain:.0f}'
-
-
 enamldef CalibratedObjects(Container): container:
     attr collection
     attr mapping
