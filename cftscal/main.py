@@ -61,9 +61,9 @@ def main():
         ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
         ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
         ('cftscal.plugins.ir_sensor.manifest', 'IRSensorManifest'),
-        #('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
-        #('cftscal.plugins.starship.manifest', 'StarshipManifest'),
-        #('cftscal.plugins.inear.manifest', 'InEarManifest'),
+        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
+        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
+        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
     ]
 
     with enaml.imports():

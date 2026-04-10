@@ -180,7 +180,8 @@ class CalibrationManager:
             if loader.label == loader_label:
                 return loader.list_names()
         else:
-            raise ValueError('Loader {loader_label} not found')
+            loaders = ', '.join(l.label for l in self.loaders)
+            raise ValueError(f'Loader {loader_label} not found. Must be one of {loaders}.')
 
     def from_string(self, string):
         qualname = string.split('::', 1)[0]

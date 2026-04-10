@@ -93,14 +93,14 @@ enamldef InputAmplifierView(Container): container:
 
                             InputAmplifierView:
                                 sensor << loop_item.sensor
-                                label = 'Amplifier'
+                                label = loop_item.input_label
                                 mode = 'add'
 
                             PushButton: amp_cal_start:
                                 text = 'Calibrate'
                                 enabled << bool(loop_item.sensor.name)
                                 clicked ::
-                                    settings.run_amp_cal(loop_item)
+                                    settings.run_calibration(loop_item)
                                     amp_tree.collection.update_groups()
 
         DockItem:

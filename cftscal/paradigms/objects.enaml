@@ -357,7 +357,7 @@ def initialize_starship(name, side, event):
     item_gain.editable = False
 
     if (name := os.environ.get(f'CFTS_STARSHIP_{starship.upper()}', None)):
-        channel = controller.get_channel(f'hw_ai::starship_{starship.upper()}_microphone')
+        channel = controller.get_channel(f'hw_ai::{starship}_microphone')
         channel.calibration = starship_manager.from_string(name).load()
 
 
@@ -583,7 +583,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = f'{manifest.id}'
-                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.id}')
+                source_name = 'hw_ai::' + getattr(C, f'{manifest.id}')
                 #source::
                 #    channel.gain = getattr(C, f'{manifest.id}_input_amplifier_gain')
 
@@ -605,7 +605,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
             ContinuousInput:
                 name = manifest.id
-                source_name = 'hw_ai::amplifier_' + getattr(C, f'{manifest.id}')
+                source_name = 'hw_ai::' + getattr(C, f'{manifest.id}')
 
                 IIRFilter:
                     N = 2

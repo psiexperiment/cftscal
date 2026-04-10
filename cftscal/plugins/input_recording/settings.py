@@ -5,8 +5,9 @@ from ..settings import CalibrationSettings, GeneratorSettings, InputSettings
 
 class InputRecordingSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
-    selected_input = Typed(InputSettings, ()).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())) \
+        .tag(persist=True, selected='selected_input')
+    selected_input = Typed(InputSettings, ())
     generator = Typed(GeneratorSettings, ()).tag(persist=True)
     settings_filename = set_default('input-recording.json')
 

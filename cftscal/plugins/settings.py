@@ -68,14 +68,17 @@ class CalibrationSettings(Atom):
             if isinstance(v, list):
                 if len(v) == 0:
                     config[k] = []
-                elif isinstance(v[0], (InputSettings, OutputSettings)):
-                    config[k] = {o.name: o.get_persistence() for o in v}
+                elif isinstance(v[0], PersistentSettings):
+                    config[k] = {o.id: o.get_persistence() for o in v}
+                    selected_member = self.members()[k].metadata.get('selected')
+                    if selected_member is not None:
+                        config[selected_member] = getattr(self, selected_member).id
                 else:
                     raise ValueError('Unknown type')
-            elif isinstance(v, (InputSettings, OutputSettings)):
-                config[k] = v.name
-            else:
+            elif isinstance(v, PersistentSettings):
                 config[k] = v.get_persistence()
+            else:
+                config[k] = v
         return config
 
     def set_config(self, config):
@@ -85,18 +88,20 @@ class CalibrationSettings(Atom):
             if isinstance(value, list):
                 if len(value) == 0:
                     continue
-                elif isinstance(value[0], (InputSettings, OutputSettings)):
+                elif isinstance(value[0], PersistentSettings):
                     for obj in value:
-                        obj.set_persistence(config[name][obj.name])
-            elif isinstance(value, (InputSettings, OutputSettings)):
-                member = self.get_member(name)
-                choice_name_guess = name.replace('selected', 'available') + 's'
-                choice_name = member.metadata.get('choices', choice_name_guess)
-                for obj in getattr(self, choice_name):
-                    if obj.name == config[name]:
-                        setattr(self, name, obj)
+                        if obj.id in config[name]:
+                            obj.set_persistence(config[name][obj.id])
+                    selected_member = self.members()[name].metadata.get('selected')
+                    if selected_member in config:
+                        selected_id = config[selected_member]
+                        for obj in value:
+                            if obj.id == selected_id:
+                                setattr(self, selected_member, obj)
+            elif isinstance(value, PersistentSettings):
+                value.set_persistence(config[name])
             else:
-                getattr(self, name).set_persistence(config[name])
+                setattr(self, name, config[name])
 
     def _run_cal(self, filename, experiment, env=None):
         if env is None:
@@ -196,9 +201,8 @@ class GenericMicrophoneSettings(SensorSettings):
 
 class InputSettings(PersistentSettings):
 
-    name = Property()
-
-    def _get_name(self):
+    @property
+    def id(self):
         return self.input_name
 
     #: Name of input channel as defined in IO manifest. This is not supposed to
@@ -225,9 +229,8 @@ class InputSettings(PersistentSettings):
 
 class OutputSettings(PersistentSettings):
 
-    name = Property()
-
-    def _get_name(self):
+    @property
+    def id(self):
         return self.output_name
 
     #: Name of output as defined in IO manifest
@@ -252,15 +255,21 @@ class OutputSettings(PersistentSettings):
 
 class StarshipSettings(PersistentSettings):
 
-    output = Str()
-    name = Str().tag(persist=True)
+    @property
+    def id(self):
+        return self.connection_name
+
+    connection_name = Str()
+    connection_label = Str()
+
+    starship = Str().tag(persist=True)
     gain = Float(40).tag(persist=True)
 
     @property
     def available_starships(self):
-        return sorted(starship_manager.list_names())
+        return sorted(starship_manager.list_names(loader_label='CFTSStarshipLoader'))
 
-    def _default_name(self):
+    def _default_starship(self):
         try:
             return self.available_starships[0]
         except IndexError:
@@ -268,13 +277,13 @@ class StarshipSettings(PersistentSettings):
 
     def get_env_vars(self, include_cal=True):
         env = {
-            'CFTS_TEST_STARSHIP': self.output,
-            f'CFTS_STARSHIP_{self.output}_GAIN': str(self.gain),
+            'CFTS_TEST_STARSHIP': self.connection_name,
+            f'CFTS_STARSHIP_{self.connection_name.upper()}_GAIN': str(self.gain),
         }
         if include_cal:
-            starship = starship_manager.get_object(self.name)
+            starship = starship_manager.get_object(self.starship)
             cal = starship.get_current_calibration()
-            env[f'CFTS_STARSHIP_{self.output}'] = cal.to_string()
+            env[f'CFTS_STARSHIP_{self.connection_name.upper()}'] = cal.to_string()
         return env
 
 
@@ -304,14 +313,12 @@ class InputAmplifierSettings(SensorSettings):
         return self.gain * self.gain_mult
 
     def get_available_sensors(self):
-        print('getting sensors')
         return sorted(input_amplifier_manager.list_names())
 
-    def get_env_vars(self, include_cal=True):
+    def get_env_vars(self, env_prefix, include_cal=True):
         return {
-            'CFTS_INPUT_AMPLIFIER': self.input_name,
-            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_GAIN': str(self.total_gain),
-            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_LB': str(self.freq_lb),
-            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FREQ_UB': str(self.freq_ub),
-            f'CFTS_INPUT_AMPLIFIER_{self.input_name.upper()}_FILT_60Hz': self.filt_60Hz,
+            f'{env_prefix}_GAIN': str(self.total_gain),
+            f'{env_prefix}_FREQ_LB': str(self.freq_lb),
+            f'{env_prefix}_FREQ_UB': str(self.freq_ub),
+            f'{env_prefix}_FILT_60Hz': self.filt_60Hz,
         }

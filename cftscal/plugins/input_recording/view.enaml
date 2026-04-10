@@ -146,7 +146,10 @@ enamldef InputRecordingView(Container):
 
                     PushButton: start:
                         text = 'Record'
-                        enabled << bool(settings.selected_input.sensor.name)
+                        enabled << (
+                            bool(settings.selected_input.sensor.name) and
+                            bool(settings.generator.name)
+                        )
                         clicked ::
                             settings.run_input_recording(settings.selected_input)
                             input_tree.collection.update_groups()

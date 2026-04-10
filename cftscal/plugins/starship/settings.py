@@ -1,64 +1,52 @@
-import json
+from atom.api import set_default, List, Str, Typed
 
-from atom.api import List, Str, Typed
-
-from psi import get_config, get_config_folder
-
-from ..settings import (CalibrationSettings, MeasurementMicrophoneSettings,
+from ..settings import (CalibrationSettings, InputSettings,
+                        MeasurementMicrophoneSettings,
                         StarshipSettings)
-
-from cftscal import CAL_ROOT
-
 
 class StarshipCalibrationSettings(CalibrationSettings):
 
-    starships = List(Typed(StarshipSettings))
-    microphones = List(Typed(MeasurementMicrophoneSettings))
-    selected_microphone = Typed(MeasurementMicrophoneSettings)
-    calibration_coupler = Str()
+    starship_connections = List(Typed(StarshipSettings, ())).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    selected_input = Typed(InputSettings, ()).tag(persist=True)
+    calibration_coupler = Str().tag(persist=True)
+    settings_filename = set_default('starship.json')
 
-    def __init__(self, outputs, inputs):
-        self.starships = [StarshipSettings(output=o) for o in outputs]
-        self.microphones = [MicrophoneSettings(input_name=n, input_label=l) for l, n in inputs.items()]
-        self.selected_microphone = self.microphones[0]
-        self.load_config()
+    def __init__(self, starship_connections, inputs):
+        settings = []
+        for label, name in starship_connections.items():
+            setting = StarshipSettings(
+                connection_name=name,
+                connection_label=label
+            )
+            settings.append(setting)
+        self.starship_connections = settings
 
-    def save_config(self):
-        for m in self.microphones:
-            m.save_config()
-        for s in self.starships:
-            s.save_config()
-        file = get_config_folder() / 'cfts' / 'calibration' / \
-            'starship_calibration.json'
-        config = {'calibration_coupler': self.calibration_coupler}
-        file.write_text(json.dumps(config, indent=2))
-
-    def load_config(self):
-        file = get_config_folder() / 'cfts' / 'calibration' / \
-            'starship_calibration.json'
-        if not file.exists():
-            return
-        config = json.loads(file.read_text())
-        for k, v in config.items():
-            try:
-                setattr(self, k, v)
-            except Exception as e:
-                pass
+        settings = []
+        for label, name in inputs.items():
+            setting = InputSettings(
+                input_name=name,
+                input_label=label,
+                sensor=MeasurementMicrophoneSettings(),
+            )
+            settings.append(setting)
+        self.available_inputs = settings
+        self.selected_input = self.available_inputs[0]
 
     def run_cal_golay(self, starship, microphone):
-        filename = f'{{date_time}}_{starship.name}_{microphone.name}_{self.calibration_coupler}_golay'
+        filename = f'{{date_time}}_{starship.starship}_{microphone.input_name}_{self.calibration_coupler}_golay'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'starship' / starship.name / filename
+        pathname = self.data_path / 'starship' / starship.starship / filename
         env = {
-            **microphone.get_env_vars(),
+            **microphone.get_env_vars(env_prefix='CFTS_MICROPHONE'),
             **starship.get_env_vars(include_cal=False),
         }
         self._run_cal(pathname, 'cftscal.paradigms.pt_calibration_golay', env)
 
     def run_cal_chirp(self, starship, microphone):
-        filename = f'{{date_time}}_{starship.name}_{microphone.name}_{self.calibration_coupler}_chirp'
+        filename = f'{{date_time}}_{starship.starship}_{microphone.input_name}_{self.calibration_coupler}_chirp'
         filename = ' '.join(filename.split())
-        pathname = CAL_ROOT / 'starship' / starship.name / filename
+        pathname = self.data_path / 'starship' / starship.name / filename
         env = microphone.get_env_vars()
         env.update(starship.get_env_vars(include_cal=False))
         self._run_cal(pathname, 'cftscal.paradigms.pt_calibration_chirp', env)

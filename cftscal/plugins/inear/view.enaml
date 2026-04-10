@@ -213,11 +213,11 @@ enamldef InEarView(Container):
                             ]
 
                             Label: output_label:
-                                text = f'Output {ear.output}'
+                                text = ear.connection_label
 
                             ObjectCombo: starship_select:
                                 items = ear.available_starships
-                                selected := ear.name
+                                selected := ear.starship
 
                             ObjectCombo: starship_gain:
                                 items = [20, 40]
@@ -238,7 +238,7 @@ enamldef InEarView(Container):
 
                             PushButton: cal_start:
                                 text = 'Run'
-                                enabled << bool(ear.name) and bool(ear.ear)
+                                enabled << bool(ear.starship) and bool(ear.ear)
                                 clicked ::
                                     settings.run_cal(ear)
                                     inear_tree.collection.update_groups()

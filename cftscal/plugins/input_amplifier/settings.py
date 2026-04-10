@@ -29,7 +29,9 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             f'-filt-60Hz-{ai.sensor.filt_60Hz}'
         filename = ' '.join(filename.split())
         pathname = self.data_path / 'input_amplifier' / ai.sensor.name / filename
+        env_prefix = f'CFTS_INPUT_AMPLIFIER_{ai.input_name.upper()}'
         env = {
-            **ai.sensor.get_env_vars(include_cal=False),
+            **ai.get_env_vars(include_cal=False, env_prefix='CFTS_INPUT_AMPLIFIER'),
+            **ai.sensor.get_env_vars(include_cal=False, env_prefix=env_prefix),
         }
         self._run_cal(pathname, 'cftscal.paradigms.input_amplifier_calibration', env)
