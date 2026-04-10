@@ -7,11 +7,9 @@ import pyqtgraph as pg
 from atom.api import Atom, Bool, Dict, Float, List, Str, Tuple, Typed, Value
 
 import enaml
-with enaml.imports():
-    from psi.data.plots_manifest import PGCanvas
 
 from enaml.colors import Color
-from enaml.core.api import Conditional, DynamicTemplate, Looper
+from enaml.core.api import Conditional
 from enaml.layout.api import (
     align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout, TabLayout
 )
@@ -28,6 +26,8 @@ from psi.data.plots import make_color
 from psiaudio import util
 
 from . import settings
+from .fast_tree_view import FastTreeView
+from .object_collection import ObjectCollection
 
 from cftscal.objects import (
     CFTSInEarCalibration,
@@ -408,162 +408,12 @@ class MultiPlotManager(Atom):
         return results[0]
 
 
-class ObjectNode(Atom):
-    '''
-    Represents a single recording or calibration in the tree hierarchy
-    '''
-    selected = Bool(False)
-    item = Value()
-    parent = Value()
-    color = Value(None)
-
-    def _observe_selected(self, event):
-        if self.selected:
-            self.parent.notify(self, selected=True)
-        else:
-            self.parent.notify(self, selected=False)
-
-
-class ObjectGroup(Atom):
-    '''
-    Represents a group of recordings or calibration in the tree hierarchy
-    '''
-    selected = Bool(False)
-    item = Value()
-    parent = Value()
-    color = Value(None)
-    subitems = List(ObjectNode)
-
-    #: Internal flag to prevent race conditions when selecting/unselecting
-    #: items in tree. We have the option of checking the group (allowing
-    #: us to plot the most recent recording/calibration) or unchecking the
-    #: group, which will remove all recordings/calibrations under the group
-    #: from the plot.
-    _skip_autoselect = Bool(False)
-
-    def __init__(self, item, parent):
-        self.item = item
-        self.parent = parent
-        self.update_subitems()
-
-    def notify(self, node, selected):
-        self.parent.notify(node, selected)
-
-    def update_subitems(self):
-        objects = sorted(self.item.list_calibrations(), reverse=True)
-        self.subitems = [ObjectNode(item=obj, parent=self) for obj in objects]
-
-    def _observe_subitems(self, event):
-        for i in self.subitems:
-            i.observe('selected', self._check_selected)
-            i.observe('color', self._check_color)
-
-    def _check_selected(self, event):
-        for i in self.subitems:
-            if i.selected:
-                self._skip_autoselect = True
-                self.selected = True
-                self._skip_autoselect = False
-                return
-        self.selected = False
-
-    def _check_color(self, event):
-        for i in self.subitems:
-            if i.color is not None:
-                self.color = i.color
-                break
-        else:
-            self.color = None
-
-    def _observe_selected(self, event):
-        if self.selected:
-            if not self._skip_autoselect:
-                self.subitems[0].selected = True
-        else:
-            for i in self.subitems:
-                i.selected = False
-
-
-class ObjectCollection(Atom):
-    '''
-    Manages the list of recording/calibration groups
-    '''
-    groups = List(ObjectGroup)
-
-    #: Manager that implements a `list_objects` method (e.g.,
-    #: `starship_manager.list_objects()`) that is used to load the items that
-    #: are shown in the tree.
-    object_manager = Value()
-
-    #: Managers that respond to group/node selections in the tree.
-    view_managers = Value()
-
-    def __init__(self, object_manager, view_managers):
-        self.object_manager = object_manager
-        self.view_managers = view_managers
-        self.update_groups()
-
-    def update_groups(self):
-        objects = sorted(self.object_manager.list_objects())
-        self.groups = [ObjectGroup(obj, self) for obj in objects]
-
-    def notify(self, node, selected):
-        for manager in self.view_managers:
-            result = manager.notify(node.item, selected)
-            if not selected:
-                node.color = None
-            elif result is not None and 'color' in result:
-                node.color = result['color']
-
-
 enamldef CalibratedObjects(Container): container:
-    attr collection
-    attr mapping
+    alias collection: tree.collection
+    alias mapping: tree.mapping
 
-    attr group_attrs = [k for k, v in mapping.items() if v.get('groupby', False)]
-    attr id_attrs = [k for k, v in mapping.items() if v.get('id', False)]
-    attr attrs = [k for k in mapping.keys() if k not in id_attrs]
-
-    TreeView: tree:
-        horizontal_headers << [''] + container.attrs
-        resize_mode = 'resize_to_contents'
-        horizontal_stretch = True
-        items << collection.groups
-
-        Looper:
-            # Create the nodes by grouping and assign the name as defined by the groupby keys.
-            iterable << parent.items
-            TreeViewItem: tree_group:
-                attr group << loop_item
-                text << ' '.join([container.mapping[a]['to_str'](group.item) for a in group_attrs])
-                items << group.subitems
-                checkable = True
-                checked := group.selected
-                background << group.color
-
-                Looper:
-                    # Now, go through each group
-                    iterable << group.subitems
-                    TreeViewItem: tree_node:
-                        attr subitem << loop_item
-                        checkable = True
-                        checked := subitem.selected
-                        text << str(subitem.item.datetime)
-                        background << subitem.color
-                        Menu:
-                            Action:
-                                text = 'Delete'
-                                triggered ::
-                                    name = f'{subitem.item.datetime} from {subitem.item.name}'
-                                    q = f'Are you sure you want to delete {name}?'
-                                    button = question(tree_node, '', q)
-                                    if button.text == 'Yes':
-                                        shutil.rmtree(subitem.item.filename)
-                                        collection.update_groups()
-                        Looper:
-                            iterable << container.attrs
-                            TreeViewColumn:
-                                text << container.mapping[loop_item]['to_str'](subitem.item)
+    FastTreeView: tree:
+        pass
 
 
 enamldef SensorView(HGroup):

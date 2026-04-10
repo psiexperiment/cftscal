@@ -116,11 +116,11 @@ enamldef InputAmplifierView(Container): container:
 
         DockItem:
             name = 'amp_list'
-            title = 'Input Amplifier Calibrations'
+            title = 'Calibrations'
             closable = False
             stretch = 0
 
-            CalibratedObjects: amp_tree:
+            CalibratedObjects:
                 mapping = {
                     'Name': {
                         'groupby': True,

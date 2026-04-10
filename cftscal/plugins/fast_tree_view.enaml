@@ -1,0 +1,192 @@
+from atom.api import set_default, Value, observe
+from enaml.core.api import d_, Declarative
+from enaml.widgets.api import Container, RawWidget
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView
+from qtpy.QtGui import QColor, QBrush 
+from qtpy.QtCore import Qt
+import shutil
+
+from psi.core.enaml.api import make_color
+
+
+class FastTreeWidget(QTreeWidget):
+    """
+    A custom QTreeWidget subclass that handles its own data population,
+    context menu logic, two-way binding, and auto-resizing.
+    """
+    def __init__(self, parent, mapping, collection):
+        super().__init__(parent)
+        self.mapping = mapping
+        self.collection = None # Set to None initially so set_collection handles the first bind
+
+        # Parse attributes out
+        self.group_attrs = [k for k, v in self.mapping.items() if v.get('groupby', False)]
+        self.id_attrs = [k for k, v in self.mapping.items() if v.get('id', False)]
+        self.attrs = [k for k in self.mapping.keys() if k not in self.id_attrs]
+
+        self._item_map = {}
+        self._observed_objects = []
+
+        # Configure the TreeWidget
+        self.setHeaderLabels([''] + self.attrs)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        header = self.header()
+        for i in range(self.columnCount()):
+            header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        header.setStretchLastSection(True)
+
+        # Connect signals
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.itemChanged.connect(self.handle_item_changed)
+
+        ## NEW: Use the setter to bind the collection and populate the initial tree
+        self.set_collection(collection)
+
+    ## NEW: A method to safely update the collection and its observers
+    def set_collection(self, new_collection):
+        """Binds a new collection to the tree and refreshes the data."""
+        if self.collection is not None:
+            self.collection.unobserve('updated', self._on_groups_changed)
+        self.collection = new_collection
+        if self.collection is not None:
+            self.collection.observe('updated', self._on_groups_changed)
+        self.populate_tree()
+
+    def _on_groups_changed(self, change):
+        """Called by Atom when the collection's groups are updated/added."""
+        self.populate_tree()
+
+    def populate_tree(self):
+        """Builds the tree items. Can be called again to refresh."""
+        # Safety check in case populate_tree is called before collection is set
+        if self.collection is None:
+            return
+        self.blockSignals(True)
+
+        expanded_state = {}
+        for i in range(self.topLevelItemCount()):
+            g_item = self.topLevelItem(i)
+            # Use the group's text as a unique key
+            expanded_state[g_item.text(0)] = g_item.isExpanded()
+
+        for obj in self._observed_objects:
+            obj.unobserve('selected', self._on_model_selected_changed)
+            obj.unobserve('color', self._on_model_color_changed)
+        self._observed_objects.clear()
+        self._item_map.clear()
+        self.clear()
+
+        for group in self.collection.groups:
+            g_item = QTreeWidgetItem(self)
+            g_text = ' '.join([self.mapping[a]['to_str'](group.item) for a in self.group_attrs])
+            g_item.setText(0, g_text)
+            g_item.setFlags(g_item.flags() | Qt.ItemIsUserCheckable)
+            g_item.setCheckState(0, Qt.Checked if group.selected else Qt.Unchecked)
+
+            if expanded_state.get(g_text, False):
+                g_item.setExpanded(True)
+
+            self._apply_row_color(g_item, getattr(group, 'color', None))
+
+            g_item.setData(0, Qt.UserRole, group)
+            self._item_map[id(group)] = g_item
+            self._observed_objects.append(group)
+            group.observe('selected', self._on_model_selected_changed)
+            group.observe('color', self._on_model_color_changed)
+
+            for sub in group.subitems:
+                s_item = QTreeWidgetItem(g_item)
+                s_item.setText(0, str(sub.item.datetime))
+                s_item.setFlags(s_item.flags() | Qt.ItemIsUserCheckable)
+                s_item.setCheckState(0, Qt.Checked if sub.selected else Qt.Unchecked)
+                self._apply_row_color(s_item, getattr(sub, 'color', None))
+                s_item.setData(0, Qt.UserRole, sub)
+                self._item_map[id(sub)] = s_item
+                self._observed_objects.append(sub)
+                sub.observe('selected', self._on_model_selected_changed)
+                sub.observe('color', self._on_model_color_changed)
+                # Fill the columns
+                for col_idx, attr in enumerate(self.attrs):
+                    val = self.mapping[attr]['to_str'](sub.item)
+                    s_item.setText(col_idx + 1, val)
+        self.blockSignals(False)
+
+    def handle_item_changed(self, item, column):
+        """UI -> Model: Called natively by Qt when a user clicks a checkbox."""
+        if column != 0:
+            return
+        data_obj = item.data(0, Qt.UserRole)
+        if data_obj is not None:
+            is_checked = (item.checkState(0) == Qt.Checked)
+            data_obj.selected = is_checked
+
+    def _on_model_selected_changed(self, change):
+        """Model -> UI: Called by Atom when the selected attribute changes."""
+        data_obj = change['object']
+        new_value = change['value']
+        item = self._item_map.get(id(data_obj))
+        if item:
+            self.blockSignals(True)
+            item.setCheckState(0, Qt.Checked if new_value else Qt.Unchecked)
+            self.blockSignals(False)
+
+    def _on_model_color_changed(self, change):
+        """Model -> UI: Called by Atom when the color attribute changes."""
+        data_obj = change['object']
+        new_color = change['value']
+        item = self._item_map.get(id(data_obj))
+        if item:
+            self._apply_row_color(item, new_color)
+
+    def _apply_row_color(self, item, color_val):
+        """Helper to apply a background color to all columns in a row."""
+        if not color_val:
+            brush = QBrush()
+        else:
+            brush = QBrush(make_color(color_val))
+        self.blockSignals(True)
+        for i in range(self.columnCount()):
+            item.setBackground(i, brush)
+        self.blockSignals(False)
+
+    def show_context_menu(self, position):
+        """Handles the right-click menu natively."""
+        item = self.itemAt(position)
+        if not item or item.parent() is None:
+            return
+        sub = item.data(0, Qt.UserRole)
+        menu = QMenu()
+        delete_action = menu.addAction("Delete")
+        action = menu.exec_(self.viewport().mapToGlobal(position))
+        if action == delete_action:
+            name = f'{sub.item.datetime} from {sub.item.name}'
+            reply = QMessageBox.question(
+                self, 'Confirm', f'Are you sure you want to delete {name}?',
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                shutil.rmtree(sub.item.filename)
+                self.collection.update_groups()
+
+
+class FastTreeView(RawWidget):
+    """
+    The Enaml interface wrapper for our custom FastTreeWidget.
+    """
+    collection = d_(Value())
+    mapping = d_(Value())
+    view = Value()
+
+    hug_width = set_default('weak')
+    hug_height = set_default('weak')
+
+    def create_widget(self, parent):
+        self.view = FastTreeWidget(parent, self.mapping, self.collection)
+        return self.view
+
+    ## NEW: If the parent Enaml component swaps out the entire collection object
+    ## this observer catches it and updates the Qt widget.
+    @observe('collection')
+    def _update_collection(self, change):
+        if self.view is not None:
+            self.view.set_collection(change['value'])

@@ -207,17 +207,17 @@ enamldef StarshipView(Container): starship_view:
                     'Microphone': {
                         'groupby': False,
                         'id': False,
-                        'to_str': lambda x: x.microphone,
+                        'to_str': lambda x: getattr(x, 'microphone', '?'),
                     },
                     'Coupler': {
                         'groupby': False,
                         'id': False,
-                        'to_str': lambda x: x.coupler,
+                        'to_str': lambda x: getattr(x, 'coupler', '?'),
                     },
                     'Stimulus': {
                         'groupby': False,
                         'id': False,
-                        'to_str': lambda x: x.stimulus,
+                        'to_str': lambda x: getattr(x, 'stimulus', '?'),
                     },
                 }
                 collection = ObjectCollection(

@@ -14,7 +14,6 @@ dependencies = [
     "cftsdata",
     "psiexperiment",
     "enaml >=0.13.0",
-    "enamlx >=0.6.2",
     "tqdm",
 ]
 dynamic = ["version"]
