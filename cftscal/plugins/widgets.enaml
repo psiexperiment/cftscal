@@ -20,7 +20,6 @@ from enaml.widgets.api import (
     Action, ActionGroup, Container, Label, Field, Form, HGroup, MainWindow, Menu, MenuBar,
     ObjectCombo, PopupView, PushButton, DockArea, DockItem, VGroup
 )
-from enamlx.widgets.api import TreeView, TreeViewItem, TreeViewColumn
 
 from psi.data.plots import make_color
 from psiaudio import util

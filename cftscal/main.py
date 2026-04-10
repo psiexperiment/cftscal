@@ -6,8 +6,6 @@ import importlib
 import enaml
 from enaml.application import deferred_call
 from enaml.workbench.ui.api import UIWorkbench
-import enamlx
-enamlx.install()
 
 UI_PLUGIN = 'enaml.workbench.ui'
 CORE_PLUGIN = 'enaml.workbench.core'
