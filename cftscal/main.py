@@ -69,7 +69,7 @@ def main():
             try:
                 module = importlib.import_module(module_name)
                 instance = getattr(module, class_name)()
-                if instance.available:
+                if args.load_all or instance.available:
                     workbench.register(getattr(module, class_name)())
                 else:
                     print(f'{module_name} is not available')
