@@ -59,8 +59,7 @@ def workspace_factory(window, manifest):
         settings = manifest.settings_class(**kwargs)
         settings.load_config()
         space.content = manifest.view_class(settings=settings)
-    except:
-        raise
+    except ValueError:
         space.content = manifest.view_class()
     return space
 

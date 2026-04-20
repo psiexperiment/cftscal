@@ -14,12 +14,25 @@ must have at least one analog output channel.
 
 # Cache IO manifest on load because this can sometimes be slow on some systems
 # (e.g., TDT).
-IO_MANIFEST = load_io_manifest()()
+IO_MANIFEST = None
+
+def io_manifest():
+    global IO_MANIFEST
+    if IO_MANIFEST is None:
+        IO_MANIFEST = load_io_manifest()()
+    return IO_MANIFEST
 
 
 def list_outputs(raise_error=True):
     outputs = {}
-    manifest = IO_MANIFEST
+    try:
+        manifest = io_manifest()
+    except ValueError as e:
+        if raise_error:
+            raise
+        else:
+            return outputs
+
     for obj in manifest.traverse():
         if isinstance(obj, HardwareAOChannel):
             outputs[obj.label] = obj.name
@@ -38,14 +51,19 @@ have at least one analog input channel.
 
 def list_inputs(raise_error=True):
     inputs = {}
-    manifest = IO_MANIFEST
+    try:
+        manifest = io_manifest()
+    except ValueError as e:
+        if raise_error:
+            raise
+        else:
+            return inputs
+
     for obj in manifest.traverse():
         if isinstance(obj, HardwareAIChannel):
             inputs[obj.label] = obj.name
-
     if len(inputs) == 0 and raise_error:
         raise ValueError(NO_INPUT_ERROR)
-
     return inputs
 
 
@@ -63,11 +81,11 @@ def list_starship_connections(raise_error=True):
     List all starships found in the IO Manifest
     '''
     starships = {}
-    for name in list_connections('hw_ai', 'starship').values():
+    for name in list_connections('hw_ai', 'starship', raise_error=raise_error).values():
         _, starship_id, starship_input = name.split('_')
         starships.setdefault(starship_id, []).append(starship_input)
 
-    for name in list_connections('hw_ao', 'starship').values():
+    for name in list_connections('hw_ao', 'starship', raise_error=raise_error).values():
         _, starship_id, starship_output = name.split('_')
         starships.setdefault(starship_id, []).append(starship_output)
 
@@ -113,7 +131,15 @@ def list_connections(channel_type_code, device_types, label_fmt=None,
     if label_fmt is None:
         label_fmt = lambda x: x
     choices = {}
-    manifest = IO_MANIFEST
+
+    try:
+        manifest = io_manifest()
+    except ValueError as e:
+        if raise_error:
+            raise
+        else:
+            return choices
+
     for obj in manifest.traverse():
         if isinstance(obj, Channel):
             if channel_type_code == obj.type_code:
