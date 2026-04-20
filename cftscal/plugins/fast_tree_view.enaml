@@ -107,7 +107,10 @@ class FastTreeWidget(QTreeWidget):
                 sub.observe('color', self._on_model_color_changed)
                 # Fill the columns
                 for col_idx, attr in enumerate(self.attrs):
-                    val = self.mapping[attr]['to_str'](sub.item)
+                    try:
+                        val = self.mapping[attr]['to_str'](sub.item)
+                    except:
+                        val = '⚠'
                     s_item.setText(col_idx + 1, val)
         self.blockSignals(False)
 
