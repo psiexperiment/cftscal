@@ -7,10 +7,21 @@ from enaml.workbench.ui.api import (Branding, ActionItem, MenuItem, ItemGroup,
                                     Workspace)
 from .calibration_window import CalibrationWindow
 
+from .workspace import WorkspaceSettings
+from .workspace_view import WorkspaceSettingsView
+from enaml.widgets.api import Window
+
 
 def set_defaults(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     ui.workspace.content.settings.save_config()
+
+
+def show_workspace_settings(event):
+    settings = WorkspaceSettings()
+    settings.load_config()
+    view = WorkspaceSettingsView(settings=settings)
+    view.show()
 
 
 enamldef CalibrationManifest(PluginManifest):
@@ -23,6 +34,10 @@ enamldef CalibrationManifest(PluginManifest):
         Command:
             id = 'psical.set_defaults'
             handler = set_defaults
+
+        Command:
+            id = 'psical.workspace_settings'
+            handler = show_workspace_settings
 
     Extension:
         id = 'calibration_branding'
@@ -43,6 +58,11 @@ enamldef CalibrationManifest(PluginManifest):
             label = 'Workspace'
             ItemGroup:
                 id = 'spaces'
+
+        ActionItem:
+            path = '/workspace/settings'
+            label = 'Settings'
+            command = 'psical.workspace_settings'
 
         ActionItem:
             path = '/workspace/set_defaults'

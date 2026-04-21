@@ -1,0 +1,71 @@
+import os
+from pathlib import Path
+
+from enaml.core.api import Conditional
+from enaml.layout.api import align, hbox, spacer, vbox
+from enaml.widgets.api import (
+    Container, Label, Field, HGroup, ObjectCombo, PushButton, FileDialogEx, VGroup,
+    Window, DockArea, DockItem, ScrollArea
+)
+
+from psi.core.enaml.api import ListDictTable
+
+
+enamldef WorkspaceSettingsView(Window):
+
+    initial_size = (600, 400)
+    title = 'Workspace Settings'
+
+    attr settings
+
+    VGroup:
+        Label:
+            text = 'Calibration data root folder'
+        HGroup:
+            padding = 0
+            Field: data_path:
+                text << str(settings.data_path)
+                read_only = True
+            PushButton:
+                text = 'Browse...'
+                clicked ::
+                    path = FileDialogEx.get_existing_directory(self, current_path=str(settings.data_path))
+                    if path:
+                        settings.data_path = Path(path)
+
+        Label:
+            text = 'Hardware configuration'
+        ObjectCombo:
+            items << settings.available_configurations
+            selected := settings.hardware_configuration
+
+        Label:
+            text = 'Audio device'
+        ObjectCombo:
+            items << [d['name'] for d in settings.available_devices]
+            selected := settings.selected_device
+
+        Label:
+            text = 'Sample rate (Hz)'
+        ObjectCombo:
+            items << settings.available_sample_rates
+            selected := settings.sample_rate
+
+        Label:
+            text = 'Available sound devices'
+        ListDictTable:
+            data << settings.available_devices
+            columns = ['name', 'max_input_channels', 'max_output_channels', 'default_samplerate']
+            column_info = {
+                'name': {'label': 'Device Name', 'width': 300},
+                'max_input_channels': {'label': 'In', 'width': 40},
+                'max_output_channels': {'label': 'Out', 'width': 40},
+                'default_samplerate': {'label': 'FS', 'width': 60},
+            }
+
+        HGroup:
+            leading_spacer = spacer(0)
+            PushButton:
+                text = 'Save'
+                clicked ::
+                    settings.save_config()
