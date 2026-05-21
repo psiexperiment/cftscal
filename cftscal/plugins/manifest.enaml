@@ -14,6 +14,8 @@ from enaml.widgets.api import Window
 
 def set_defaults(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
+    if ui.workspace is None or ui.workspace.content is None:
+        return
     ui.workspace.content.settings.save_config()
 
 
@@ -24,7 +26,7 @@ def show_workspace_settings(event):
     view.show()
 
 
-enamldef CalibrationManifest(PluginManifest):
+enamldef CalibrationManifest(PluginManifest): manifest:
     id = 'calibration'
 
     Extension:
@@ -69,6 +71,7 @@ enamldef CalibrationManifest(PluginManifest):
             label = 'Set Defaults'
             shortcut = 'Ctrl+d'
             command = 'psical.set_defaults'
+            enabled << manifest.workbench.get_plugin('enaml.workbench.ui').workspace is not None
 
 
 def workspace_factory(window, manifest):
