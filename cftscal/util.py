@@ -17,9 +17,20 @@ must have at least one analog output channel.
 IO_MANIFEST = None
 
 def io_manifest():
+    from cftscal.plugins.workspace import WorkspaceSettings
+    settings = WorkspaceSettings()
+    if settings.hw_configuration == 'Sound Card':
+        import os
+        os.environ.update({
+            'PSI_SOUND_DEVICE_NAME': settings.selected_device,
+            'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
+        })
+        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngineIOManifest'
+    else:
+        manifest = settings.hw_configuration
     global IO_MANIFEST
     if IO_MANIFEST is None:
-        IO_MANIFEST = load_io_manifest()()
+        IO_MANIFEST = load_io_manifest(manifest)()
     return IO_MANIFEST
 
 

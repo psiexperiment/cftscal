@@ -15,6 +15,8 @@ from cftscal.objects import (
     speaker_manager, starship_manager, CalibrationManager,
 )
 
+from cftscal.plugins.workspace import WorkspaceSettings
+
 
 class PersistentSettings(Atom):
 
@@ -104,11 +106,21 @@ class CalibrationSettings(Atom):
                 setattr(self, name, config[name])
 
     def _run_cal(self, filename, experiment, env=None):
+        settings = WorkspaceSettings()
         if env is None:
             env = {}
-        print(json.dumps(env, indent=2))
         env = {**os.environ, **env}
         args = ['psi', experiment, str(filename)]
+
+        if settings.hw_configuration == 'Sound Card':
+            env.update({
+                'PSI_SOUND_DEVICE_NAME': settings.selected_device,
+                'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
+            })
+            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngineIOManifest'])
+        else:
+            args.extend(['--io', settings.hw_configuration])
+        print(json.dumps(env, indent=2))
         print(' '.join(args))
         subprocess.check_output(args, env=env)
 
