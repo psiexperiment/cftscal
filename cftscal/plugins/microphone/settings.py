@@ -10,7 +10,9 @@ from ..settings import (
 
 class MicrophoneCalibrationSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())) \
+        .tag(persist=True, selected='selected_input')
+    selected_input = Typed(InputSettings, ())
     pistonphone = Typed(PistonphoneSettings, ()).tag(persist=True)
     settings_filename = set_default('microphone-measurement.json')
 
