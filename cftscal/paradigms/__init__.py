@@ -46,7 +46,7 @@ selectable_output_mixin = {
 selectable_speaker_mixin = {
     'manifest': PATH + 'objects.Speaker',
     'required': True,
-    'attrs': {'id': 'system_output', 'title': 'Speaker'},
+    'attrs': {'id': 'system', 'title': 'Speaker'},
 }
 
 
