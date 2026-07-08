@@ -205,7 +205,7 @@ enamldef Output(ExperimentManifest): manifest:
         point = 'psi.controller.io'
 
         MUXOutput:
-            name = manifest.id
+            name = f'{manifest.id}_output'
             target_name = 'hw_ao::' + getattr(C, manifest.id)
 
     Extension:
