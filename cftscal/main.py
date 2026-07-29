@@ -49,23 +49,12 @@ def main():
     args = parser.parse_args()
 
     with enaml.imports():
-        from .plugins.manifest import CalibrationManifest
+        from .plugins.manifest import CalibrationManifest, TO_REGISTER
     workbench = CalibrationWorkbench()
     workbench.register(CalibrationManifest())
 
-    to_register = [
-        ('cftscal.plugins.microphone.manifest', 'MeasurementMicrophoneManifest'),
-        ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
-        ('cftscal.plugins.speaker.manifest', 'SpeakerManifest'),
-        ('cftscal.plugins.input_recording.manifest', 'InputRecordingManifest'),
-        ('cftscal.plugins.ir_sensor.manifest', 'IRSensorManifest'),
-        ('cftscal.plugins.input_amplifier.manifest', 'InputAmplifierManifest'),
-        ('cftscal.plugins.starship.manifest', 'StarshipManifest'),
-        ('cftscal.plugins.inear.manifest', 'InEarManifest'),
-    ]
-
     with enaml.imports():
-        for module_name, class_name in to_register:
+        for module_name, class_name in TO_REGISTER:
             try:
                 module = importlib.import_module(module_name)
                 instance = getattr(module, class_name)()

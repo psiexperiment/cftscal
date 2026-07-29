@@ -35,4 +35,6 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             **ai.get_env_vars(include_cal=False, env_prefix='CFTS_MICROPHONE'),
             **self.pistonphone.get_env_vars(),
         }
-        self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration', env)
+        metadata = {'pistonphone': self.pistonphone.name}
+        self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration',
+                      env, metadata=metadata)

@@ -30,4 +30,9 @@ class InputRecordingSettings(CalibrationSettings):
         env = {
             **ai.get_env_vars(),
         }
-        self._run_cal(pathname, 'cftscal.paradigms.input_recording', env)
+        metadata = {
+            'generator': self.generator.name,
+            'sensor': ai.sensor.name,
+        }
+        self._run_cal(pathname, 'cftscal.paradigms.input_recording',
+                      env, metadata=metadata)

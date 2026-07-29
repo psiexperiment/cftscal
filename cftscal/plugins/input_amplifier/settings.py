@@ -34,4 +34,11 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             **ai.get_env_vars(include_cal=False, env_prefix='CFTS_INPUT_AMPLIFIER'),
             **ai.sensor.get_env_vars(include_cal=False, env_prefix=env_prefix),
         }
-        self._run_cal(pathname, 'cftscal.paradigms.input_amplifier_calibration', env)
+        metadata = {
+            'total_gain': ai.sensor.total_gain,
+            'freq_lb': ai.sensor.freq_lb,
+            'freq_ub': ai.sensor.freq_ub,
+            'filt_60Hz': ai.sensor.filt_60Hz,
+        }
+        self._run_cal(pathname, 'cftscal.paradigms.input_amplifier_calibration',
+                      env, metadata=metadata)

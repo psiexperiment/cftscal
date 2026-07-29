@@ -75,4 +75,9 @@ class MicrophoneComparisonSettings(CalibrationSettings):
                 include_cal=False,
             ),
         }
-        self._run_cal(pathname, f'cftscal.paradigms.mic_calibration_{which}', env)
+        metadata = {
+            'measurement_microphone': self.measurement_input.sensor.name,
+            'stimulus': which,
+        }
+        self._run_cal(pathname, f'cftscal.paradigms.mic_calibration_{which}',
+                      env, metadata=metadata)

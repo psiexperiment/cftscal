@@ -16,6 +16,13 @@ must have at least one analog output channel.
 # (e.g., TDT).
 IO_MANIFEST = None
 
+
+def reset_io_manifest():
+    """Clear the cached IO manifest so the next call reloads from current settings."""
+    global IO_MANIFEST
+    IO_MANIFEST = None
+
+
 def io_manifest():
     from cftscal.plugins.workspace import WorkspaceSettings
     settings = WorkspaceSettings()
@@ -25,7 +32,7 @@ def io_manifest():
             'PSI_SOUND_DEVICE_NAME': settings.selected_device,
             'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
         })
-        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngineIOManifest'
+        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngine'
     else:
         manifest = settings.hw_configuration
     global IO_MANIFEST

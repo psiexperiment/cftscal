@@ -1,3 +1,7 @@
+import importlib
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Dict, Property, Str, Value
 from enaml.core.api import d_
 
@@ -12,6 +16,81 @@ from .workspace_view import WorkspaceSettingsView
 from enaml.widgets.api import Window
 
 
+# Single source of truth for all calibration plugins.  Used both at startup
+# (main.py) and when reloading after a settings change.
+TO_REGISTER = [
+    ('cftscal.plugins.microphone.manifest',        'MeasurementMicrophoneManifest'),
+    ('cftscal.plugins.microphone_generic.manifest', 'GenericMicrophoneManifest'),
+    ('cftscal.plugins.speaker.manifest',            'SpeakerManifest'),
+    ('cftscal.plugins.input_recording.manifest',    'InputRecordingManifest'),
+    ('cftscal.plugins.ir_sensor.manifest',          'IRSensorManifest'),
+    ('cftscal.plugins.input_amplifier.manifest',    'InputAmplifierManifest'),
+    ('cftscal.plugins.starship.manifest',           'StarshipManifest'),
+    ('cftscal.plugins.inear.manifest',              'InEarManifest'),
+]
+
+
+def reload_plugins(workbench):
+    """Re-inspect all calibration plugins after workspace settings change.
+
+    Clears the cached IO manifest so hardware detection runs against the new
+    configuration, then registers/unregisters plugins as their availability
+    changes.  If the currently active workspace is affected it is reloaded so
+    its settings pick up the new IO channels.
+    """
+    import enaml
+    from cftscal.util import reset_io_manifest
+
+    reset_io_manifest()
+
+    ui   = workbench.get_plugin('enaml.workbench.ui')
+    core = workbench.get_plugin('enaml.workbench.core')
+
+    # Identify the active workspace's plugin by matching window_title.
+    active_plugin_id = None
+    if ui.workspace is not None:
+        active_title = ui.workspace.window_title
+
+    with enaml.imports():
+        for module_name, class_name in TO_REGISTER:
+            try:
+                module  = importlib.import_module(module_name)
+                cls     = getattr(module, class_name)
+                probe   = cls()
+                plugin_id    = probe.id
+                is_available = probe.available
+                is_registered = workbench.get_manifest(plugin_id) is not None
+
+                if (ui.workspace is not None
+                        and hasattr(probe, 'title')
+                        and probe.title == active_title):
+                    active_plugin_id = plugin_id
+
+                if is_registered and not is_available:
+                    # Close the workspace before unregistering its plugin.
+                    if active_plugin_id == plugin_id:
+                        ui.close_workspace()
+                        active_plugin_id = None
+                    workbench.unregister(plugin_id)
+                    log.info('Unregistered plugin: %s', plugin_id)
+                elif not is_registered and is_available:
+                    workbench.register(cls())
+                    log.info('Registered plugin: %s', plugin_id)
+                # Registered + still available: leave in place; workspace
+                # reload below will recreate its content with fresh settings.
+
+            except Exception:
+                log.exception('Error reloading %s.%s', module_name, class_name)
+
+    # Reload the active workspace so workspace_factory runs again with the
+    # updated IO manifest and any new channel assignments.
+    if active_plugin_id is not None:
+        core.invoke_command(
+            'enaml.workbench.ui.select_workspace',
+            {'workspace': f'{active_plugin_id}.workspace'},
+        )
+
+
 def set_defaults(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     if ui.workspace is None or ui.workspace.content is None:
@@ -20,8 +99,9 @@ def set_defaults(event):
 
 
 def show_workspace_settings(event):
+    workbench = event.workbench
     settings = WorkspaceSettings()
-    settings.load_config()
+    settings._on_save = lambda: reload_plugins(workbench)
     view = WorkspaceSettingsView(settings=settings)
     view.show()
 

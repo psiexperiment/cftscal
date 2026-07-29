@@ -40,4 +40,9 @@ class IRSensorSettings(CalibrationSettings):
             **ai.get_env_vars(include_cal=False),
             **ao.get_env_vars(include_cal=False),
         }
-        self._run_cal(pathname, 'cftscal.paradigms.ir_sensor', env)
+        metadata = {
+            'input_name': ai.input_name,
+            'output_name': ao.output_name,
+        }
+        self._run_cal(pathname, 'cftscal.paradigms.ir_sensor',
+                      env, metadata=metadata)

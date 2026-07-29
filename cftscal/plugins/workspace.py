@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import json
 from pathlib import Path
 
-from atom.api import Atom, Dict, Float, List, Str, Typed
+from atom.api import Atom, Dict, Float, List, Str, Typed, Value
 
 from psi import get_config_folder
 from psi.application import list_io
@@ -28,6 +28,10 @@ class WorkspaceSettings(Atom):
 
     data_path = Typed(Path)
     hw_configuration = Str()
+
+    # Optional callback fired after save_config() writes the JSON file.
+    # Set by the caller (e.g. show_workspace_settings) to trigger plugin reload.
+    _on_save = Value()
     selected_device = Str()
     selected_device_info = Str()
     sample_rate = Float()
@@ -114,6 +118,8 @@ class WorkspaceSettings(Atom):
             'sample_rate': self.sample_rate,
         }
         file.write_text(json.dumps(config, indent=2))
+        if self._on_save is not None:
+            self._on_save()
 
     def load_config(self):
         file = get_config_folder() / 'cfts' / 'workspace.json'

@@ -1,7 +1,7 @@
 from atom.api import set_default, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog
 from qtpy.QtGui import QColor, QBrush 
 from qtpy.QtCore import Qt
 import shutil
@@ -38,6 +38,7 @@ class FastTreeWidget(QTreeWidget):
         # Connect signals
         self.customContextMenuRequested.connect(self.show_context_menu)
         self.itemChanged.connect(self.handle_item_changed)
+        self.itemDoubleClicked.connect(self.handle_item_double_clicked)
 
         ## NEW: Use the setter to bind the collection and populate the initial tree
         self.set_collection(collection)
@@ -96,7 +97,7 @@ class FastTreeWidget(QTreeWidget):
 
             for sub in group.subitems:
                 s_item = QTreeWidgetItem(g_item)
-                s_item.setText(0, str(sub.item.datetime))
+                s_item.setText(0, sub.item.filename.name)
                 s_item.setFlags(s_item.flags() | Qt.ItemIsUserCheckable)
                 s_item.setCheckState(0, Qt.Checked if sub.selected else Qt.Unchecked)
                 self._apply_row_color(s_item, getattr(sub, 'color', None))
@@ -151,6 +152,38 @@ class FastTreeWidget(QTreeWidget):
         for i in range(self.columnCount()):
             item.setBackground(i, brush)
         self.blockSignals(False)
+
+    def handle_item_double_clicked(self, item, column):
+        """Rename the underlying calibration file/directory on double-click."""
+        # Only sub-items (individual calibrations) can be renamed.
+        if item.parent() is None:
+            return
+        sub = item.data(0, Qt.UserRole)
+        if sub is None:
+            return
+        current_path = sub.item.filename
+        current_name = current_path.name
+        new_name, ok = QInputDialog.getText(
+            self, 'Rename calibration', 'New name:', text=current_name,
+        )
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name or new_name == current_name:
+            return
+        new_path = current_path.parent / new_name
+        if new_path.exists():
+            QMessageBox.warning(
+                self, 'Rename failed',
+                f'A file or folder named "{new_name}" already exists.',
+            )
+            return
+        try:
+            current_path.rename(new_path)
+        except OSError as e:
+            QMessageBox.critical(self, 'Rename failed', f'Could not rename: {e}')
+            return
+        self.collection.update_groups()
 
     def show_context_menu(self, position):
         """Handles the right-click menu natively."""

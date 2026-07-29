@@ -1,6 +1,8 @@
+import datetime as dt
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 from atom.api import set_default, Atom, Enum, Float, List, Property, Str, Typed
@@ -105,24 +107,47 @@ class CalibrationSettings(Atom):
             else:
                 setattr(self, name, config[name])
 
-    def _run_cal(self, filename, experiment, env=None):
+    def _run_cal(self, filename, experiment, env=None, metadata=None):
         settings = WorkspaceSettings()
         if env is None:
             env = {}
         env = {**os.environ, **env}
-        args = ['psi', experiment, str(filename)]
 
+        # Substitute {date_time} ourselves so the directory name is known
+        # up-front.  psi refuses to launch into a non-empty directory, so we
+        # DO NOT create the directory here — psi creates it itself.  After
+        # psi returns we either write metadata.json into it (if any data was
+        # recorded) or prune it (if the user aborted before acquisition).
+        now = dt.datetime.now()
+        filename = Path(str(filename).replace(
+            '{date_time}', now.strftime('%Y%m%d-%H%M%S')
+        ))
+
+        args = ['psi', experiment, str(filename)]
         if settings.hw_configuration == 'Sound Card':
             env.update({
                 'PSI_SOUND_DEVICE_NAME': settings.selected_device,
                 'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
             })
-            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngineIOManifest'])
+            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngine'])
         else:
             args.extend(['--io', settings.hw_configuration])
         print(json.dumps(env, indent=2))
         print(' '.join(args))
-        subprocess.check_output(args, env=env)
+
+        try:
+            subprocess.check_output(args, env=env)
+        finally:
+            # Runs on both clean exit and subprocess failure.  Any raised
+            # CalledProcessError still propagates after this cleanup.
+            if filename.exists():
+                if not any(filename.iterdir()):
+                    shutil.rmtree(filename, ignore_errors=True)
+                elif metadata is not None:
+                    meta = {'datetime': now.isoformat(), **metadata}
+                    (filename / 'metadata.json').write_text(
+                        json.dumps(meta, indent=2, sort_keys=True)
+                    )
 
 
 class GeneratorSettings(PersistentSettings):
