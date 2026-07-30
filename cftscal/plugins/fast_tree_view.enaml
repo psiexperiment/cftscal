@@ -397,12 +397,24 @@ class FastTreeWidget(QTreeWidget):
         after the folder on the next refresh.  The source's original
         device-name wrapper is not preserved — the target folder plays
         that role now.
+
+        Enforces the folder-object separation rule: a folder is either
+        organizational (contains only subfolders) or an object dir
+        (contains only calibrations), never both.  Refuses the move if the
+        destination folder already contains subfolders that aren't
+        calibration dirs.
         """
         cal_dir = node.item.filename
         base_path = self._base_path(node.parent)
         if base_path is None:
             raise OSError('Cannot determine calibration storage root.')
         dest_dir = base_path / dest_folder if dest_folder else base_path
+        if self._has_org_subdirs(dest_dir):
+            raise OSError(
+                f'Cannot drop a calibration into "{dest_folder or "the root"}" — '
+                'it already contains organizational subfolders. A folder is '
+                'either organizational or holds calibrations directly, not both.'
+            )
         return self._do_move(cal_dir, dest_dir)
 
     def _do_move(self, cal_dir, dest_object_dir):
@@ -427,6 +439,32 @@ class FastTreeWidget(QTreeWidget):
     @staticmethod
     def _join(base_path, folder, name):
         return base_path / folder / name if folder else base_path / name
+
+    @staticmethod
+    def _has_cal_children(folder_dir):
+        """True if the folder has any calibration dir (metadata.json) child."""
+        if not folder_dir.exists():
+            return False
+        try:
+            return any(
+                child.is_dir() and (child / 'metadata.json').exists()
+                for child in folder_dir.iterdir()
+            )
+        except OSError:
+            return False
+
+    @staticmethod
+    def _has_org_subdirs(folder_dir):
+        """True if the folder has any subfolder that isn't a calibration dir."""
+        if not folder_dir.exists():
+            return False
+        try:
+            return any(
+                child.is_dir() and not (child / 'metadata.json').exists()
+                for child in folder_dir.iterdir()
+            )
+        except OSError:
+            return False
 
     def _base_path(self, group):
         """Extract the loader's base_path from an ObjectGroup."""
@@ -595,10 +633,22 @@ class FastTreeWidget(QTreeWidget):
         return name
 
     def _create_folder(self, base_path, parent_folder):
+        parent_dir = base_path / parent_folder if parent_folder else base_path
+        # Enforce the folder-object rule: an object dir (has calibration
+        # dirs as direct children) can't also host organizational
+        # subfolders.
+        if self._has_cal_children(parent_dir):
+            QMessageBox.warning(
+                self, 'New folder',
+                f'Cannot add a subfolder to "{parent_folder or "the root"}" — '
+                'it already contains calibrations directly. A folder is '
+                'either organizational or holds calibrations, not both.',
+            )
+            return
         new_name = self._prompt_folder_name('New folder')
         if new_name is None:
             return
-        target = base_path / parent_folder / new_name if parent_folder else base_path / new_name
+        target = parent_dir / new_name
         if target.exists():
             QMessageBox.warning(
                 self, 'New folder',

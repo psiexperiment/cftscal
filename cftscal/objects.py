@@ -253,9 +253,14 @@ class CalibrationManager:
         distinct — dropping the folder prefix will only find the root-level
         one (or none, if no such root-level object exists).
 
-        Returns an ``object_class`` with the loaders that actually contain
-        the requested (folder, name).  If no loader has it, returns an
-        empty-loaders object (callers see an empty calibration list).
+        Raises
+        ------
+        LookupError
+            If no loader knows about the requested ``(folder, name)``.  This
+            usually means the referenced calibration was moved on disk and
+            the user's stored reference is stale — surface the error at
+            experiment-launch time so the user updates the reference rather
+            than running with no calibration.
         '''
         folder, name = self._parse_path(path)
         loaders = []
@@ -264,6 +269,12 @@ class CalibrationManager:
                 if f == folder and n == name:
                     loaders.append(loader)
                     break
+        if not loaders:
+            raise LookupError(
+                f'No calibrated object at path {path!r}. It may have been '
+                f'moved or deleted — check the calibration selected for '
+                f'this input/output in your plugin settings.'
+            )
         return self.object_class(name, loaders, folder=folder)
 
     def list_objects(self):
