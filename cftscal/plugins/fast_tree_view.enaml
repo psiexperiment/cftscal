@@ -1,12 +1,14 @@
 from atom.api import set_default, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog
-from qtpy.QtGui import QColor, QBrush 
-from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QApplication, QAbstractItemView
+from qtpy.QtGui import QColor, QBrush, QDrag
+from qtpy.QtCore import Qt, QMimeData
 import shutil
 
 from psi.core.enaml.api import make_color
+
+from cftscal.plugins.object_collection import ObjectGroup, ObjectNode
 
 
 class FastTreeWidget(QTreeWidget):
@@ -30,6 +32,13 @@ class FastTreeWidget(QTreeWidget):
         # Configure the TreeWidget
         self.setHeaderLabels([''] + self.attrs)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
+        # Drag and drop moves data on disk — we override dropEvent to do the
+        # actual move, refresh from the filesystem, and never let Qt's
+        # default item-reorder run.
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QAbstractItemView.DragDrop)
         header = self.header()
         for i in range(self.columnCount()):
             header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
@@ -40,8 +49,30 @@ class FastTreeWidget(QTreeWidget):
         self.itemChanged.connect(self.handle_item_changed)
         self.itemDoubleClicked.connect(self.handle_item_double_clicked)
 
+        # Refresh when the application regains focus — covers the workflow
+        # where the user reorganizes folders in Explorer and returns to the
+        # app.  Qt auto-disconnects when the widget is destroyed.
+        app = QApplication.instance()
+        if app is not None:
+            app.applicationStateChanged.connect(self._on_app_state_changed)
+
         ## NEW: Use the setter to bind the collection and populate the initial tree
         self.set_collection(collection)
+
+    def _on_app_state_changed(self, state):
+        if state == Qt.ApplicationActive and self.collection is not None:
+            self.collection.update_groups()
+
+    def keyPressEvent(self, event):
+        # F5 refreshes the tree from disk — a familiar shortcut for users who
+        # know their folder layout just changed and don't want to wait for
+        # focus-in to fire.
+        if event.key() == Qt.Key_F5:
+            if self.collection is not None:
+                self.collection.update_groups()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     ## NEW: A method to safely update the collection and its observers
     def set_collection(self, new_collection):
@@ -57,6 +88,30 @@ class FastTreeWidget(QTreeWidget):
         """Called by Atom when the collection's groups are updated/added."""
         self.populate_tree()
 
+    def _capture_expanded_state(self):
+        """
+        Record the expansion state of every folder and group in the current
+        tree so populate_tree can restore it after rebuilding.  Folder nodes
+        are keyed by their posix-style path (``folder:lab_A/study_1``);
+        object groups are keyed by their display text.
+        """
+        state = {}
+
+        def _walk(item, folder_path):
+            data = item.data(0, Qt.UserRole)
+            if data is None:
+                # No attached ObjectGroup/ObjectNode → this is a folder node.
+                sub_path = f'{folder_path}/{item.text(0)}' if folder_path else item.text(0)
+                state[f'folder:{sub_path}'] = item.isExpanded()
+                for i in range(item.childCount()):
+                    _walk(item.child(i), sub_path)
+            else:
+                state[item.text(0)] = item.isExpanded()
+
+        for i in range(self.topLevelItemCount()):
+            _walk(self.topLevelItem(i), '')
+        return state
+
     def populate_tree(self):
         """Builds the tree items. Can be called again to refresh."""
         # Safety check in case populate_tree is called before collection is set
@@ -64,11 +119,10 @@ class FastTreeWidget(QTreeWidget):
             return
         self.blockSignals(True)
 
-        expanded_state = {}
-        for i in range(self.topLevelItemCount()):
-            g_item = self.topLevelItem(i)
-            # Use the group's text as a unique key
-            expanded_state[g_item.text(0)] = g_item.isExpanded()
+        # Capture expansion state so refresh doesn't collapse everything.
+        # Object groups are keyed by their display text; folder nodes are
+        # keyed by 'folder:<path>' to avoid collisions with object names.
+        expanded_state = self._capture_expanded_state()
 
         for obj in self._observed_objects:
             obj.unobserve('selected', self._on_model_selected_changed)
@@ -77,11 +131,54 @@ class FastTreeWidget(QTreeWidget):
         self._item_map.clear()
         self.clear()
 
+        # Map posix-style folder path -> QTreeWidgetItem for that folder.
+        # The empty string represents the invisible root of the tree.
+        folder_nodes = {'': None}
+
+        def _ensure_folder(path):
+            if path in folder_nodes:
+                return folder_nodes[path]
+            parent_path, _, leaf = path.rpartition('/')
+            parent_node = _ensure_folder(parent_path)
+            node = (QTreeWidgetItem(parent_node) if parent_node is not None
+                    else QTreeWidgetItem(self))
+            node.setText(0, leaf)
+            # Folder nodes are pure hierarchy — no checkbox, not draggable.
+            # They ARE drop targets so users can file a calibration into a
+            # freshly-created empty folder; the drop creates a new object
+            # dir there using the leaf's source object name.
+            node.setFlags(
+                (node.flags() | Qt.ItemIsDropEnabled)
+                & ~Qt.ItemIsUserCheckable
+                & ~Qt.ItemIsDragEnabled
+            )
+            key = f'folder:{path}'
+            # Default to expanded so users can see their objects on first run.
+            node.setExpanded(expanded_state.get(key, True))
+            folder_nodes[path] = node
+            return node
+
+        # Discover organizational folders that don't contain any groups
+        # yet (empty folders created by the user via the context menu).
+        # Without this the folder would be invisible until data lands in it.
+        base_path = self._collection_base_path()
+        if base_path is not None:
+            for folder_path in self._list_org_folders(base_path):
+                _ensure_folder(folder_path)
+
         for group in self.collection.groups:
-            g_item = QTreeWidgetItem(self)
+            folder_path = (group.item.folder or '') if hasattr(group.item, 'folder') else ''
+            parent_node = _ensure_folder(folder_path)
+            g_item = (QTreeWidgetItem(parent_node) if parent_node is not None
+                      else QTreeWidgetItem(self))
             g_text = ' '.join([self.mapping[a]['to_str'](group.item) for a in self.group_attrs])
             g_item.setText(0, g_text)
-            g_item.setFlags(g_item.flags() | Qt.ItemIsUserCheckable)
+            # Groups accept drops (a leaf dropped on a group moves into
+            # that group's object folder) but are not themselves draggable.
+            g_item.setFlags(
+                (g_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDropEnabled)
+                & ~Qt.ItemIsDragEnabled
+            )
             g_item.setCheckState(0, Qt.Checked if group.selected else Qt.Unchecked)
 
             if expanded_state.get(g_text, False):
@@ -98,7 +195,12 @@ class FastTreeWidget(QTreeWidget):
             for sub in group.subitems:
                 s_item = QTreeWidgetItem(g_item)
                 s_item.setText(0, sub.item.filename.name)
-                s_item.setFlags(s_item.flags() | Qt.ItemIsUserCheckable)
+                # Leaves can be dragged (to file the calibration under a
+                # different folder) but not dropped onto.
+                s_item.setFlags(
+                    (s_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+                    & ~Qt.ItemIsDropEnabled
+                )
                 s_item.setCheckState(0, Qt.Checked if sub.selected else Qt.Unchecked)
                 self._apply_row_color(s_item, getattr(sub, 'color', None))
                 s_item.setData(0, Qt.UserRole, sub)
@@ -155,11 +257,10 @@ class FastTreeWidget(QTreeWidget):
 
     def handle_item_double_clicked(self, item, column):
         """Rename the underlying calibration file/directory on double-click."""
-        # Only sub-items (individual calibrations) can be renamed.
-        if item.parent() is None:
-            return
+        # Only leaf calibrations (ObjectNode) can be renamed — not organizational
+        # folder nodes and not object groups.
         sub = item.data(0, Qt.UserRole)
-        if sub is None:
+        if not isinstance(sub, ObjectNode):
             return
         current_path = sub.item.filename
         current_name = current_path.name
@@ -185,15 +286,254 @@ class FastTreeWidget(QTreeWidget):
             return
         self.collection.update_groups()
 
-    def show_context_menu(self, position):
-        """Handles the right-click menu natively."""
-        item = self.itemAt(position)
-        if not item or item.parent() is None:
+    # Advertise our own mime type so Qt does NOT try to serialize the
+    # QTreeWidgetItem's Python data (ObjectNode/ObjectGroup) into the mime
+    # payload.  Those atoms reference plot managers holding pyqtgraph
+    # GraphicsLayout objects, which are unpicklable and blow up the drag
+    # otherwise.  We look the source item up via selectedItems() in
+    # dropEvent, so the mime payload only needs to exist, not carry data.
+    _MIME_TYPE = 'application/x-cftscal-internal'
+
+    def mimeTypes(self):
+        return [self._MIME_TYPE]
+
+    def mimeData(self, items):
+        md = QMimeData()
+        md.setData(self._MIME_TYPE, b'')
+        return md
+
+    def startDrag(self, supportedActions):
+        # Build the QDrag ourselves.  PyQt's default startDrag routes
+        # through the internal model layer, which packs Python item data
+        # into QMimeData via pickle — that blows up on our Atom-based
+        # ObjectNode/ObjectGroup because they reference pyqtgraph objects
+        # further up the parent chain.  Doing our own QDrag avoids that
+        # code path entirely.
+        items = self.selectedItems()
+        if not items:
             return
-        sub = item.data(0, Qt.UserRole)
+        drag = QDrag(self)
+        drag.setMimeData(self.mimeData(items))
+        # Qt5 uses exec_, Qt6 uses exec — hedge for both.
+        exec_fn = getattr(drag, 'exec', None) or drag.exec_
+        exec_fn(supportedActions)
+
+    def dragEnterEvent(self, event):
+        if event.source() is self:
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.source() is self:
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        """
+        Move the dragged item on disk instead of letting Qt rearrange the
+        tree in-memory.  The tree then refreshes from the filesystem, so
+        what the user sees always matches what's actually on disk.
+        """
+        selected = self.selectedItems()
+        if len(selected) != 1:
+            event.ignore()
+            return
+        src_item = selected[0]
+        src_data = src_item.data(0, Qt.UserRole)
+        if not isinstance(src_data, ObjectNode):
+            # Only individual calibration recordings are movable.
+            event.ignore()
+            return
+
+        dest_item = self.itemAt(event.pos())
+        dest_data = dest_item.data(0, Qt.UserRole) if dest_item is not None else None
+
+        try:
+            if isinstance(dest_data, ObjectGroup):
+                # Drop on group → move into that group's object folder;
+                # the leaf adopts the group's identity.
+                moved = self._move_leaf_to_group(src_data, dest_data)
+            elif dest_data is None:
+                # Drop on a folder node (or empty tree area) → create/use
+                # an object folder at that folder path, preserving the
+                # source leaf's object name.
+                dest_folder = self._folder_path_for_item(dest_item)
+                moved = self._move_leaf_to_folder(src_data, dest_folder)
+            else:
+                # Drop on another leaf — ambiguous.
+                event.ignore()
+                return
+        except OSError as e:
+            QMessageBox.critical(self, 'Move failed', str(e))
+            event.ignore()
+            return
+
+        event.accept()
+        if moved and self.collection is not None:
+            self.collection.update_groups()
+
+    def _move_leaf_to_group(self, node, dest_group):
+        """
+        Move a leaf calibration into an existing group's on-disk object
+        folder.  The calibration adopts the destination group's identity
+        (its object name and folder path).
+        """
+        cal_dir = node.item.filename
+        base_path = self._base_path(dest_group)
+        if base_path is None:
+            raise OSError('Cannot determine calibration storage root.')
+        dest_obj = dest_group.item
+        dest_object_dir = self._join(
+            base_path, dest_obj.folder or '', dest_obj.name
+        )
+        return self._do_move(cal_dir, dest_object_dir)
+
+    def _move_leaf_to_folder(self, node, dest_folder):
+        """
+        Move a leaf calibration directly into the destination folder.  The
+        folder itself becomes the object: it will appear as a group named
+        after the folder on the next refresh.  The source's original
+        device-name wrapper is not preserved — the target folder plays
+        that role now.
+        """
+        cal_dir = node.item.filename
+        base_path = self._base_path(node.parent)
+        if base_path is None:
+            raise OSError('Cannot determine calibration storage root.')
+        dest_dir = base_path / dest_folder if dest_folder else base_path
+        return self._do_move(cal_dir, dest_dir)
+
+    def _do_move(self, cal_dir, dest_object_dir):
+        """Perform the on-disk move and prune the source object dir if empty."""
+        src_object_dir = cal_dir.parent
+        dest_cal_dir = dest_object_dir / cal_dir.name
+        if dest_cal_dir == cal_dir:
+            return False
+        if dest_cal_dir.exists():
+            raise OSError(f'"{cal_dir.name}" already exists at the destination.')
+        dest_object_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(cal_dir), str(dest_cal_dir))
+        # Prune the source object dir if it's now empty so a stale
+        # <object_name>/ folder doesn't linger in the tree.
+        try:
+            if src_object_dir.exists() and not any(src_object_dir.iterdir()):
+                src_object_dir.rmdir()
+        except OSError:
+            pass
+        return True
+
+    @staticmethod
+    def _join(base_path, folder, name):
+        return base_path / folder / name if folder else base_path / name
+
+    def _base_path(self, group):
+        """Extract the loader's base_path from an ObjectGroup."""
+        if group is None or not group.item.loaders:
+            return None
+        for loader in group.item.loaders:
+            if hasattr(loader, 'base_path'):
+                return loader.base_path
+        return None
+
+    def _collection_base_path(self):
+        """
+        Grab a base_path from any loader in the current collection so folder
+        operations work even when the tree is empty or the click was on a
+        folder that has no group yet.
+        """
+        if self.collection is None or self.collection.object_manager is None:
+            return None
+        for loader in self.collection.object_manager.loaders:
+            if hasattr(loader, 'base_path'):
+                return loader.base_path
+        return None
+
+    def _list_org_folders(self, base_path):
+        """
+        Return posix paths of every organizational (non-object) folder
+        beneath ``base_path``.  An "object folder" is one whose immediate
+        children contain a calibration directory (one with ``metadata.json``).
+        Anything else, including empty user-created folders, is
+        organizational.
+
+        We walk explicitly (not via ``rglob``) so we can prune at both
+        calibration dirs and object dirs — otherwise internal subfolders
+        that psi may create inside a calibration dir would show up as a
+        parallel folder tree next to the real object groups.
+        """
+        if not base_path.exists():
+            return []
+        folders = []
+
+        def walk(path):
+            try:
+                children = list(path.iterdir())
+            except OSError:
+                return
+            for child in children:
+                if not child.is_dir():
+                    continue
+                # Calibration directory — don't recurse, don't add.
+                if (child / 'metadata.json').exists():
+                    continue
+                # Object directory (an immediate child is a calibration
+                # dir) — don't recurse; its calibrations already appear as
+                # leaves under the corresponding group node.
+                try:
+                    is_object_dir = any(
+                        gc.is_dir() and (gc / 'metadata.json').exists()
+                        for gc in child.iterdir()
+                    )
+                except OSError:
+                    continue
+                if is_object_dir:
+                    continue
+                # Organizational folder — surface it and keep walking.
+                folders.append(child.relative_to(base_path).as_posix())
+                walk(child)
+
+        walk(base_path)
+        return folders
+
+    def _folder_path_for_item(self, item):
+        """Reconstruct the posix folder path for a folder node."""
+        if item is None:
+            return ''
+        parts = []
+        cur = item
+        while cur is not None and cur.data(0, Qt.UserRole) is None:
+            parts.append(cur.text(0))
+            cur = cur.parent()
+        return '/'.join(reversed(parts))
+
+    def show_context_menu(self, position):
+        """
+        Right-click menu.  The available actions depend on what was clicked:
+
+        - Leaf (calibration): Delete
+        - Folder node: New subfolder, Rename, Delete (if empty)
+        - Empty area: New folder at root
+        - Group: no actions (organizational; nothing meaningful to do here)
+        """
+        item = self.itemAt(position)
+        global_pos = self.viewport().mapToGlobal(position)
+        data = item.data(0, Qt.UserRole) if item is not None else None
+
+        if isinstance(data, ObjectNode):
+            self._context_menu_for_leaf(data, global_pos)
+        elif item is None:
+            self._context_menu_for_root(global_pos)
+        elif data is None:
+            # Folder node (no attached Python data).
+            self._context_menu_for_folder(item, global_pos)
+        # Groups (ObjectGroup): no context menu — they're structural.
+
+    def _context_menu_for_leaf(self, sub, global_pos):
         menu = QMenu()
-        delete_action = menu.addAction("Delete")
-        action = menu.exec_(self.viewport().mapToGlobal(position))
+        delete_action = menu.addAction('Delete')
+        action = menu.exec_(global_pos)
         if action == delete_action:
             name = f'{sub.item.datetime} from {sub.item.name}'
             reply = QMessageBox.question(
@@ -203,6 +543,111 @@ class FastTreeWidget(QTreeWidget):
             if reply == QMessageBox.Yes:
                 shutil.rmtree(sub.item.filename)
                 self.collection.update_groups()
+
+    def _context_menu_for_folder(self, item, global_pos):
+        folder_path = self._folder_path_for_item(item)
+        base_path = self._collection_base_path()
+        if base_path is None:
+            return
+        folder_dir = base_path / folder_path
+        menu = QMenu()
+        new_action = menu.addAction('New subfolder…')
+        rename_action = menu.addAction('Rename folder…')
+        delete_action = menu.addAction('Delete folder')
+        # Only allow delete when the folder is empty — deleting a folder
+        # with calibrations underneath should go through the individual
+        # delete actions (or Explorer, if the user really means it).
+        delete_action.setEnabled(
+            folder_dir.exists() and not any(folder_dir.iterdir())
+        )
+        action = menu.exec_(global_pos)
+        if action == new_action:
+            self._create_folder(base_path, folder_path)
+        elif action == rename_action:
+            self._rename_folder(base_path, folder_path)
+        elif action == delete_action:
+            self._delete_folder(folder_dir)
+
+    def _context_menu_for_root(self, global_pos):
+        base_path = self._collection_base_path()
+        if base_path is None:
+            return
+        menu = QMenu()
+        new_action = menu.addAction('New folder…')
+        action = menu.exec_(global_pos)
+        if action == new_action:
+            self._create_folder(base_path, '')
+
+    def _prompt_folder_name(self, title, initial=''):
+        """Prompt for a folder name and sanitize the input."""
+        name, ok = QInputDialog.getText(
+            self, title, 'Folder name:', text=initial,
+        )
+        if not ok:
+            return None
+        name = name.strip().strip('/').strip('\\')
+        if not name or '/' in name or '\\' in name:
+            QMessageBox.warning(
+                self, title,
+                'Folder name must be non-empty and cannot contain slashes.',
+            )
+            return None
+        return name
+
+    def _create_folder(self, base_path, parent_folder):
+        new_name = self._prompt_folder_name('New folder')
+        if new_name is None:
+            return
+        target = base_path / parent_folder / new_name if parent_folder else base_path / new_name
+        if target.exists():
+            QMessageBox.warning(
+                self, 'New folder',
+                f'"{new_name}" already exists at this location.',
+            )
+            return
+        try:
+            target.mkdir(parents=True)
+        except OSError as e:
+            QMessageBox.critical(self, 'New folder', str(e))
+            return
+        self.collection.update_groups()
+
+    def _rename_folder(self, base_path, folder_path):
+        if not folder_path:
+            return
+        parent, _, current = folder_path.rpartition('/')
+        new_name = self._prompt_folder_name('Rename folder', initial=current)
+        if new_name is None or new_name == current:
+            return
+        src = base_path / folder_path
+        dest = base_path / parent / new_name if parent else base_path / new_name
+        if dest.exists():
+            QMessageBox.warning(
+                self, 'Rename folder',
+                f'"{new_name}" already exists at this location.',
+            )
+            return
+        try:
+            src.rename(dest)
+        except OSError as e:
+            QMessageBox.critical(self, 'Rename folder', str(e))
+            return
+        self.collection.update_groups()
+
+    def _delete_folder(self, folder_dir):
+        reply = QMessageBox.question(
+            self, 'Delete folder',
+            f'Delete folder "{folder_dir.name}"?',
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            folder_dir.rmdir()
+        except OSError as e:
+            QMessageBox.critical(self, 'Delete folder', str(e))
+            return
+        self.collection.update_groups()
 
 
 class FastTreeView(RawWidget):

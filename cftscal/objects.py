@@ -115,16 +115,49 @@ class CFTSFileCalibration(FileCalibration):
 @total_ordering
 class CalibratedObject:
     '''
-    Represents a calibrated object
+    Represents a calibrated object.
+
+    Parameters
+    ----------
+    name : str
+        Human-readable name of the object (e.g. the microphone or speaker
+        name).  Corresponds to the directory that holds this object's
+        calibration recordings.
+    loaders : list
+        CalibrationLoader instances that know how to find this object's
+        calibrations.
+    folder : str, optional
+        Relative path (posix-style) from the loader's ``base_path`` to the
+        object's parent directory.  Empty string (the default) means the
+        object sits directly under ``base_path``.  Used by the tree view to
+        group objects into user-defined lab/study/etc. folders.  Passing
+        ``None`` means "no folder filter" — the object aggregates
+        calibrations across every folder that has a directory of this name;
+        this is the mode used by ``CalibrationManager.get_object`` so
+        experiment-side lookups by name remain backwards compatible.
     '''
-    def __init__(self, name, loaders):
+    def __init__(self, name, loaders, folder=None):
         self.name = name
         self.loaders = loaders
+        self.folder = folder
+
+    @property
+    def path(self):
+        '''
+        Fully-qualified identifier: ``folder/name`` when the object lives
+        under an organizational folder, or just ``name`` when it sits at
+        the loader's storage root.  Two objects with the same name in
+        different folders (e.g. ``Lab1/MMM0`` vs ``Lab2/MMM0``) have
+        distinct paths and are treated as different calibrated objects.
+        '''
+        return f'{self.folder}/{self.name}' if self.folder else self.name
 
     def list_calibrations(self):
         calibrations = []
         for loader in self.loaders:
-            calibrations.extend(loader.list_calibrations(self.name))
+            calibrations.extend(
+                loader.list_calibrations(self.name, folder=self.folder)
+            )
         return calibrations
 
     def get_current_calibration(self):
@@ -139,7 +172,7 @@ class CalibratedObject:
     def _get_cmp_key(self, obj):
         if obj is None:
             return None
-        return obj.name
+        return (obj.folder or '', obj.name)
 
     def __lt__(self, obj):
         return self._get_cmp_key(self) < self._get_cmp_key(obj)
@@ -160,7 +193,25 @@ class CalibrationLoader:
     def list_names(self):
         raise NotImplementedError
 
-    def list_calibrations(self, name):
+    def list_objects(self):
+        '''
+        Yield ``(folder, name)`` tuples for each calibrated object known to
+        this loader.  ``folder`` is a posix-style relative path from the
+        loader's storage root; the default implementation yields ``''`` for
+        every object (i.e. a flat layout) so legacy loaders that do not
+        support nesting continue to work.
+        '''
+        for name in self.list_names():
+            yield '', name
+
+    def list_calibrations(self, name, folder=None):
+        '''
+        Return calibrations for the object called ``name``.  ``folder`` is
+        ignored by the default implementation; loaders that support nested
+        folders should filter by it (``None`` means "any folder", ``''``
+        means "the loader's root only", any other value means "that specific
+        folder path").
+        '''
         raise NotImplementedError
 
     @property
@@ -181,33 +232,77 @@ class CalibrationManager:
         loader = getattr(importlib.import_module(module), klass)()
         self.loaders.append(loader)
 
-    def get_object(self, name):
+    @staticmethod
+    def _parse_path(path):
+        '''
+        Split ``"folder/name"`` into ``(folder, name)``.  A bare ``"name"``
+        (no slash) refers to an object at the loader's storage root and
+        yields ``('', name)``.
+        '''
+        folder, sep, name = path.rpartition('/')
+        return (folder, name) if sep else ('', path)
+
+    def get_object(self, path):
+        '''
+        Look up a calibrated object by its full path.
+
+        ``path`` is the value produced by ``list_names`` (and by
+        ``CalibratedObject.path``): ``"MMM0"`` for a root-level object,
+        ``"Lab1/MMM0"`` for one under an organizational folder.  Two
+        objects sharing a name but living in different folders are
+        distinct — dropping the folder prefix will only find the root-level
+        one (or none, if no such root-level object exists).
+
+        Returns an ``object_class`` with the loaders that actually contain
+        the requested (folder, name).  If no loader has it, returns an
+        empty-loaders object (callers see an empty calibration list).
+        '''
+        folder, name = self._parse_path(path)
         loaders = []
         for loader in self.loaders:
-            if name in loader.list_names():
-                loaders.append(loader)
-        return self.object_class(name, loaders)
+            for f, n in loader.list_objects():
+                if f == folder and n == name:
+                    loaders.append(loader)
+                    break
+        return self.object_class(name, loaders, folder=folder)
 
     def list_objects(self):
-        names = {}
+        # One CalibratedObject per (folder, name) so groups in different
+        # organizational folders stay visually distinct in the tree view.
+        # If several loaders report the same (folder, name) — e.g. an EPL
+        # loader and a CFTS loader both know about a starship — they share
+        # a single CalibratedObject whose list_calibrations aggregates both.
+        keyed = {}
         for loader in self.loaders:
-            for name in loader.list_names():
-                names.setdefault(name, []).append(loader)
-        objects = []
-        for name, loaders in names.items():
-            objects.append(self.object_class(name, loaders))
-        return objects
+            for folder, name in loader.list_objects():
+                keyed.setdefault((folder, name), []).append(loader)
+        return [
+            self.object_class(name, loaders, folder=folder)
+            for (folder, name), loaders in keyed.items()
+        ]
 
     def list_names(self, loader_label=None):
+        '''
+        Return the fully-qualified paths of every known object.  Root-level
+        objects appear as ``"MMM0"``; nested ones as ``"Lab1/MMM0"``.  This
+        is what dropdowns should display so the user can pick between two
+        objects that share a bare name.
+        '''
+        def _paths(loader):
+            return [
+                f'{folder}/{name}' if folder else name
+                for folder, name in loader.list_objects()
+            ]
+
         if loader_label is None:
-            names = []
+            paths = []
             for loader in self.loaders:
-                names.extend(loader.list_names())
-            return names
+                paths.extend(_paths(loader))
+            return paths
 
         for loader in self.loaders:
             if loader.label == loader_label:
-                return loader.list_names()
+                return _paths(loader)
         else:
             loaders = ', '.join(l.label for l in self.loaders)
             raise ValueError(f'Loader {loader_label} not found. Must be one of {loaders}.')
@@ -237,18 +332,53 @@ class CFTSBaseLoader(CalibrationLoader):
         for path in self.base_path.iterdir():
             yield path.stem
 
-    def list_calibrations(self, name):
-        calibrations = []
-        base = self.base_path / name
-        if not base.exists():
-            return calibrations
-        # Include every subdirectory that has a metadata.json sidecar.  The
-        # folder name itself is no longer significant, so we don't filter on
-        # it — this keeps renamed folders visible.
-        for path in base.iterdir():
-            if path.is_dir() and (path / 'metadata.json').exists():
-                calibrations.append(self.cal_class(name, path))
-        return calibrations
+    def list_calibrations(self, name, folder=None):
+        return [
+            self.cal_class(name, cal_dir)
+            for (f, n), cal_dirs in self._walk_objects().items()
+            if n == name and (folder is None or f == folder)
+            for cal_dir in cal_dirs
+        ]
+
+    def list_objects(self):
+        for folder, name in sorted(self._walk_objects()):
+            yield folder, name
+
+    def list_names(self):
+        # Keep this returning a flat set of names for backwards compatibility
+        # (some callers, e.g. the settings dropdowns, only need the names).
+        return sorted({name for _, name in self._walk_objects()})
+
+    def _walk_objects(self):
+        '''
+        Discover every calibrated object in this loader's storage tree.
+
+        A "calibrated object" is any directory whose immediate children
+        include at least one directory containing a ``metadata.json``
+        sidecar.  Users can nest object directories arbitrarily deep beneath
+        ``self.base_path`` (e.g. to group by lab or study); the returned
+        ``folder`` is the posix-style relative path from ``base_path`` to
+        the object's parent directory.
+
+        Returns
+        -------
+        dict
+            Maps ``(folder, name)`` to a list of the object's calibration
+            directories.
+        '''
+        objects = {}
+        if not self.base_path.exists():
+            return objects
+        for meta_file in self.base_path.rglob('metadata.json'):
+            cal_dir = meta_file.parent
+            object_dir = cal_dir.parent
+            try:
+                rel = object_dir.parent.relative_to(self.base_path)
+            except ValueError:
+                continue
+            folder = '' if str(rel) == '.' else rel.as_posix()
+            objects.setdefault((folder, object_dir.name), []).append(cal_dir)
+        return objects
 
 
 ################################################################################
@@ -272,7 +402,7 @@ class UnityInputCalibrationLoader(CalibrationLoader):
     def list_names(self):
         return ['unity']
 
-    def list_calibrations(self, name):
+    def list_calibrations(self, name, folder=None):
         return [UnityInputCalibration()]
 
 
@@ -345,7 +475,7 @@ class EPLStarshipLoader(CalibrationLoader):
             names.add(f'{name} (EPL)')
         return names
 
-    def list_calibrations(self, name):
+    def list_calibrations(self, name, folder=None):
         if name.endswith(' (EPL)'):
             name, _ = name.rsplit(' ', 1)
         calibrations = []
@@ -718,7 +848,7 @@ class CFTSInEarLoader(CFTSBaseLoader):
         for name in sorted(self.names.keys()):
             yield name
 
-    def list_calibrations(self, name):
+    def list_calibrations(self, name, folder=None):
         return self.names[name]
 
 

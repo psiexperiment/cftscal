@@ -121,11 +121,16 @@ class ObjectCollection(Atom):
 
     def update_groups(self):
         objects = sorted(self.object_manager.list_objects())
-        existing_groups = {group.item.name: group for group in self.groups}
+        # Key by (folder, name) so that the same object name living in two
+        # different organizational folders shows up as two distinct groups.
+        existing_groups = {
+            (group.item.folder or '', group.item.name): group
+            for group in self.groups
+        }
         new_groups = []
 
         for obj in objects:
-            key = obj.name  # Use whatever attribute guarantees uniqueness
+            key = (obj.folder or '', obj.name)
             if key in existing_groups:
                 group = existing_groups[key]
                 group.item = obj
