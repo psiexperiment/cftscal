@@ -21,7 +21,7 @@ class InEarCalibrationSettings(CalibrationSettings):
     def run_cal(self, ear):
         filename = f'{{date_time}}_{ear.ear}_{ear.starship}'
         filename = ' '.join(filename.split())
-        pathname = self.data_path / 'inear' / ear.ear / filename
+        pathname = self._make_path('inear', ear.ear, filename)
         env = ear.get_env_vars()
         metadata = {
             'ear': ear.ear,

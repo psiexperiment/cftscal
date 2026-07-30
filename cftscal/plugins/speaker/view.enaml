@@ -13,7 +13,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import speaker_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
+    ObjectCollection,
 )
 
 
@@ -74,6 +75,10 @@ enamldef SpeakerView(Container):
                             align('left', *first),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'speaker'
 
                     Container:
                         attr ai << settings.selected_input

@@ -19,8 +19,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import inear_manager
 from cftscal.plugins.widgets import (
-    AddItem, SinglePlotManager, CalibratedObjects, MultiPlotManager,
-    ObjectCollection,
+    AddItem, GroupPathPicker, SinglePlotManager, CalibratedObjects,
+    MultiPlotManager, ObjectCollection,
 )
 
 
@@ -187,6 +187,10 @@ enamldef InEarView(Container):
                             align('right', *first),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'inear'
 
                     Looper:
                         iterable << settings.ears

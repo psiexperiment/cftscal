@@ -44,7 +44,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
 
     def run_cal(self, ao, ai, which):
         filename = f'{{date_time}}_{ao.generator.name}_{ai.sensor.name}_{which}'
-        pathname = self.data_path / 'speaker' / ao.generator.name / filename
+        pathname = self._make_path('speaker', ao.generator.name, filename)
         env = ai.get_env_vars(env_prefix='CFTS_MICROPHONE')
         env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
         metadata = {

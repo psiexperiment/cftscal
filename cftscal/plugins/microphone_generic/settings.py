@@ -57,7 +57,7 @@ class MicrophoneComparisonSettings(CalibrationSettings):
     def run_calibration(self, which):
         filename = f'{{date_time}}_{self.generic_input.sensor.name}_{self.measurement_input.sensor.name}_{which}'
         filename = ' '.join(filename.split())
-        pathname = self.data_path / 'microphone_generic' / self.generic_input.sensor.name / filename
+        pathname = self._make_path('microphone_generic', self.generic_input.sensor.name, filename)
         env = {
             **self.measurement_input.get_env_vars(
                 env_prefix='CFTS_MICROPHONE',

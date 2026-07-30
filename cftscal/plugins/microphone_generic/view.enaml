@@ -11,8 +11,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import generic_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
-    SensorView,
+    AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
+    ObjectCollection, SensorView,
 )
 
 
@@ -85,6 +85,10 @@ enamldef MicrophoneComparisonView(Container): view:
                             align('right', *second),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'microphone_generic'
 
                     Container:
                         share_layout = True

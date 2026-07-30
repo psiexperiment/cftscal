@@ -36,6 +36,43 @@ from cftscal.objects import (
 )
 
 
+def _list_group_paths(base_path):
+    '''
+    Return sorted posix-style paths of every organizational folder beneath
+    ``base_path``, plus the empty string (for "root").  Mirrors
+    ``FastTreeWidget._list_org_folders`` but is standalone so the plugin
+    view can populate its folder picker without depending on the tree.
+    '''
+    if not base_path.exists():
+        return ['']
+    paths = ['']
+    def walk(dir_):
+        try:
+            children = list(dir_.iterdir())
+        except OSError:
+            return
+        for child in children:
+            if not child.is_dir():
+                continue
+            # Calibration dir → don't recurse, don't add.
+            if (child / 'metadata.json').exists():
+                continue
+            # Object dir (has a cal-dir child) → don't recurse, don't add.
+            try:
+                is_object_dir = any(
+                    gc.is_dir() and (gc / 'metadata.json').exists()
+                    for gc in child.iterdir()
+                )
+            except OSError:
+                continue
+            if is_object_dir:
+                continue
+            paths.append(child.relative_to(base_path).as_posix())
+            walk(child)
+    walk(base_path)
+    return sorted(paths)
+
+
 enamldef AddItem(PopupView): popup:
 
     attr combo
@@ -413,6 +450,43 @@ enamldef CalibratedObjects(Container): container:
 
     FastTreeView: tree:
         pass
+
+
+enamldef GroupPathPicker(HGroup): picker:
+    '''
+    Editable folder-picker bound to ``plugin_settings.group_path``.
+    Populated with the organizational folders that already exist under
+    the plugin's subfolder tree.  The "+" button opens an AddItem popup
+    for typing a new folder path (slash-separated for nesting, e.g.
+    "Lab1/study_1").  The attr is named ``plugin_settings`` rather than
+    ``settings`` to avoid shadowing the outer ``settings`` identifier at
+    the call site.
+    '''
+    attr plugin_settings
+    attr subfolder = ''
+
+    share_layout = True
+    align_widths = False
+    padding = 0
+    spacing = 5
+
+    Label:
+        text = 'Target folder'
+
+    ObjectCombo: select:
+        items << _list_group_paths(plugin_settings.data_path / subfolder)
+        selected := plugin_settings.group_path
+        to_string = lambda x: '(root)' if not x else x
+
+    PushButton:
+        text = '+'
+        constraints = [width == 25]
+        clicked ::
+            popup = AddItem(
+                self, combo=select, label='Folder path',
+                regex=r'^[\w\d/_\- ]+$',
+            )
+            popup.show()
 
 
 enamldef SensorView(HGroup):

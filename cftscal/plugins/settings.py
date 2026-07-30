@@ -46,9 +46,34 @@ class CalibrationSettings(Atom):
     settings_filename = Str()
     data_path = Typed(Path)
 
+    #: Organizational folder (posix-style, may be nested like "Lab1/study_1")
+    #: that new calibrations are filed under.  Sits between the calibration
+    #: subfolder (e.g. "microphone") and the device-name folder.  Empty
+    #: string means the calibration goes to the subfolder root.  Sticky
+    #: across acquisitions in the same session.
+    group_path = Str().tag(persist=True)
+
     def _default_data_path(self):
         from cftscal import CAL_ROOT
         return CAL_ROOT
+
+    def _make_path(self, subfolder, *parts):
+        '''
+        Build an on-disk output path for a new calibration:
+
+            data_path / subfolder / [group_path] / *parts
+
+        The ``group_path`` segment is inserted only when non-empty so
+        acquisitions at the subfolder root produce the same layout as
+        before the folder-picker existed.
+        '''
+        path = self.data_path / subfolder
+        group = self.group_path.strip().strip('/').strip('\\')
+        if group:
+            path = path / group
+        for part in parts:
+            path = path / part
+        return path
 
     def save_config(self):
         file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename

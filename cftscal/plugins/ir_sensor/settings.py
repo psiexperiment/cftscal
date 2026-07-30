@@ -35,7 +35,7 @@ class IRSensorSettings(CalibrationSettings):
     def run_recording(self, ai, ao):
         filename = f'{{date_time}}_{ai.input_name}'
         filename = ' '.join(filename.split())
-        pathname = self.data_path / 'ir-sensor' / ai.input_name / filename
+        pathname = self._make_path('ir-sensor', ai.input_name, filename)
         env = {
             **ai.get_env_vars(include_cal=False),
             **ao.get_env_vars(include_cal=False),

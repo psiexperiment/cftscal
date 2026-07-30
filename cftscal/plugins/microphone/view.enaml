@@ -12,7 +12,7 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SensorView, ObjectCollection,
+    AddItem, CalibratedObjects, GroupPathPicker, SensorView, ObjectCollection,
     SinglePlotManager,
 )
 
@@ -81,6 +81,10 @@ enamldef MicrophoneView(Container):
                             align('left', *second),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'microphone'
 
                     HGroup:
                         padding = 0

@@ -19,8 +19,8 @@ from psiaudio import util
 
 from cftscal.objects import input_recording_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, TimePSDPlotManager, ObjectCollection,
-    GeneratorView, SensorView,
+    AddItem, CalibratedObjects, GroupPathPicker, TimePSDPlotManager,
+    ObjectCollection, GeneratorView, SensorView,
 )
 
 
@@ -122,6 +122,10 @@ enamldef InputRecordingView(Container):
                             align('left', *second),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'input-recording'
 
                     HGroup:
                         share_layout = True

@@ -12,7 +12,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import starship_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SensorView, SinglePlotManager, ObjectCollection,
+    AddItem, CalibratedObjects, GroupPathPicker, SensorView, SinglePlotManager,
+    ObjectCollection,
 )
 
 
@@ -86,6 +87,10 @@ enamldef StarshipView(Container): starship_view:
                             align('right', *second),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'starship'
 
                     HGroup:
                         share_layout = True

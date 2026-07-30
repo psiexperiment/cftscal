@@ -13,8 +13,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import input_amplifier_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
-    InputAmplifierView
+    AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
+    ObjectCollection, InputAmplifierView
 )
 
 
@@ -82,6 +82,10 @@ enamldef InputAmplifierView(Container): container:
                             align('right', *first),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'input_amplifier'
 
                     Looper:
                         iterable << container.settings.available_inputs

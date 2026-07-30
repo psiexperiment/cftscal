@@ -18,8 +18,8 @@ from psiaudio import util
 from psiaudio.calibration import FlatCalibration
 
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, SinglePlotManager, ObjectCollection,
-    SensorView, GeneratorView,
+    AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
+    ObjectCollection, SensorView, GeneratorView,
 )
 
 
@@ -92,6 +92,10 @@ enamldef IRSensorView(Container):
                             align('left', *second),
                         ]
                         return constraints
+
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'ir-sensor'
 
                     HGroup:
                         share_layout = True

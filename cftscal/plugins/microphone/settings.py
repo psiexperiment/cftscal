@@ -30,7 +30,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
     def run_calibration(self, ai):
         filename = f'{{date_time}}_{ai.sensor.name}_{self.pistonphone.name}'
         filename = ' '.join(filename.split())
-        pathname = self.data_path / 'microphone' / ai.sensor.name / filename
+        pathname = self._make_path('microphone', ai.sensor.name, filename)
         env = {
             **ai.get_env_vars(include_cal=False, env_prefix='CFTS_MICROPHONE'),
             **self.pistonphone.get_env_vars(),
