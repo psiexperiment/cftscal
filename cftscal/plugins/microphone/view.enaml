@@ -124,6 +124,7 @@ enamldef MicrophoneView(Container):
                             to_string = lambda m: m.input_label
 
                     SensorView:
+                        mode = 'add'
                         sensor << settings.selected_input.sensor
 
                     PushButton: start:
