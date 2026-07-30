@@ -849,18 +849,41 @@ class CFTSInEarLoader(CFTSBaseLoader):
     subfolder = 'inear'
     cal_class = CFTSInEarCalibration
 
-    def list_names(self):
-        self.names = {}
-        for path in self.base_path.iterdir():
-            for subpath in path.iterdir():
-                name = subpath.stem.rsplit('_', 1)[1]
-                cal = self.cal_class(name, subpath)
-                self.names.setdefault(name, []).append(cal)
-        for name in sorted(self.names.keys()):
-            yield name
+    def _walk_objects(self):
+        '''
+        Discover in-ear calibrations grouped by starship, reading identity
+        from ``metadata.json`` rather than parsing filename segments.
 
-    def list_calibrations(self, name, folder=None):
-        return self.names[name]
+        In-ear calibrations traditionally live at
+        ``inear/<ear>/<cal>/metadata.json`` — the on-disk parent of the
+        calibration is the ear (e.g., ``left``, ``right``), and the
+        starship name comes from the metadata sidecar.  This override
+        treats the starship as the object identity (matching the other
+        CFTS loaders' one-object-per-name model) and uses whatever sits
+        between the loader's ``base_path`` and the calibration directory
+        as the organizational folder — typically the ear, but any nested
+        org folders added via drag-drop or the group_path picker are
+        preserved.
+        '''
+        objects = {}
+        if not self.base_path.exists():
+            return objects
+        for meta_file in self.base_path.rglob('metadata.json'):
+            cal_dir = meta_file.parent
+            try:
+                metadata = json.loads(meta_file.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            starship = metadata.get('starship')
+            if not starship:
+                continue
+            try:
+                rel = cal_dir.parent.relative_to(self.base_path)
+            except ValueError:
+                continue
+            folder = '' if str(rel) == '.' else rel.as_posix()
+            objects.setdefault((folder, starship), []).append(cal_dir)
+        return objects
 
 
 ################################################################################

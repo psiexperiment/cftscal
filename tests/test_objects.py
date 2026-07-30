@@ -15,6 +15,7 @@ from cftscal.objects import (
     CalibrationLoader,
     CalibrationManager,
     CFTSBaseLoader,
+    CFTSInEarLoader,
 )
 
 
@@ -252,3 +253,59 @@ class TestListCalibrationsFolderFilter:
         results = loader.list_calibrations('MMM0', folder='Lab1')
         assert len(results) == 1
         assert results[0].filename.parent.parent.name == 'Lab1'
+
+
+# ---------------------------------------------------------------------------
+# CFTSInEarLoader — starship identity from metadata, folder from disk
+# ---------------------------------------------------------------------------
+
+class _InEarStub(CFTSInEarLoader):
+    '''Bypass CFTSInEarLoader.__init__ so tests can point at tmp_path.'''
+
+    def __init__(self, base_path):
+        self.base_path = Path(base_path)
+
+
+class TestInEarLoader:
+
+    def test_traditional_ear_layout(self, tmp_path):
+        # inear/<ear>/<cal>/metadata.json{starship: SS1}
+        _make_calibration(
+            tmp_path / 'left' / '20260701-abc',
+            metadata={'ear': 'left', 'starship': 'SS1', 'datetime': ''},
+        )
+        _make_calibration(
+            tmp_path / 'right' / '20260702-def',
+            metadata={'ear': 'right', 'starship': 'SS1', 'datetime': ''},
+        )
+        loader = _InEarStub(tmp_path)
+        result = loader._walk_objects()
+        # Same starship in two different ears → two distinct objects,
+        # ear becomes the folder.
+        assert set(result) == {('left', 'SS1'), ('right', 'SS1')}
+
+    def test_missing_starship_skipped(self, tmp_path):
+        _make_calibration(
+            tmp_path / 'left' / '20260701-abc',
+            metadata={'ear': 'left', 'datetime': ''},  # no starship
+        )
+        loader = _InEarStub(tmp_path)
+        assert loader._walk_objects() == {}
+
+    def test_bad_metadata_skipped(self, tmp_path):
+        cal_dir = tmp_path / 'left' / '20260701-abc'
+        cal_dir.mkdir(parents=True)
+        (cal_dir / 'metadata.json').write_text('not json')
+        loader = _InEarStub(tmp_path)
+        assert loader._walk_objects() == {}
+
+    def test_nested_org_folder_preserved(self, tmp_path):
+        # Users can drag inear cals into deeper org folders; the folder
+        # path should reflect that.
+        _make_calibration(
+            tmp_path / 'Lab1' / 'left' / '20260701-abc',
+            metadata={'ear': 'left', 'starship': 'SS1', 'datetime': ''},
+        )
+        loader = _InEarStub(tmp_path)
+        result = loader._walk_objects()
+        assert list(result) == [('Lab1/left', 'SS1')]
