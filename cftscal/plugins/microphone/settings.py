@@ -26,6 +26,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             )
             settings.append(setting)
         self.available_inputs = settings
+        self.selected_input = self.available_inputs[0]
 
     def run_calibration(self, ai):
         pathname = self._make_path(
