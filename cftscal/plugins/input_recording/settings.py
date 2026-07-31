@@ -24,9 +24,9 @@ class InputRecordingSettings(CalibrationSettings):
         self.generator = GeneratorSettings()
 
     def run_input_recording(self, ai):
-        filename = f'{{date_time}}_{self.generator.name}_{ai.sensor.name}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('input-recording', self.generator.name, filename)
+        pathname = self._make_path(
+            'input-recording', ai.group_path, self.generator.name, '{date_time}',
+        )
         env = {
             **ai.get_env_vars(),
         }

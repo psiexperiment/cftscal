@@ -83,10 +83,6 @@ enamldef InputAmplifierView(Container): container:
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'input_amplifier'
-
                     Looper:
                         iterable << container.settings.available_inputs
 
@@ -99,6 +95,13 @@ enamldef InputAmplifierView(Container): container:
                                 sensor << loop_item.sensor
                                 label = loop_item.input_label
                                 mode = 'add'
+
+                            GroupPathPicker:
+                                plugin_settings = settings
+                                subfolder = 'input_amplifier'
+                                collection << amp_tree.collection
+                                path_target << loop_item
+                                show_label = False
 
                             PushButton: amp_cal_start:
                                 text = 'Calibrate'
@@ -124,7 +127,7 @@ enamldef InputAmplifierView(Container): container:
             closable = False
             stretch = 0
 
-            CalibratedObjects:
+            CalibratedObjects: amp_tree:
                 mapping = {
                     'Name': {
                         'groupby': True,

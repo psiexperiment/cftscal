@@ -76,10 +76,6 @@ enamldef SpeakerView(Container):
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'speaker'
-
                     Container:
                         attr ai << settings.selected_input
                         share_layout = True
@@ -106,7 +102,7 @@ enamldef SpeakerView(Container):
                             to_string = lambda m: m.input_label
 
                         ObjectCombo: mic_select:
-                            items = sorted(ai.sensor.available_sensors)
+                            items = sorted(ai.sensor.available_references)
                             selected := ai.sensor.name
 
                         ObjectCombo: mic_gain:
@@ -125,24 +121,39 @@ enamldef SpeakerView(Container):
 
                             share_layout = True
                             padding = 0
+
+                            # Refresh this row's speaker dropdown when a
+                            # new calibration lands, so the just-added
+                                # speaker appears without a plugin reload.
+                            # Named handler for a clean call site; ``ao``
+                            # is resolved from enamldef scope at call time.
+                            func _on_collection_updated(change):
+                                ao.generator.refresh_available()
+
+                            initialized ::
+                                speaker_tree.collection.observe(
+                                    'updated', _on_collection_updated,
+                                )
                             constraints = [
                                 hbox(
                                     speaker_label,
                                     hbox(speaker_select, speaker_add, spacing=0),
+                                    speaker_target,
                                     spacer(0),
                                     hbox(golay_start, chirp_start, spacing=0),
                                     spacing=5,
                                 ),
                                 speaker_add.width == 25,
                                 align('v_center', speaker_label, speaker_select,
-                                        speaker_add, golay_start, chirp_start),
+                                        speaker_add, speaker_target,
+                                        golay_start, chirp_start),
                             ]
 
                             Label: speaker_label:
                                 text = ao.output_label
 
                             ObjectCombo: speaker_select:
-                                items = ao.generator.available_speakers
+                                items << ao.generator.available_generators
                                 selected := ao.generator.name
 
                             PushButton: speaker_add:
@@ -150,6 +161,13 @@ enamldef SpeakerView(Container):
                                 clicked ::
                                     popup = AddItem(self, combo=speaker_select, label='Speaker')
                                     popup.show()
+
+                            GroupPathPicker: speaker_target:
+                                plugin_settings = settings
+                                subfolder = 'speaker'
+                                collection << speaker_tree.collection
+                                path_target << ao
+                                show_label = False
 
                             PushButton: golay_start:
                                 text = 'Golay'

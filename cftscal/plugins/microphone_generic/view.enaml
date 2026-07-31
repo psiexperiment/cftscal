@@ -86,10 +86,6 @@ enamldef MicrophoneComparisonView(Container): view:
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'microphone_generic'
-
                     Container:
                         share_layout = True
                         padding = 0
@@ -98,11 +94,7 @@ enamldef MicrophoneComparisonView(Container): view:
                             constraints = [vbox(*visible_widgets(), spacing=5)]
                             # Ensure that the element in the same column has
                             # the same width across rows
-
-                            # Extract the column for the add pushbutton
-                            pb = visible_widgets()[0].visible_widgets()[3]
-                            constraints.append(pb.width == 20)
-                            to_align = visible_widgets()[:-1]
+                            to_align = visible_widgets()
                             for col in zip(*[c.visible_widgets() for c in to_align]):
                                 constraints.append(align('right', *col))
                             return constraints
@@ -123,10 +115,10 @@ enamldef MicrophoneComparisonView(Container): view:
                                 text = 'Input'
 
                             Label:
-                                text = 'Mic.'
+                                text = 'Device / Ref.'
 
                             Label:
-                                text = ''
+                                text = 'Target folder'
 
                         HGroup:
                             share_layout = True
@@ -142,11 +134,20 @@ enamldef MicrophoneComparisonView(Container): view:
                                 selected := settings.generic_input
                                 to_string = lambda m: m.input_label
 
-                            SensorView:
-                                mode = 'add'
-                                label = 'Test Microphone'
+                            # Inline device-ID picker.  The generic input's
+                            # sensor is a SensorDevice — its available_devices
+                            # is a user-managed list of physical device
+                            # identifiers, not calibration paths.
+                            ObjectCombo: generic_device_select:
+                                items := settings.generic_input.sensor.available_devices
+                                selected := settings.generic_input.sensor.name
+
+                            GroupPathPicker:
+                                plugin_settings = settings
+                                subfolder = 'microphone_generic'
+                                collection << device_tree.collection
+                                path_target << settings.generic_input
                                 show_label = False
-                                sensor << settings.generic_input.sensor
 
                         HGroup:
                             share_layout = True
@@ -167,6 +168,7 @@ enamldef MicrophoneComparisonView(Container): view:
                                 label = 'Reference Microphone'
                                 show_label = False
                                 sensor << settings.measurement_input.sensor
+                                collection << device_tree.collection
 
                         HGroup:
                             padding = 0

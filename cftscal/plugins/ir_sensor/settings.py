@@ -33,9 +33,10 @@ class IRSensorSettings(CalibrationSettings):
         self.selected_output = settings[0]
 
     def run_recording(self, ai, ao):
-        filename = f'{{date_time}}_{ai.input_name}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('ir-sensor', ai.input_name, filename)
+        # Target = the input channel receiving the IR sensor signal.
+        pathname = self._make_path(
+            'ir-sensor', ai.group_path, ai.input_name, '{date_time}',
+        )
         env = {
             **ai.get_env_vars(include_cal=False),
             **ao.get_env_vars(include_cal=False),

@@ -93,10 +93,6 @@ enamldef IRSensorView(Container):
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'ir-sensor'
-
                     HGroup:
                         share_layout = True
                         align_widths = False
@@ -129,9 +125,16 @@ enamldef IRSensorView(Container):
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'ir-sensor'
+                        collection << input_tree.collection
+                        path_target << settings.selected_input
+
                     SensorView:
                         sensor << settings.selected_input.sensor
                         mode = 'add'
+                        collection << input_tree.collection
 
                     PushButton: start:
                         text = 'Record'

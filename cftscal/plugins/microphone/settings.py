@@ -3,8 +3,8 @@ from atom.api import set_default, List, Typed
 from ..settings import (
     CalibrationSettings,
     InputSettings,
-    MeasurementMicrophoneSettings,
-    PistonphoneSettings
+    PistonphoneSettings,
+    SensorDevice,
 )
 
 
@@ -22,19 +22,24 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             setting = InputSettings(
                 input_name=name,
                 input_label=label,
-                sensor=MeasurementMicrophoneSettings(),
+                sensor=SensorDevice(),
             )
             settings.append(setting)
         self.available_inputs = settings
 
     def run_calibration(self, ai):
-        filename = f'{{date_time}}_{ai.sensor.name}_{self.pistonphone.name}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('microphone', ai.sensor.name, filename)
+        pathname = self._make_path(
+            'microphone', ai.group_path, ai.sensor.name, '{date_time}',
+        )
         env = {
             **ai.get_env_vars(include_cal=False, env_prefix='CFTS_MICROPHONE'),
             **self.pistonphone.get_env_vars(),
         }
-        metadata = {'pistonphone': self.pistonphone.name}
+        metadata = {
+            'pistonphone': self.pistonphone.name,
+            'sensor_id': ai.sensor.name,
+            'gain': ai.sensor.gain,
+            'input_channel': ai.input_label,
+        }
         self._run_cal(pathname, 'cftscal.paradigms.pistonphone_calibration',
                       env, metadata=metadata)

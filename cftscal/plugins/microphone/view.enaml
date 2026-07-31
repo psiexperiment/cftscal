@@ -12,7 +12,7 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, GroupPathPicker, SensorView, ObjectCollection,
+    AddItem, CalibratedObjects, GroupPathPicker, ObjectCollection,
     SinglePlotManager,
 )
 
@@ -82,10 +82,6 @@ enamldef MicrophoneView(Container):
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'microphone'
-
                     HGroup:
                         padding = 0
                         share_layout = True
@@ -127,9 +123,55 @@ enamldef MicrophoneView(Container):
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
-                    SensorView:
-                        mode = 'add'
-                        sensor << settings.selected_input.sensor
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'microphone'
+                        collection << mic_tree.collection
+                        # Bind to the currently-selected input's group_path
+                        # so switching input channels swaps in that
+                        # channel's saved target folder.
+                        path_target << settings.selected_input
+
+                    HGroup:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
+
+                        Label:
+                            text = 'Sensor ID'
+
+                        ObjectCombo: sensor_id_select:
+                            # Free-form device identifier (serial number,
+                            # asset tag, etc.) — persistent per input
+                            # channel.  SensorDevice doesn't auto-populate
+                            # from disk, so this list is purely
+                            # user-managed.  Written to metadata.json for
+                            # tracking which physical microphone recorded
+                            # each calibration.
+                            items := settings.selected_input.sensor.available_devices
+                            selected := settings.selected_input.sensor.name
+
+                        PushButton:
+                            text = '+'
+                            constraints = [width == 25]
+                            clicked ::
+                                popup = AddItem(
+                                    self, combo=sensor_id_select,
+                                    label='Sensor ID',
+                                    regex=r'^[\w\d/_\- ]+$',
+                                )
+                                popup.show()
+
+                        Label:
+                            text = 'Gain'
+
+                        ObjectCombo:
+                            items = [-20, -10, 0, 10, 20, 30, 40, 50]
+                            selected := settings.selected_input.sensor.gain
+
+                        Label:
+                            text = 'dB'
 
                     PushButton: start:
                         text = 'Calibrate'
@@ -166,6 +208,15 @@ enamldef MicrophoneView(Container):
                         'groupby': False,
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
+                    },
+                    'Input': {
+                        'to_str': lambda x: x.input_channel,
+                    },
+                    'Sensor ID': {
+                        'to_str': lambda x: x.sensor_id,
+                    },
+                    'Gain': {
+                        'to_str': lambda x: f'{x.gain:g} dB',
                     },
                     'Sens': {
                         'to_str': lambda x: f'{x.sens:.2f} mV/Pa',

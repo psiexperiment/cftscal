@@ -2,7 +2,7 @@ from atom.api import set_default, List, Typed
 
 from psi import get_config
 
-from ..settings import CalibrationSettings, InputSettings, InputAmplifierSettings
+from ..settings import CalibrationSettings, InputSettings, InputAmplifierReference
 
 from cftscal import CAL_ROOT
 
@@ -18,17 +18,15 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             setting = InputSettings(
                 input_name=name,
                 input_label=label,
-                sensor=InputAmplifierSettings(),
+                sensor=InputAmplifierReference(),
             )
             settings.append(setting)
         self.available_inputs = settings
 
     def run_calibration(self, ai):
-        filename = f'{{date_time}}_{ai.sensor.name}' \
-            f'_{ai.sensor.total_gain}x_{ai.sensor.freq_lb}-{ai.sensor.freq_ub}Hz' \
-            f'-filt-60Hz-{ai.sensor.filt_60Hz}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('input_amplifier', ai.sensor.name, filename)
+        pathname = self._make_path(
+            'input_amplifier', ai.group_path, ai.sensor.name, '{date_time}',
+        )
         env_prefix = f'CFTS_INPUT_AMPLIFIER_{ai.input_name.upper()}'
         env = {
             **ai.get_env_vars(include_cal=False, env_prefix='CFTS_INPUT_AMPLIFIER'),

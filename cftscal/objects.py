@@ -689,6 +689,26 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
     def pistonphone(self):
         return self.metadata['pistonphone']
 
+    @property
+    def sensor_id(self):
+        # Physical-device identifier (e.g. serial number).  Free-form
+        # metadata for tracking which unit was used; not part of the
+        # calibration's lookup identity.  Falls back to the legacy
+        # ``sensor`` key so calibrations recorded during the brief window
+        # when that field was named differently still render.
+        return self.metadata.get('sensor_id', self.metadata.get('sensor', ''))
+
+    @property
+    def gain(self):
+        return self.metadata.get('gain', 0)
+
+    @property
+    def input_channel(self):
+        # IO-manifest input name (e.g. "microphone_1", "ai0") the
+        # calibration was recorded on.  Old calibrations without this
+        # metadata render as ''.
+        return self.metadata.get('input_channel', '')
+
     @cached_property
     def sens(self):
         try:

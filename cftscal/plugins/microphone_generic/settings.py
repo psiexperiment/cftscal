@@ -2,10 +2,10 @@ from atom.api import set_default, List, Typed
 
 from ..settings import (
     CalibrationSettings,
-    GenericMicrophoneSettings,
     InputSettings,
-    MeasurementMicrophoneSettings,
+    MeasurementMicrophoneReference,
     OutputSettings,
+    SensorDevice,
     SpeakerSettings,
 )
 
@@ -23,10 +23,12 @@ class MicrophoneComparisonSettings(CalibrationSettings):
     def __init__(self, measurement_inputs, generic_inputs, speaker_outputs):
         settings = []
         for label, name in measurement_inputs.items():
+            # Reference — the measurement mic supplies the ground-truth
+            # calibration used to calibrate the generic mic.
             setting = InputSettings(
                 input_name=name,
                 input_label=label,
-                sensor=MeasurementMicrophoneSettings(),
+                sensor=MeasurementMicrophoneReference(),
             )
             settings.append(setting)
         self.measurement_inputs = settings
@@ -34,10 +36,13 @@ class MicrophoneComparisonSettings(CalibrationSettings):
 
         settings = []
         for label, name in generic_inputs.items():
+            # Device — the generic mic is the thing being calibrated.
+            # Its ``sensor.name`` is a free-form device identifier that
+            # ends up in the calibration's metadata.
             setting = InputSettings(
                 input_name=name,
                 input_label=label,
-                sensor=MeasurementMicrophoneSettings(),
+                sensor=SensorDevice(),
             )
             settings.append(setting)
         self.generic_inputs = settings
@@ -55,9 +60,13 @@ class MicrophoneComparisonSettings(CalibrationSettings):
         self.speaker_output = self.speaker_outputs[0]
 
     def run_calibration(self, which):
-        filename = f'{{date_time}}_{self.generic_input.sensor.name}_{self.measurement_input.sensor.name}_{which}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('microphone_generic', self.generic_input.sensor.name, filename)
+        # Target = the generic input (that's the thing being calibrated).
+        pathname = self._make_path(
+            'microphone_generic',
+            self.generic_input.group_path,
+            self.generic_input.sensor.name,
+            '{date_time}',
+        )
         env = {
             **self.measurement_input.get_env_vars(
                 env_prefix='CFTS_MICROPHONE',

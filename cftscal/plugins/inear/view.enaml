@@ -188,10 +188,6 @@ enamldef InEarView(Container):
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'inear'
-
                     Looper:
                         iterable << settings.ears
 
@@ -199,12 +195,25 @@ enamldef InEarView(Container):
                             attr ear = loop_item
                             share_layout = True
                             padding = 0
+
+                            # Refresh this row's starship + ear dropdowns
+                            # after a new calibration is recorded.
+                            # InEarSettings.refresh_available handles
+                            # both lists.
+                            func _on_collection_updated(change):
+                                ear.refresh_available()
+
+                            initialized ::
+                                inear_tree.collection.observe(
+                                    'updated', _on_collection_updated,
+                                )
                             constraints = [
                                 hbox(
                                     output_label,
                                     hbox(starship_select, starship_gain, spacing=0),
                                     starship_gain_label,
                                     hbox(ear_select, ear_add, spacing=0),
+                                    ear_target,
                                     spacer(0),
                                     cal_start,
                                     spacing=5,
@@ -213,7 +222,7 @@ enamldef InEarView(Container):
                                 align('v_center', output_label,
                                     starship_select, starship_gain,
                                     starship_gain_label, ear_select, ear_add,
-                                    cal_start),
+                                    ear_target, cal_start),
                             ]
 
                             Label: output_label:
@@ -239,6 +248,13 @@ enamldef InEarView(Container):
                                 clicked ::
                                     popup = AddItem(self, combo=ear_select, label='Ear')
                                     popup.show()
+
+                            GroupPathPicker: ear_target:
+                                plugin_settings = settings
+                                subfolder = 'inear'
+                                collection << inear_tree.collection
+                                path_target << ear
+                                show_label = False
 
                             PushButton: cal_start:
                                 text = 'Run'

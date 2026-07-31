@@ -1,7 +1,7 @@
 from atom.api import set_default, List, Str, Typed
 
 from ..settings import (CalibrationSettings, InputSettings,
-                        MeasurementMicrophoneSettings,
+                        MeasurementMicrophoneReference,
                         StarshipSettings)
 
 class StarshipCalibrationSettings(CalibrationSettings):
@@ -27,16 +27,16 @@ class StarshipCalibrationSettings(CalibrationSettings):
             setting = InputSettings(
                 input_name=name,
                 input_label=label,
-                sensor=MeasurementMicrophoneSettings(),
+                sensor=MeasurementMicrophoneReference(),
             )
             settings.append(setting)
         self.available_inputs = settings
         self.selected_input = self.available_inputs[0]
 
     def run_cal_golay(self, starship, microphone):
-        filename = f'{{date_time}}_{starship.starship}_{microphone.input_name}_{self.calibration_coupler}_golay'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('starship', starship.starship, filename)
+        pathname = self._make_path(
+            'starship', starship.group_path, starship.starship, '{date_time}',
+        )
         env = {
             **microphone.get_env_vars(env_prefix='CFTS_MICROPHONE'),
             **starship.get_env_vars(include_cal=False),
@@ -50,9 +50,9 @@ class StarshipCalibrationSettings(CalibrationSettings):
                       env, metadata=metadata)
 
     def run_cal_chirp(self, starship, microphone):
-        filename = f'{{date_time}}_{starship.starship}_{microphone.input_name}_{self.calibration_coupler}_chirp'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('starship', starship.name, filename)
+        pathname = self._make_path(
+            'starship', starship.group_path, starship.name, '{date_time}',
+        )
         env = microphone.get_env_vars()
         env.update(starship.get_env_vars(include_cal=False))
         metadata = {

@@ -418,8 +418,10 @@ class FastTreeWidget(QTreeWidget):
         return self._do_move(cal_dir, dest_dir)
 
     def _do_move(self, cal_dir, dest_object_dir):
-        """Perform the on-disk move and prune the source object dir if empty."""
-        src_object_dir = cal_dir.parent
+        """Perform the on-disk move.  Source object dir is left in place
+        even if it becomes empty; only the user can delete it via the
+        right-click menu, so an accidental drag never destroys the
+        organizational structure they built."""
         dest_cal_dir = dest_object_dir / cal_dir.name
         if dest_cal_dir == cal_dir:
             return False
@@ -427,13 +429,6 @@ class FastTreeWidget(QTreeWidget):
             raise OSError(f'"{cal_dir.name}" already exists at the destination.')
         dest_object_dir.mkdir(parents=True, exist_ok=True)
         shutil.move(str(cal_dir), str(dest_cal_dir))
-        # Prune the source object dir if it's now empty so a stale
-        # <object_name>/ folder doesn't linger in the tree.
-        try:
-            if src_object_dir.exists() and not any(src_object_dir.iterdir()):
-                src_object_dir.rmdir()
-        except OSError:
-            pass
         return True
 
     @staticmethod
@@ -551,9 +546,9 @@ class FastTreeWidget(QTreeWidget):
         Right-click menu.  The available actions depend on what was clicked:
 
         - Leaf (calibration): Delete
+        - Object group: Rename, Delete (if empty)
         - Folder node: New subfolder, Rename, Delete (if empty)
         - Empty area: New folder at root
-        - Group: no actions (organizational; nothing meaningful to do here)
         """
         item = self.itemAt(position)
         global_pos = self.viewport().mapToGlobal(position)
@@ -561,12 +556,13 @@ class FastTreeWidget(QTreeWidget):
 
         if isinstance(data, ObjectNode):
             self._context_menu_for_leaf(data, global_pos)
+        elif isinstance(data, ObjectGroup):
+            self._context_menu_for_group(data, global_pos)
         elif item is None:
             self._context_menu_for_root(global_pos)
         elif data is None:
             # Folder node (no attached Python data).
             self._context_menu_for_folder(item, global_pos)
-        # Groups (ObjectGroup): no context menu — they're structural.
 
     def _context_menu_for_leaf(self, sub, global_pos):
         menu = QMenu()
@@ -602,9 +598,30 @@ class FastTreeWidget(QTreeWidget):
         if action == new_action:
             self._create_folder(base_path, folder_path)
         elif action == rename_action:
-            self._rename_folder(base_path, folder_path)
+            self._rename_dir(folder_dir, 'Rename folder')
         elif action == delete_action:
-            self._delete_folder(folder_dir)
+            self._delete_dir(folder_dir, 'Delete folder')
+
+    def _context_menu_for_group(self, group, global_pos):
+        base_path = self._base_path(group)
+        if base_path is None:
+            return
+        obj = group.item
+        obj_dir = self._join(base_path, obj.folder or '', obj.name)
+        menu = QMenu()
+        rename_action = menu.addAction('Rename object folder…')
+        delete_action = menu.addAction('Delete object folder')
+        # Only allow delete when the object folder is empty (i.e. all
+        # calibrations have been moved or deleted first).  This matches
+        # folder-delete behavior — no accidental cascading removals.
+        delete_action.setEnabled(
+            obj_dir.exists() and not any(obj_dir.iterdir())
+        )
+        action = menu.exec_(global_pos)
+        if action == rename_action:
+            self._rename_dir(obj_dir, 'Rename object folder')
+        elif action == delete_action:
+            self._delete_dir(obj_dir, 'Delete object folder')
 
     def _context_menu_for_root(self, global_pos):
         base_path = self._collection_base_path()
@@ -662,40 +679,46 @@ class FastTreeWidget(QTreeWidget):
             return
         self.collection.update_groups()
 
-    def _rename_folder(self, base_path, folder_path):
-        if not folder_path:
+    def _rename_dir(self, src_dir, dialog_title):
+        """Prompt for a new name and rename the on-disk directory.  Used
+        for both organizational folders and object folders — same rules
+        (sanitize, refuse existing names, refresh on success)."""
+        if not src_dir.exists():
             return
-        parent, _, current = folder_path.rpartition('/')
-        new_name = self._prompt_folder_name('Rename folder', initial=current)
+        current = src_dir.name
+        new_name = self._prompt_folder_name(dialog_title, initial=current)
         if new_name is None or new_name == current:
             return
-        src = base_path / folder_path
-        dest = base_path / parent / new_name if parent else base_path / new_name
+        dest = src_dir.parent / new_name
         if dest.exists():
             QMessageBox.warning(
-                self, 'Rename folder',
+                self, dialog_title,
                 f'"{new_name}" already exists at this location.',
             )
             return
         try:
-            src.rename(dest)
+            src_dir.rename(dest)
         except OSError as e:
-            QMessageBox.critical(self, 'Rename folder', str(e))
+            QMessageBox.critical(self, dialog_title, str(e))
             return
         self.collection.update_groups()
 
-    def _delete_folder(self, folder_dir):
+    def _delete_dir(self, dir_, dialog_title):
+        """Confirm and remove an empty directory.  Callers gate this
+        action on emptiness in the context menu; rmdir would refuse a
+        non-empty directory anyway, but the emptiness check gives a
+        cleaner UX than a raw OSError popup."""
         reply = QMessageBox.question(
-            self, 'Delete folder',
-            f'Delete folder "{folder_dir.name}"?',
+            self, dialog_title,
+            f'Delete "{dir_.name}"?',
             QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
         try:
-            folder_dir.rmdir()
+            dir_.rmdir()
         except OSError as e:
-            QMessageBox.critical(self, 'Delete folder', str(e))
+            QMessageBox.critical(self, dialog_title, str(e))
             return
         self.collection.update_groups()
 

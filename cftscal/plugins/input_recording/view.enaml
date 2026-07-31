@@ -123,10 +123,6 @@ enamldef InputRecordingView(Container):
                         ]
                         return constraints
 
-                    GroupPathPicker:
-                        plugin_settings = settings
-                        subfolder = 'input-recording'
-
                     HGroup:
                         share_layout = True
                         align_widths = False
@@ -141,8 +137,17 @@ enamldef InputRecordingView(Container):
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
+                    GroupPathPicker:
+                        plugin_settings = settings
+                        subfolder = 'input-recording'
+                        collection << input_tree.collection
+                        # Per-channel target folder — switching input
+                        # channels swaps in that channel's saved folder.
+                        path_target << settings.selected_input
+
                     SensorView:
                         sensor << settings.selected_input.sensor
+                        collection << input_tree.collection
 
                     GeneratorView:
                         generator << settings.generator

@@ -7,7 +7,7 @@ from psi import get_config
 from ..settings import (
     CalibrationSettings,
     InputSettings,
-    MeasurementMicrophoneSettings,
+    MeasurementMicrophoneReference,
     OutputSettings,
     SpeakerSettings,
 )
@@ -36,15 +36,17 @@ class SpeakerCalibrationSettings(CalibrationSettings):
             setting = InputSettings(
                 input_label=label,
                 input_name=name,
-                sensor=MeasurementMicrophoneSettings(),
+                sensor=MeasurementMicrophoneReference(),
             )
             settings.append(setting)
         self.available_inputs = settings
         self.selected_input = self.available_inputs[0]
 
     def run_cal(self, ao, ai, which):
-        filename = f'{{date_time}}_{ao.generator.name}_{ai.sensor.name}_{which}'
-        pathname = self._make_path('speaker', ao.generator.name, filename)
+        # Target = the speaker output being calibrated.
+        pathname = self._make_path(
+            'speaker', ao.group_path, ao.generator.name, '{date_time}',
+        )
         env = ai.get_env_vars(env_prefix='CFTS_MICROPHONE')
         env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
         metadata = {

@@ -19,9 +19,11 @@ class InEarCalibrationSettings(CalibrationSettings):
         self.ears = settings
 
     def run_cal(self, ear):
-        filename = f'{{date_time}}_{ear.ear}_{ear.starship}'
-        filename = ' '.join(filename.split())
-        pathname = self._make_path('inear', ear.ear, filename)
+        # Target = the ear connection being calibrated.  InEarSettings
+        # inherits group_path from StarshipSettings.
+        pathname = self._make_path(
+            'inear', ear.group_path, ear.ear, '{date_time}',
+        )
         env = ear.get_env_vars()
         metadata = {
             'ear': ear.ear,

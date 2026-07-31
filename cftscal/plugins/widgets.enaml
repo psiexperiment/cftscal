@@ -38,14 +38,26 @@ from cftscal.objects import (
 
 def _list_group_paths(base_path):
     '''
-    Return sorted posix-style paths of every organizational folder beneath
-    ``base_path``, plus the empty string (for "root").  Mirrors
-    ``FastTreeWidget._list_org_folders`` but is standalone so the plugin
-    view can populate its folder picker without depending on the tree.
+    Return sorted posix-style paths of every folder beneath ``base_path``
+    that could accept a new calibration, plus ``''`` for "(root)".
+
+    A folder is a valid target if it is:
+
+    - An **object dir** (already contains calibration-dir children) — the
+      new cal joins that object's group.
+    - An **empty folder** — becomes a new object dir on the first cal.
+
+    Org folders that already contain sub*folders* are NOT listed: filing
+    a cal directly into one would create a mixed layout (a folder that's
+    both org container and object dir at once), which violates the
+    folder-object separation rule.  The walker still descends into such
+    folders to surface their valid nested children (e.g. ``Bramhall`` is
+    hidden but ``Bramhall/MMM`` is listed if MMM is an object).
     '''
-    if not base_path.exists():
-        return ['']
     paths = ['']
+    if not base_path.exists():
+        return paths
+
     def walk(dir_):
         try:
             children = list(dir_.iterdir())
@@ -54,21 +66,27 @@ def _list_group_paths(base_path):
         for child in children:
             if not child.is_dir():
                 continue
-            # Calibration dir → don't recurse, don't add.
             if (child / 'metadata.json').exists():
-                continue
-            # Object dir (has a cal-dir child) → don't recurse, don't add.
+                continue  # calibration dir
             try:
-                is_object_dir = any(
-                    gc.is_dir() and (gc / 'metadata.json').exists()
-                    for gc in child.iterdir()
-                )
+                grand_subdirs = [gc for gc in child.iterdir() if gc.is_dir()]
             except OSError:
                 continue
-            if is_object_dir:
-                continue
-            paths.append(child.relative_to(base_path).as_posix())
-            walk(child)
+            has_cal_grandchild = any(
+                (gc / 'metadata.json').exists() for gc in grand_subdirs
+            )
+            rel = child.relative_to(base_path).as_posix()
+            if has_cal_grandchild:
+                # Object dir — pickable; new cal joins its group.
+                paths.append(rel)
+            elif not grand_subdirs:
+                # Empty folder — pickable; becomes a new object.
+                paths.append(rel)
+            else:
+                # Org folder with subfolders — not itself pickable, but
+                # descend so its nested children can be found.
+                walk(child)
+
     walk(base_path)
     return sorted(paths)
 
@@ -454,39 +472,55 @@ enamldef CalibratedObjects(Container): container:
 
 enamldef GroupPathPicker(HGroup): picker:
     '''
-    Editable folder-picker bound to ``plugin_settings.group_path``.
-    Populated with the organizational folders that already exist under
-    the plugin's subfolder tree.  The "+" button opens an AddItem popup
-    for typing a new folder path (slash-separated for nesting, e.g.
-    "Lab1/study_1").  The attr is named ``plugin_settings`` rather than
-    ``settings`` to avoid shadowing the outer ``settings`` identifier at
-    the call site.
+    Folder-picker for the plugin's calibration target folder.
+
+    Attrs:
+
+    - ``plugin_settings`` — the CalibrationSettings instance; provides
+      ``data_path`` so the picker can walk the plugin's subfolder tree.
+    - ``subfolder`` — the plugin's on-disk subfolder name ("microphone",
+      "speaker", …).
+    - ``collection`` — optional ObjectCollection whose ``updated`` event
+      triggers a dropdown refresh (e.g. after the user creates a folder
+      via the tree view's right-click menu).
+    - ``path_target`` — the object whose ``group_path`` attribute the
+      picker reads and writes.  Defaults to ``plugin_settings`` (single
+      shared target per plugin).  Plugins that want the target folder to
+      switch per input channel pass e.g. ``path_target << settings.
+      selected_input`` — then re-selecting an input rebinds the picker
+      to that input's saved group_path.
     '''
     attr plugin_settings
     attr subfolder = ''
+    attr collection = None
+    attr path_target << plugin_settings
+    attr show_label = True
 
     share_layout = True
     align_widths = False
     padding = 0
     spacing = 5
 
-    Label:
-        text = 'Target folder'
+    activated ::
+        if collection is not None:
+            collection.observe(
+                'updated',
+                lambda change: setattr(
+                    select, 'items',
+                    _list_group_paths(plugin_settings.data_path / subfolder),
+                ),
+            )
+
+    Conditional:
+        condition << show_label
+
+        Label:
+            text = 'Target folder'
 
     ObjectCombo: select:
-        items << _list_group_paths(plugin_settings.data_path / subfolder)
-        selected := plugin_settings.group_path
+        items = _list_group_paths(plugin_settings.data_path / subfolder)
+        selected := path_target.group_path
         to_string = lambda x: '(root)' if not x else x
-
-    PushButton:
-        text = '+'
-        constraints = [width == 25]
-        clicked ::
-            popup = AddItem(
-                self, combo=select, label='Folder path',
-                regex=r'^[\w\d/_\- ]+$',
-            )
-            popup.show()
 
 
 enamldef SensorView(HGroup):
@@ -497,10 +531,31 @@ enamldef SensorView(HGroup):
     attr show_label = True
     attr gains = [-20, -10, 0, 10, 20, 30, 40, 50]
     attr gain_unit = 'db gain'
+    #: Optional ObjectCollection whose ``updated`` event triggers a
+    #: dropdown refresh — same pattern as GroupPathPicker.  When a new
+    #: calibration lands, sensor.refresh_available() re-merges the
+    #: picker list from disk without needing a plugin reload.
+    attr collection = None
+
     share_layout = True
     align_widths = False
     padding = 0
     spacing = 5
+
+    #: Named handler so the observer setup reads cleanly and the
+    #: closure semantics are explicit: ``sensor`` is looked up in the
+    #: enamldef scope at call time, so a rebind (user selects a
+    #: different input) automatically routes to the new sensor.  Enaml
+    #: doesn't give us a clean destroy hook on HGroup; observers on
+    #: ``collection`` linger until Python's cyclic GC collects the
+    #: torn-down widget, which is fine in practice.
+    func _on_collection_updated(change):
+        if hasattr(sensor, 'refresh_available'):
+            sensor.refresh_available()
+
+    initialized ::
+        if collection is not None:
+            collection.observe('updated', _on_collection_updated)
 
     Conditional:
         condition << show_label
@@ -509,7 +564,7 @@ enamldef SensorView(HGroup):
             text = label
 
     ObjectCombo: select:
-        items := sensor.available_sensors
+        items := sensor.available_references
         selected := sensor.name
 
     Conditional:
@@ -519,7 +574,12 @@ enamldef SensorView(HGroup):
             text = '+'
             constraints = [width == 25]
             clicked ::
-                popup = AddItem(self, combo=select, label=label)
+                # Reference identifiers are calibration paths (e.g.
+                # "Bramhall/MMM"), so widen the regex to accept slashes.
+                popup = AddItem(
+                    self, combo=select, label=label,
+                    regex=r'^[\w\d/_\- ]+$',
+                )
                 popup.show()
 
     ObjectCombo:
