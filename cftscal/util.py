@@ -32,7 +32,7 @@ def io_manifest():
             'PSI_SOUND_DEVICE_NAME': settings.selected_device,
             'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
         })
-        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngine'
+        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'
     else:
         manifest = settings.hw_configuration
     global IO_MANIFEST

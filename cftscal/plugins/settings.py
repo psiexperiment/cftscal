@@ -187,7 +187,7 @@ class CalibrationSettings(Atom):
                 'PSI_SOUND_DEVICE_NAME': settings.selected_device,
                 'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
             })
-            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardEngine'])
+            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'])
         else:
             args.extend(['--io', settings.hw_configuration])
         print(json.dumps(env, indent=2))
