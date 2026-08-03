@@ -281,6 +281,45 @@ class SinglePlotManager(BasePlotManager):
         return super().get_plots(plot, vb)
 
 
+class RegionSelectViewBox(pg.ViewBox):
+    '''
+    A ViewBox where Ctrl+drag draws/redefines `region_select` (a
+    LinearRegionItem the owning plot manager attaches after construction),
+    while a plain drag still pans as usual.  Grabbing the region's own
+    edge or middle handles (no modifier needed) still resizes/moves it,
+    since pyqtgraph dispatches to the item under the cursor before this
+    ViewBox ever sees the drag.
+    '''
+    region_select = None
+
+    def mouseDragEvent(self, ev, axis=None):
+        is_region_drag = (
+            self.region_select is not None
+            and ev.button() == QtCore.Qt.MouseButton.LeftButton
+            and bool(ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier)
+        )
+        if not is_region_drag:
+            super().mouseDragEvent(ev, axis=axis)
+            return
+
+        ev.accept()
+        region = self.region_select
+        start = self.mapSceneToView(ev.buttonDownScenePos()).x()
+        current = self.mapSceneToView(ev.scenePos()).x()
+        # Set both edges directly rather than region.setRegion(), which
+        # unconditionally emits sigRegionChangeFinished on every call --
+        # that would trigger a full PSD recompute on every intermediate
+        # drag position instead of just once, at release.
+        region.blockLineSignal = True
+        region.lines[0].setValue(start)
+        region.lines[1].setValue(current)
+        region.blockLineSignal = False
+        region.prepareGeometryChange()
+        region.sigRegionChanged.emit(region)
+        if ev.isFinish():
+            region.sigRegionChangeFinished.emit(region)
+
+
 class TimePSDPlotManager(BasePlotManager):
 
     apply_calibration = Bool(True)
@@ -291,9 +330,6 @@ class TimePSDPlotManager(BasePlotManager):
     data = Value()
 
     analysis = List()
-
-    _selecting = Bool(False)
-    _initial_x = Value()
 
     def _default_component(self):
         component = pg.GraphicsLayout()
@@ -309,7 +345,7 @@ class TimePSDPlotManager(BasePlotManager):
         else:
             y_axis.setLabel('Signal (V)')
         y_axis.setGrid(64)
-        self.time_vb = vb = pg.ViewBox()
+        self.time_vb = vb = RegionSelectViewBox()
         vb.setBackgroundColor('w')
         y_axis.linkToView(vb)
         x_axis.linkToView(vb)
@@ -340,37 +376,6 @@ class TimePSDPlotManager(BasePlotManager):
         self.data = {}
 
         return component
-
-    def _mouse_click(self, event):
-        if self.time_vb.sceneBoundingRect().contains(event.scenePos()):
-            point = self.time_vb.mapSceneToView(event.scenePos())
-            if not self._selecting:
-                new_region = (point.x(), point.x())
-                self._selecting = True
-                self._initial_x = point.x()
-            else:
-                region = self.region_select.getRegion()
-
-                new_region = (self._initial_x, point.x())
-                self._selecting = False
-            region = self.region_select.setRegion(new_region)
-            self._region_select_updated()
-
-    def _mouse_move(self, pos):
-        # Update the bounding box as we view the region.
-        if self.time_vb.sceneBoundingRect().contains(pos):
-            point = self.time_vb.mapSceneToView(pos)
-            if not self._selecting:
-                return
-            region = self.region_select.getRegion()
-            new_region = (self._initial_x, point.x())
-            region = self.region_select.setRegion(new_region)
-
-    def _region_select_updated(self):
-        # Don't update PSD until region select complete
-        if self._selecting:
-            return
-        self._update_analysis()
 
     def _y_transform(self, y, fs):
         return y
@@ -411,21 +416,21 @@ class TimePSDPlotManager(BasePlotManager):
         self.analysis = info
 
     def _default_region_select(self):
-        def click(event):
-            nonlocal self
-            self._mouse_click(event)
-        def move(pos):
-            nonlocal self
-            self._mouse_move(pos)
-        def update():
-            nonlocal self
-            self._region_select_updated()
-        self.time_vb.scene().sigMouseClicked.connect(click)
-        self.time_vb.scene().sigMouseMoved.connect(move)
-        region = pg.LinearRegionItem(values=(0, 0), movable=False)
+        # Ctrl+drag on the time plot (see RegionSelectViewBox) draws or
+        # redefines the region from scratch; grabbing an existing edge or
+        # the middle (no modifier needed) resizes/moves it. PSD/analysis
+        # only recomputes once a drag finishes (sigRegionChangeFinished),
+        # not on every intermediate position during the drag -- pyqtgraph
+        # handles the live visual update of the region itself efficiently
+        # on its own.
+        region = pg.LinearRegionItem(values=(0, 0), movable=True)
         region.setZValue(10)
-        region.sigRegionChanged.connect(update)
+        # sigRegionChangeFinished emits the region item itself as an arg;
+        # _update_analysis reads the current bounds via self.region_select
+        # directly and doesn't need it.
+        region.sigRegionChangeFinished.connect(lambda _: self._update_analysis())
         self.time_vb.addItem(region, ignoreBounds=True)
+        self.time_vb.region_select = region
         return region
 
     def remove(self, recording):
@@ -443,7 +448,7 @@ class TimePSDPlotManager(BasePlotManager):
         _, psd_plot = self.get_plots(item, self.psd_vb, color=color)
         self.data[item] = self._plot(item, time_plot, psd_plot)
         self.data[item]['color'] = color
-        self._region_select_updated()
+        self._update_analysis()
         return {'color': color}
 
 
