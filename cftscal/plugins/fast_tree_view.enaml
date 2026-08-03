@@ -1,13 +1,14 @@
 from atom.api import set_default, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QApplication, QAbstractItemView
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QApplication, QAbstractItemView
 from qtpy.QtGui import QColor, QBrush, QDrag
 from qtpy.QtCore import Qt, QMimeData
 import shutil
 
 from psi.core.enaml.api import make_color
 
+from cftscal.plugins.export import export_calibration
 from cftscal.plugins.object_collection import ObjectGroup, ObjectNode
 
 
@@ -566,9 +567,17 @@ class FastTreeWidget(QTreeWidget):
 
     def _context_menu_for_leaf(self, sub, global_pos):
         menu = QMenu()
+        export_action = menu.addAction('Export as WAV…')
         delete_action = menu.addAction('Delete')
         action = menu.exec_(global_pos)
-        if action == delete_action:
+        if action == export_action:
+            default_name = f'{sub.item.name}_{sub.item.datetime:%Y%m%d-%H%M%S}.wav'
+            filename, _ = QFileDialog.getSaveFileName(
+                self, 'Export as WAV', default_name, 'WAV files (*.wav)',
+            )
+            if filename:
+                export_calibration(sub.item, filename)
+        elif action == delete_action:
             name = f'{sub.item.datetime} from {sub.item.name}'
             reply = QMessageBox.question(
                 self, 'Confirm', f'Are you sure you want to delete {name}?',
