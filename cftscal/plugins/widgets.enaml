@@ -100,6 +100,13 @@ enamldef AddItem(PopupView): popup:
     alias label: label.text
     alias regex: field.regex
 
+    func _add_item():
+        items = combo.items[:]
+        items.append(field.text)
+        combo.items = items
+        combo.selected = field.text
+        popup.close()
+
     Container:
         constraints = [
             vbox(
@@ -115,15 +122,20 @@ enamldef AddItem(PopupView): popup:
             pass
         RegexField: field:
             regex = f'^[\w\d-]+$'
+            # Only submit on Enter -- not on focus loss, since clicking
+            # Cancel (or anything else) shouldn't add the typed text.
+            # The client-side validator (above) blocks the submit from
+            # ever updating `text` with input that fails the regex, so
+            # this fires exactly when the field both validates and Enter
+            # is pressed.
+            submit_triggers = ['return_pressed']
+            text ::
+                popup._add_item()
         PushButton: pb_ok:
             text = 'OK'
             enabled << bool(field.text)
             clicked ::
-                items = combo.items[:]
-                items.append(field.text)
-                combo.items = items
-                combo.selected = field.text
-                popup.close()
+                popup._add_item()
 
         PushButton: pb_cancel:
             text = 'Cancel'
