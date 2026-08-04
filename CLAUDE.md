@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**cftscal** is a plugin-based GUI application for managing acoustic equipment calibrations at CFTS (Center for Translational Sound and Sensor Technology at OHSU). It calibrates measurement microphones, speakers, starships (probe-tube mics), amplifiers, and related hardware. The UI framework is **Enaml** (declarative Qt) with **Atom** for the object model.
+**cftscal** is a plugin-based GUI application for calibrating acoustic equipment such as that used in the Cochlear Function Test Suite (CFTS) and Auditory Behavior Test Suite (ABTS). It calibrates measurement microphones, speakers, starships (probe-tube mics), amplifiers, and related hardware. The UI framework is **Enaml** (declarative Qt) with **Atom** for the object model.
 
 ## Commands
 
