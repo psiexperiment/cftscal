@@ -39,11 +39,26 @@ def export_calibration(calibration, filename):
         via a save-file dialog before calling this function).
     '''
     recording = calibration.load()
-    samples = recording.selected_input[0]
-    fs = recording.selected_input.fs
-    cal = recording.selected_input.get_calibration()
-    samples_cal = cal.get_level(samples)
-    export_calibration_wav(filename, samples_cal, fs, {})
+    channels = list(calibration.sensors)
+    signals = [getattr(recording, ch) for ch in channels]
+    fs = signals[0].fs
+    for ch, sig in zip(channels, signals):
+        if sig.fs != fs:
+            raise ValueError(
+                f'Channel "{ch}" sample rate ({sig.fs} Hz) does not match '
+                f'the other channel(s) ({fs} Hz); cannot export as one '
+                'interleaved WAV file.'
+            )
+    channel_data = [sig.get_calibration().get_level(sig[0]) for sig in signals]
+    n = min(len(d) for d in channel_data)  # defensive: tolerate off-by-one length mismatches
+    samples = np.stack([d[:n] for d in channel_data], axis=-1)  # (n_samples, n_channels)
+    metadata = {
+        'channels': channels,
+        'sensors': calibration.sensors,
+        'generator': calibration.generator,
+        'datetime': calibration.datetime.isoformat(),
+    }
+    export_calibration_wav(filename, samples, fs, metadata)
 
 
 def export_calibration_wav(filename, samples, fs, metadata):
@@ -56,7 +71,9 @@ def export_calibration_wav(filename, samples, fs, metadata):
         Output path for the WAV file.
     samples : np.ndarray
         Samples already converted to Pascals, such that a value of 1.0
-        represents 1 Pa. 1D for a single channel.
+        represents 1 Pa. 1D for a single channel, or 2D
+        ``(n_samples, n_channels)`` for an interleaved multi-channel
+        recording.
     fs : float
         Sampling rate, in Hz.
     metadata : dict
@@ -70,11 +87,6 @@ def export_calibration_wav(filename, samples, fs, metadata):
         parameter, converted to a `Path`).
     '''
     filename = Path(filename)
-
-    # TODO: build `samples` and `metadata` from the calibration object
-    # (see cftscal/objects.py: Calibration.load_recording() for the raw
-    # voltage recording, Calibration.load() for the psiaudio calibration
-    # object used to convert it to Pascals).
 
     # Float32 WAV: no int16 scaling/clipping to worry about, and 1.0 in
     # the file is exactly 1.0 Pa.

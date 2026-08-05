@@ -16,6 +16,7 @@ from cftscal.objects import (
     CalibrationManager,
     CFTSBaseLoader,
     CFTSInEarLoader,
+    CFTSInputRecording,
 )
 
 
@@ -551,6 +552,50 @@ class TestSensorSettingsGuard:
 # ---------------------------------------------------------------------------
 # GroupPathPicker target discovery (_list_group_paths in widgets.enaml)
 # ---------------------------------------------------------------------------
+
+class TestInputRecordingSensors:
+    '''
+    CFTSInputRecording.sensors normalizes both the new multi-channel
+    metadata shape (``{'sensors': {...}}``) and the legacy single-channel
+    shape (``{'sensor': '...'}``, no ``'sensors'`` key) to the same
+    ``{channel_name: {'label': ..., 'sensor': ...}}`` dict, so callers
+    never need to branch on which era a recording came from.
+    '''
+
+    def test_new_schema_returned_unchanged(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'generator': 'pistonphone',
+            'sensors': {
+                'ai0': {'label': 'Ch 0', 'sensor': 'MMM0'},
+                'ai1': {'label': 'Ch 1', 'sensor': 'MMM1'},
+            },
+        })
+        cal = CFTSInputRecording('rec', tmp_path)
+        assert cal.sensors == {
+            'ai0': {'label': 'Ch 0', 'sensor': 'MMM0'},
+            'ai1': {'label': 'Ch 1', 'sensor': 'MMM1'},
+        }
+
+    def test_legacy_schema_synthesizes_selected_input_key(self, tmp_path):
+        # Recordings made before multi-channel support always recorded
+        # exactly one channel under the fixed array name `selected_input`
+        # (see the pre-multi-channel `Input` manifest in
+        # cftscal/paradigms/objects.enaml) -- that name, not the real
+        # hardware channel (never stored), is what `.load()`-based code
+        # needs to look up the recorded signal. No real channel label
+        # was ever recorded for these, so `label` falls back to that
+        # same synthesized name.
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'generator': 'pistonphone',
+            'sensor': 'MMM0',
+        })
+        cal = CFTSInputRecording('rec', tmp_path)
+        assert cal.sensors == {
+            'selected_input': {'label': 'selected_input', 'sensor': 'MMM0'},
+        }
+
 
 class TestListGroupPaths:
     '''

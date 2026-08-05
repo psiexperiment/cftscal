@@ -1,8 +1,42 @@
+import os
+
 from psi.experiment.api import ParadigmDescription
 
 
 PATH = 'cftscal.paradigms.'
 CORE_PATH = 'psi.paradigms.core.'
+
+
+def active_input_channels(env_prefix='CFTS_INPUT'):
+    '''
+    Comma-separated CFTS_INPUT_CHANNELS -> list of channel names, one per
+    active slot. cftscal's own UI (InputRecordingSettings.
+    run_input_recording) rejects assigning the same real channel to more
+    than one slot -- gain/calibration are properties of the physical
+    Channel, not of an individual Input tap, so two slots sharing one
+    channel would silently collide on those (and, one level down, psi's
+    own Input.name uniqueness check would also reject the resulting
+    duplicate ContinuousInput names) -- so channel names are always
+    unique here in practice. Shared by record.RecordManifest/AllInputs
+    (imported from here) and the input_recording ParadigmDescription
+    below, so all consumers always agree on which channels are active
+    for a given run.
+    '''
+    raw = os.environ.get(f'{env_prefix}_CHANNELS', '')
+    return [name for name in raw.split(',') if name]
+
+
+def _input_plot_sources(channels, colors=('k', 'r', 'b', 'g', 'm', 'c')):
+    return {
+        name: {'color': colors[i % len(colors)]}
+        for i, name in enumerate(channels)
+    }
+
+
+all_inputs_mixin = {
+    'manifest': PATH + 'record.AllInputs',
+    'required': True,
+}
 
 
 input_amplifier_mixin = {
@@ -221,24 +255,26 @@ ParadigmDescription(
 )
 
 
+_input_recording_sources = _input_plot_sources(active_input_channels())
+
 ParadigmDescription(
     'input_recording', 'Input Recording', 'calibration', [
-        selectable_input_mixin,
+        all_inputs_mixin,
         {'manifest': PATH + 'record.RecordManifest'},
         {
-            'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
+            'manifest': CORE_PATH + 'signal_mixins.MultiSignalViewManifest',
             'required': True,
             'attrs': {
                 'id': 'input_signal',
                 'title': 'Time',
                 'time_span': 10,
                 'time_delay': 0.125,
-                'source_name': 'selected_input',
-                'y_label': 'Signal (V)'
+                'y_label': 'Signal (V)',
+                'sources': _input_recording_sources,
             },
         },
         {
-            'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
+            'manifest': CORE_PATH + 'signal_mixins.MultiSignalFFTViewManifest',
             'required': True,
             'attrs': {
                 'id': 'input_psd',
@@ -247,9 +283,9 @@ ParadigmDescription(
                 'fft_freq_lb': 500,
                 'fft_freq_ub': 50000,
                 'axis_scale': 'octave',
-                'source_name': 'selected_input',
                 'y_label': 'Level (dB)',
                 'apply_calibration': True,
+                'sources': _input_recording_sources,
             },
         },
     ],

@@ -1,16 +1,84 @@
+import functools
+import os
+
+from enaml.core.api import Looper
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup
-from psi.controller.api import ControllerManifest, ExperimentAction
+from psi.controller.api import ContinuousInput, ControllerManifest, ExperimentAction
+from psi.core.enaml.api import ExperimentManifest
 from psi.data.sinks.api import BinaryStore
+
+from cftscal.objects import input_manager
+
+from . import active_input_channels
 
 
 EXPERIMENT = 'basic'
 
 
+def initialize_all_inputs(env_prefix, event):
+    '''
+    Per-channel gain + calibration only -- channel *selection* is static
+    (baked into AllInputs' Looper from CFTS_INPUT_CHANNELS), so unlike
+    objects.enaml's initialize_input() there's no context item to update.
+    '''
+    controller = event.workbench.get_plugin('psi.controller')
+    for name in active_input_channels(env_prefix):
+        channel = controller.get_channel(f'hw_ai::{name}')
+        if (gain := os.environ.get(f'{env_prefix}_{name.upper()}_GAIN')) is not None:
+            channel.gain = float(gain)
+        if (cal_str := os.environ.get(f'{env_prefix}_{name.upper()}')) is not None:
+            channel.calibration = input_manager.from_string(cal_str).load()
+
+
+enamldef AllInputs(ExperimentManifest): manifest:
+    '''
+    Wires up one `ContinuousInput` per channel named in the
+    `CFTS_INPUT_CHANNELS` environment variable (comma-separated real
+    hardware channel names, set by
+    InputRecordingSettings.run_input_recording()). Channel names are
+    always unique here -- cftscal's own UI rejects assigning the same
+    real channel to more than one slot (see active_input_channels()'s
+    docstring for why).
+    '''
+
+    id = 'all_inputs'
+    attr env_prefix = 'CFTS_INPUT'
+    attr channel_names = active_input_channels(env_prefix)
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.initialize_all_inputs'
+            handler = functools.partial(initialize_all_inputs, manifest.env_prefix)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.id + '.initialize_all_inputs'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        Looper:
+            iterable << manifest.channel_names
+
+            ContinuousInput:
+                name << loop_item
+                source_name << 'hw_ai::' + loop_item
+
+
 enamldef RecordManifest(ControllerManifest): manifest:
 
-    attr continuous_inputs = ['selected_input']
+    attr continuous_inputs = active_input_channels()
 
     Extension:
         id = EXPERIMENT + '_data'

@@ -817,8 +817,35 @@ class CFTSInputRecording(CFTSFileCalibration):
         return self.metadata['generator']
 
     @property
-    def sensor(self):
-        return self.metadata['sensor']
+    def sensors(self):
+        '''
+        Mapping of recorded channel name -> ``{'label': ..., 'sensor': ...}``.
+
+        ``label`` is the human-readable channel label shown in the
+        Settings panel's dropdown (e.g. "Ch 2") -- what tables should
+        display -- while the key itself is the real hardware channel
+        name (e.g. "ai2"), needed to look up the recorded signal via
+        ``getattr(recording, channel)``. ``sensor`` is the calibration
+        name of the sensor that was attached to that channel.
+
+        Recordings made before multi-channel support used a singular
+        `sensor` key and always recorded exactly one channel under the
+        fixed array name `selected_input` (see the pre-multi-channel
+        `Input` manifest in cftscal/paradigms/objects.enaml). No real
+        channel label was ever recorded for these, so `label` falls
+        back to the synthesized channel name itself. Synthesizing the
+        equivalent single-entry dict here lets `.load()`-based code
+        (InputRecordingPlotManager, export_calibration) treat old and
+        new recordings identically via `self.sensors.items()`.
+        '''
+        if 'sensors' in self.metadata:
+            return self.metadata['sensors']
+        return {
+            'selected_input': {
+                'label': 'selected_input',
+                'sensor': self.metadata['sensor'],
+            },
+        }
 
     def load(self):
         return Recording(self.filename)

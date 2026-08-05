@@ -6,16 +6,19 @@ import pyqtgraph as pg
 from scipy import signal
 
 from atom.api import Dict, Enum, Float, Int
-from enaml.core.api import Conditional
+from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField, IntField
+from enaml.stdlib.message_box import warning
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton,
+    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo,
+    PushButton,
 )
 
 from psi.core.enaml.api import ListDictTable
 from psi.data.plots_manifest import PGCanvas
 from psiaudio import util
+from psiaudio.calibration import FlatCalibration
 
 from cftscal.objects import input_recording_manager
 from cftscal.plugins.widgets import (
@@ -58,6 +61,13 @@ def a_weighting_sos(fs):
     return signal.zpk2sos(z_d, p_d, k_d)
 
 
+#: Line styles create_plot() can resolve (its `f'{line.capitalize()}Line'`
+#: lookup into QtCore.Qt.PenStyle only round-trips single-word names --
+#: 'dashdot'.capitalize() -> 'Dashdot', but the real Qt enum member is
+#: 'DashDotLine', so anything beyond these three raises AttributeError.
+_CHANNEL_LINE_STYLES = ('solid', 'dash', 'dot')
+
+
 class InputRecordingPlotManager(TimePSDPlotManager):
 
     #: 'dBZ' is an unfiltered passthrough ("Z-weighting" is the standard
@@ -67,6 +77,15 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: broadband noise (e.g. building rumble below 20 Hz) that would
     #: otherwise swamp it.
     filter_mode = Enum('dBZ', 'dBA', '1/3 Octave')
+
+    #: One shared color per recording (item), keyed by item -- assigned
+    #: lazily from the same color_cycle create_plot() draws from, but
+    #: reserved once per item instead of once per (item, channel) plot.
+    #: This is what lets every channel belonging to one recording share
+    #: a single color that also matches the tree's highlight for that
+    #: recording; individual channels within a recording are told apart
+    #: by line style (_CHANNEL_LINE_STYLES) instead of by color.
+    item_colors = Dict()
 
     #: Center frequency for '1/3 Octave' mode, in Hz.
     filter_fc = Float(1000)
@@ -107,15 +126,128 @@ class InputRecordingPlotManager(TimePSDPlotManager):
                                    fs=fs, output='sos')
         return signal.sosfiltfilt(sos, y)
 
-    def _plot(self, item, time_plot, psd_plot):
+    def _channels(self, item):
+        # Authoritative list of what was actually recorded -- correct for
+        # both old (single, fixed 'selected_input' array) and new
+        # (multi-channel) recordings via CFTSInputRecording.sensors' own
+        # back-compat shim.
+        return list(item.sensors)
+
+    def _item_color(self, item):
+        if item not in self.item_colors:
+            # create_plot() draws the next color_cycle color; we only
+            # want the color, so the PlotCurveItem it also builds is
+            # discarded -- it's never added to a view.
+            color, _ = self.create_plot()
+            self.item_colors[item] = color
+        return self.item_colors[item]
+
+    def _channel_line_style(self, channel_index):
+        return _CHANNEL_LINE_STYLES[channel_index % len(_CHANNEL_LINE_STYLES)]
+
+    def _update(self, item, remove=False):
+        if remove:
+            for channel in self._channels(item):
+                key = (item, channel)
+                self.remove_plots(key, self.time_vb)
+                self.remove_plots(key, self.psd_vb)
+                self.data.pop(key, None)
+            self.item_colors.pop(item, None)
+            self._update_analysis()
+            return
+
         fh = item.load()
-        y = fh.selected_input[0]
-        fs = fh.selected_input.fs
+        item_color = self._item_color(item)
+        resolved_color = None
+        for i, channel in enumerate(self._channels(item)):
+            key = (item, channel)
+            line = self._channel_line_style(i)
+            color, time_plot = self.get_plots(key, self.time_vb, color=item_color, line=line)
+            _, psd_plot = self.get_plots(key, self.psd_vb, color=item_color, line=line)
+            self.data[key] = self._plot(channel, fh, time_plot, psd_plot)
+            self.data[key]['color'] = color
+            if resolved_color is None:
+                # get_plots() converts to an enaml.colors.Color for tree
+                # highlighting (see BasePlotManager.get_plots); item_color
+                # itself is still the raw QColor create_plot() returned,
+                # so hand back this converted value instead -- every
+                # channel resolves to the same RGBA anyway since they all
+                # share item_color as their input.
+                resolved_color = color
+        self._update_analysis()
+        # One color per recording (item), shared by every channel it
+        # fans out to -- this is what the tree node's highlight, every
+        # channel's plot curve, and every one of that recording's rows
+        # in the analysis table all now have in common.
+        return {'color': resolved_color}
+
+    def _update_analysis(self):
+        # Deliberate near-duplicate of TimePSDPlotManager._update_analysis
+        # rather than a shared helper -- self.data is keyed by (item,
+        # channel) tuples here instead of by item, and each analysis row
+        # needs its own 'recording'/'channel' fields instead of
+        # TimePSDPlotManager's 'run': str(item).
+        if self.region_select is None:
+            return
+        xlb, xub = self.region_select.getRegion()
+        info = []
+
+        # Group rows by recording so a recording's channels render as
+        # consecutive rows sharing one color swatch -- the same color
+        # used to highlight that recording in the tree. Individual
+        # channels within a group are told apart by the 'channel'
+        # column (and by line style in the plot), not by a separate
+        # swatch.
+        grouped = {}
+        for (item, channel), d in self.data.items():
+            grouped.setdefault(item, []).append((channel, d))
+
+        for item, channels in grouped.items():
+            for channel, d in channels:
+                # The 'channel' column shows the human-readable label
+                # (e.g. "Ch 2"), not the raw hardware channel name (e.g.
+                # "ai2") used as the dict key -- see
+                # CFTSInputRecording.sensors.
+                channel_label = item.sensors[channel]['label']
+                x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
+                m = (x >= xlb) & (x < xub)
+                if m.any():
+                    # Drop the DC component since this cannot be shown on
+                    # log scales and affects the autorange.
+                    y = self._y_transform(y[m], fs)
+                    pa = cal.get_level(util.psd_df(y, fs=fs)).iloc[1:]
+                    db = util.patodb(pa)
+                    d['psd_plot'][0].setData(np.log10(db.index.values), db.values)
+                    y_cal = cal.get_level(y)
+                    info.append({
+                        'color': d['color'],
+                        'recording': str(item.datetime),
+                        'channel': channel_label,
+                        'pe': util.patodb(np.ptp(y_cal) * 0.5),
+                        'rms': util.patodb(util.rms(y_cal)),
+                        'duration': x[m].max() - x[m].min(),
+                    })
+                else:
+                    d['psd_plot'][0].setData([], [])
+                    info.append({
+                        'color': d['color'],
+                        'recording': str(item.datetime),
+                        'channel': channel_label,
+                        'pe': np.nan,
+                        'rms': np.nan,
+                        'duration': 0,
+                    })
+        self.analysis = info
+
+    def _plot(self, channel, fh, time_plot, psd_plot):
+        sig = getattr(fh, channel)
+        y = sig[0]
+        fs = sig.fs
         x = np.arange(len(y)) / fs
         if not self.apply_calibration:
             cal = FlatCalibration.unity()
         else:
-            cal = fh.selected_input.get_calibration()
+            cal = sig.get_calibration()
 
         data = {
             'time_plot': time_plot,
@@ -124,6 +256,7 @@ class InputRecordingPlotManager(TimePSDPlotManager):
             'y': y,
             'fs': fs,
             'calibration': cal,
+            'channel': channel,
         }
         self._update_plot(**data)
         return data
@@ -168,7 +301,10 @@ enamldef InputRecordingView(Container):
                         # (label) does not produce nicely-aligned widgets, so we
                         # align the left edge of second widget.
                         widgets = self.visible_widgets()
-                        second = [w.visible_widgets()[1] for w in widgets if isinstance(w, HGroup)]
+                        second = [
+                            w.visible_widgets()[1] for w in widgets
+                            if isinstance(w, HGroup) and len(w.visible_widgets()) > 1
+                        ]
                         constraints = [
                             vbox(
                                 *widgets[:-1],
@@ -186,23 +322,48 @@ enamldef InputRecordingView(Container):
                         spacing = 5
 
                         Label:
-                            text = 'Input Channel'
+                            text = 'Number of inputs'
 
                         ObjectCombo:
-                            items = settings.available_inputs
-                            selected := settings.selected_input
-                            to_string = lambda m: m.input_label
+                            items << list(range(1, len(settings.available_inputs) + 1))
+                            selected := settings.n_active_inputs
+
+                    Looper:
+                        # One row per active slot (0-based position,
+                        # independent of hardware order). The channel
+                        # dropdown itself doubles as the row's label --
+                        # no separate "Input N" text. Each slot can point
+                        # at any real channel (settings.channel_for_slot/
+                        # assign_slot), e.g. slot 0 -> hardware channel
+                        # "Ch 10", slot 1 -> "Ch 5". run_input_recording()
+                        # rejects the same channel being assigned to two
+                        # active slots (gain/calibration are properties of
+                        # the physical channel, not of the slot, so two
+                        # slots on one channel can't actually record
+                        # independently different settings).
+                        iterable << range(settings.n_active_inputs)
+
+                        HGroup:
+                            share_layout = True
+                            align_widths = False
+                            padding = 0
+                            spacing = 5
+
+                            ObjectCombo:
+                                items << settings.available_inputs
+                                selected << settings.channel_for_slot(loop_item)
+                                selected ::
+                                    settings.assign_slot(loop_item, selected)
+                                to_string = lambda m: m.input_label
+
+                            SensorView:
+                                sensor << settings.channel_for_slot(loop_item).sensor
+                                collection << input_tree.collection
+                                show_label = False
 
                     GroupPathPicker:
                         plugin_settings = settings
                         subfolder = 'input-recording'
-                        collection << input_tree.collection
-                        # Per-channel target folder — switching input
-                        # channels swaps in that channel's saved folder.
-                        path_target << settings.selected_input
-
-                    SensorView:
-                        sensor << settings.selected_input.sensor
                         collection << input_tree.collection
 
                     GeneratorView:
@@ -212,12 +373,26 @@ enamldef InputRecordingView(Container):
                     PushButton: start:
                         text = 'Record'
                         enabled << (
-                            bool(settings.selected_input.sensor.name) and
-                            bool(settings.generator.name)
+                            bool(settings.generator.name) and
+                            len({c.input_name for c in settings.active_channels()})
+                                == settings.n_active_inputs and
+                            all(c.sensor.name for c in settings.active_channels())
                         )
                         clicked ::
-                            settings.run_input_recording(settings.selected_input)
-                            input_tree.collection.update_groups()
+                            # `enabled` above should normally keep this
+                            # unreachable, but don't rely on that alone --
+                            # run_input_recording() raises ValueError on
+                            # invalid state (e.g. a duplicate-channel
+                            # assignment slipping through), and that must
+                            # not fail silently. (Enaml notification
+                            # blocks disallow a bare `return`, hence
+                            # try/except/else rather than an early exit.)
+                            try:
+                                settings.run_input_recording()
+                            except ValueError as exc:
+                                warning(self, 'Cannot record', str(exc))
+                            else:
+                                input_tree.collection.update_groups()
 
         DockItem:
             name = 'input_recording_plot'
@@ -272,8 +447,15 @@ enamldef InputRecordingView(Container):
                     'Generator': {
                         'to_str': lambda x: x.generator,
                     },
+                    'Channel': {
+                        'to_str': lambda x: ', '.join(
+                            v['label'] for v in x.sensors.values()
+                        ),
+                    },
                     'Sensor': {
-                        'to_str': lambda x: x.sensor,
+                        'to_str': lambda x: ', '.join(
+                            v['sensor'] for v in x.sensors.values()
+                        ),
                     },
                 }
 
@@ -291,8 +473,18 @@ enamldef InputRecordingView(Container):
                 ListDictTable:
                     stretch_last_section = False
                     data << input_recording_plot.manager.analysis
-                    columns = ['duration', 'pe', 'rms']
+                    columns = ['recording', 'channel', 'duration', 'pe', 'rms']
                     column_info = {
+                        'recording': {
+                            'label': 'Recording',
+                            'to_string': lambda x: str(x),
+                            'width': 40,
+                        },
+                        'channel': {
+                            'label': 'Channel',
+                            'to_string': lambda x: str(x),
+                            'width': 20,
+                        },
                         'duration': {
                             'label': 'Dur (s)',
                             'to_string': lambda x: '{:.2f}'.format(x),

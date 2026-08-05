@@ -411,6 +411,14 @@ class InputSettings(PersistentSettings):
     group_path = Str().tag(persist=True)
 
     def get_env_vars(self, include_cal=True, env_prefix='CFTS_INPUT'):
+        # NOTE: the bare `env_prefix` key below is only meaningful to the
+        # old single-channel initialize_input() handler
+        # (cftscal/paradigms/objects.enaml). input_recording's
+        # multi-channel run_input_recording() calls this once per active
+        # channel and merges the results, so that bare key ends up
+        # holding whichever channel's call happened last -- harmless,
+        # since the multi-channel paradigm side only reads
+        # CFTS_INPUT_CHANNELS and the per-channel-namespaced keys below.
         env = {
             env_prefix: self.input_name,
             f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
