@@ -193,7 +193,7 @@ enamldef MicrophoneView(Container):
 
         DockItem:
             name = 'mic_list'
-            title = 'Microphone Calibrations'
+            title = 'Calibrations'
             closable = False
             stretch = 0
 
