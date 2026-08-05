@@ -65,3 +65,9 @@ nav:
       - plugins/index.md
       - Measurement Microphone Calibration: plugins/measurement-microphone.md
       - Input Recording: plugins/input-recording.md
+      - Speaker Calibration: plugins/speaker.md
+      - Starship Calibration: plugins/starship.md
+      - Starship Check: plugins/starship-check.md
+      - Generic Microphone Calibration: plugins/generic-microphone.md
+      - Input Amplifier Calibration: plugins/input-amplifier.md
+      - IR Sensor Calibration: plugins/ir-sensor.md

@@ -40,4 +40,8 @@ Every calibration workspace in cftscal (microphone, speaker, starship, input rec
 Once you're oriented, move on to the [Plugins](plugins/index.md):
 
 - [Measurement Microphone Calibration](plugins/measurement-microphone.md) — usually the first thing you do in a session.
-- [Input Recording](plugins/input-recording.md) — for recording and reviewing any signal, with flexible filtering and calibrated WAV export.
+- [Input Recording](plugins/input-recording.md) — for recording and reviewing any signal from one or more channels at once, with flexible filtering and calibrated WAV export.
+- [Speaker Calibration](plugins/speaker.md) and [Generic Microphone Calibration](plugins/generic-microphone.md) — calibrate a speaker or a non-precision microphone against your measurement microphone.
+- [Starship Calibration](plugins/starship.md) and [Starship Check](plugins/starship-check.md) — calibrate a starship, then periodically verify it's still behaving once it's in use.
+- [Input Amplifier Calibration](plugins/input-amplifier.md) — verify a standalone signal preamp's actual gain.
+- [IR Sensor Calibration](plugins/ir-sensor.md) — a diagnostic recording tool for IR emitter/detector pairs.
