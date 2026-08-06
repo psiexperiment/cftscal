@@ -54,7 +54,7 @@ enamldef IRSensorView(Container):
                 VSplitLayout(
                     'settings',
                     'input_list',
-                    sizes=[25, 200, 50],
+                    sizes=[25, 200],
                 ),
                 'ir_sensor_plot',
                 sizes=[250, 900],
