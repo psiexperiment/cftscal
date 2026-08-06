@@ -53,7 +53,6 @@ def main():
     import argparse
     parser = argparse.ArgumentParser('cfts-cal')
     parser.add_argument('obj', nargs='?')
-    parser.add_argument('--load-all', action='store_true')
     args = parser.parse_args()
 
     with enaml.imports():
@@ -66,7 +65,7 @@ def main():
             try:
                 module = importlib.import_module(module_name)
                 instance = getattr(module, class_name)()
-                if args.load_all or instance.available:
+                if instance.available:
                     workbench.register(getattr(module, class_name)())
                 else:
                     print(f'{module_name} is not available')

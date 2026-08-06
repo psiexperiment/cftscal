@@ -91,6 +91,26 @@ def reload_plugins(workbench):
         )
 
 
+def list_plugin_info():
+    '''
+    Instantiate every TO_REGISTER entry just far enough to read its
+    id/title, for populating the Workspace Settings plugin checklist.
+    Mirrors the probing reload_plugins() already does above.
+    '''
+    import enaml
+    info = []
+    with enaml.imports():
+        for module_name, class_name in TO_REGISTER:
+            try:
+                module = importlib.import_module(module_name)
+                probe = getattr(module, class_name)()
+                info.append({'id': probe.id, 'title': probe.title})
+            except Exception:
+                log.exception('Error probing %s.%s for plugin info',
+                              module_name, class_name)
+    return info
+
+
 def set_defaults(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     if ui.workspace is None or ui.workspace.content is None:
@@ -102,7 +122,7 @@ def show_workspace_settings(event):
     workbench = event.workbench
     settings = WorkspaceSettings()
     settings._on_save = lambda: reload_plugins(workbench)
-    view = WorkspaceSettingsView(settings=settings)
+    view = WorkspaceSettingsView(settings=settings, plugin_info=list_plugin_info())
     view.show()
 
 
@@ -177,6 +197,12 @@ class _CalibrationPluginManifest(PluginManifest):
     available = Property()
 
     def _get_available(self):
+        # A plugin's id in WorkspaceSettings.enabled_plugins forces it to
+        # load in view-only mode regardless of what the hardware probes
+        # below report -- e.g. for reviewing calibrations on a machine
+        # without the relevant hardware. Set via Workspace > Settings.
+        if self.id in WorkspaceSettings().enabled_plugins:
+            return True
         for cb in self.settings_config.values():
             if not bool(cb(raise_error=False)):
                 return False

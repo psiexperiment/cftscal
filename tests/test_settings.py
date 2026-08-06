@@ -11,6 +11,7 @@ import pytest
 from cftscal.plugins.microphone.settings import MicrophoneCalibrationSettings
 from cftscal.plugins.input_recording.settings import InputRecordingSettings
 from cftscal.plugins.settings import SensorDevice
+from cftscal.plugins.workspace import WorkspaceSettings
 
 
 class TestMicrophoneCalibrationSettingsDefaults:
@@ -174,6 +175,36 @@ class TestInputRecordingSettings:
         assert [c.input_name for c in restored.active_channels()] == [
             'ai2', 'ai0',
         ]
+
+
+class TestWorkspaceSettingsEnabledPlugins:
+    '''
+    WorkspaceSettings.enabled_plugins forces specific plugins to load in
+    view-only mode regardless of hardware detection (see
+    _CalibrationPluginManifest._get_available in
+    cftscal/plugins/manifest.enaml). Unlike per-plugin settings,
+    WorkspaceSettings hand-rolls save_config()/load_config() with an
+    explicit key list rather than the tagged-member persistence pattern
+    -- this locks in that enabled_plugins is actually included.
+    '''
+
+    def _make_settings(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        return WorkspaceSettings()
+
+    def test_defaults_to_empty(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        assert settings.enabled_plugins == []
+
+    def test_round_trips_through_save_and_load(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.enabled_plugins = ['input-recording', 'starship']
+        settings.save_config()
+
+        restored = self._make_settings(tmp_path, monkeypatch)
+        assert restored.enabled_plugins == ['input-recording', 'starship']
 
 
 class _StubCalibration:

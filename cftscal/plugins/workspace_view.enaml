@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
 
-from enaml.core.api import Conditional
+from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox
 from enaml.widgets.api import (
-    Container, Label, Field, HGroup, ObjectCombo, PushButton, FileDialogEx, Form,
-    Window, DockArea, DockItem, ScrollArea
+    CheckBox, Container, Label, Field, HGroup, ObjectCombo, PushButton,
+    FileDialogEx, Form, Window, DockArea, DockItem, ScrollArea
 )
 
 from psi.core.enaml.api import ListDictTable
@@ -17,6 +17,13 @@ enamldef WorkspaceSettingsView(Window): win:
     title = 'Workspace Settings'
 
     attr settings
+    #: List of {'id': ..., 'title': ...} dicts, one per entry in
+    #: TO_REGISTER -- populated by show_workspace_settings() in
+    #: manifest.enaml via list_plugin_info(). Defaults to empty so the
+    #: `if __name__ == '__main__':` demo in workspace.py (which builds
+    #: this view without passing plugin_info) still works, just with an
+    #: empty checklist.
+    attr plugin_info = []
 
     Container:
         Form:
@@ -63,6 +70,23 @@ enamldef WorkspaceSettingsView(Window): win:
                     items << settings.available_sample_rates
                     selected := settings.sample_rate
                     to_string = lambda r: str(int(r)) if r else ''
+
+        Label:
+            text = 'Always load these plugins (view-only, even without matching hardware)'
+
+        Looper:
+            iterable << plugin_info
+            CheckBox:
+                text = loop_item['title']
+                checked << loop_item['id'] in settings.enabled_plugins
+                checked ::
+                    if checked:
+                        if loop_item['id'] not in settings.enabled_plugins:
+                            settings.enabled_plugins = settings.enabled_plugins + [loop_item['id']]
+                    else:
+                        settings.enabled_plugins = [
+                            i for i in settings.enabled_plugins if i != loop_item['id']
+                        ]
 
         HGroup:
             leading_spacer = spacer(0)

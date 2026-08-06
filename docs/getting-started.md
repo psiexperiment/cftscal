@@ -12,14 +12,10 @@ This registers a `cfts-cal` command in your environment. — see [Calibration Co
 
 In a console:
 ```bash
-# Show only workspaces that support the detected hardware.
 cfts-cal
-
-# Show every workspace regardless of detected hardware (useful for reviewing calibrations on another computer)
-cfts-cal --load-all
 ```
 
-If a workspace you expect doesn't show up, it's almost always because cftscal couldn't detect the corresponding hardware channel — see [Workspace Settings](#workspace-settings) below for how that's configured.
+By default, a workspace tab only shows up if cftscal detects the matching hardware channel. If a workspace you expect doesn't show up, see [Workspace Settings](#workspace-settings) below — both for how hardware detection is configured, and for how to load a workspace anyway without its hardware present.
 
 ## Workspace Settings
 
@@ -28,6 +24,7 @@ Before calibrating anything, cftscal needs to know:
 - **Data folder** — where calibration results get saved. Defaults to `~/Documents/cftscal`, but you can point it anywhere (e.g. a shared lab drive).
 - **Hardware** — which acquisition backend to use (a dedicated sound card, an NI-DAQ system, etc.). This determines which input/output channels are available to every other plugin.
 - **Audio device & sample rate** *(sound card hardware only)* — the specific device and sampling rate to record/play at. Pick a sample rate your hardware and microphones actually support; if you're not sure, the dropdown only lists rates cftscal has confirmed the selected device supports.
+- **Always load these plugins** — force specific workspace tabs to show up in view-only mode, even without their hardware detected. Useful for reviewing or exporting existing calibrations on a computer that doesn't have the relevant hardware (e.g. a laptop with no sound card). Takes effect immediately on Save, no restart needed.
 
 ## The general pattern
 

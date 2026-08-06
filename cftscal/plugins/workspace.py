@@ -40,6 +40,15 @@ class WorkspaceSettings(Atom):
     available_devices = List(Dict())
     available_sample_rates = List(Float())
 
+    #: ids of plugins to force-load regardless of what their
+    #: settings_config hardware probes report -- e.g. so a review-only
+    #: machine without a sound card can still show (in view-only mode)
+    #: the plugins it needs to browse existing calibrations. Empty by
+    #: default: same behavior as today, hardware-detection only. See
+    #: _CalibrationPluginManifest._get_available in
+    #: cftscal/plugins/manifest.enaml, the only place this is read.
+    enabled_plugins = List(Str())
+
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         self.load_config()
@@ -116,6 +125,7 @@ class WorkspaceSettings(Atom):
             'hw_configuration': self.hw_configuration,
             'selected_device': self.selected_device,
             'sample_rate': self.sample_rate,
+            'enabled_plugins': list(self.enabled_plugins),
         }
         file.write_text(json.dumps(config, indent=2))
         if self._on_save is not None:

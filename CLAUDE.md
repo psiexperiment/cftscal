@@ -20,12 +20,11 @@ cfts-cal microphone
 cfts-cal speaker
 cfts-cal starship
 
-# Load all plugins regardless of hardware availability (useful for development)
-cfts-cal --load-all
-
 # Run the test suite (tests/test_objects.py, test_settings.py, test_migrate_metadata.py)
 python -m pytest
 ```
+
+To load a plugin without its hardware present (e.g. for development, or reviewing calibrations on a machine without the relevant hardware), check it under Workspace > Settings > "Always load these plugins" and Save — this persists to `WorkspaceSettings.enabled_plugins` and takes effect immediately via `reload_plugins()`, no restart needed. There is no `--load-all` CLI flag; it was replaced by this per-plugin setting.
 
 ## Sibling Repos & Dev Environment
 
@@ -55,7 +54,7 @@ each repo's root using that env's interpreter.
 
 ### Plugin System (Enaml Workbench)
 
-`main.py` bootstraps an `UIWorkbench`, registers the core manifest, then dynamically imports and registers one manifest per calibration type. A plugin is only registered if `instance.available` is true (hardware detected) or `--load-all` is passed.
+`main.py` bootstraps an `UIWorkbench`, registers the core manifest, then dynamically imports and registers one manifest per calibration type (the full list lives in `TO_REGISTER`, `cftscal/plugins/manifest.enaml`). A plugin is only registered if `instance.available` is true — `_CalibrationPluginManifest._get_available` (same file) returns true if the plugin's `settings_config` hardware probes all succeed, OR if the plugin's `id` is in the persisted `WorkspaceSettings.enabled_plugins` list (set via Workspace > Settings, for loading a plugin in view-only mode without matching hardware). `reload_plugins()` (same file) re-evaluates and registers/unregisters plugins live whenever workspace settings are saved.
 
 Each plugin lives under `cftscal/plugins/<name>/` and contains:
 - `manifest.enaml` — declares the workspace tab via `CalibrationPluginManifest` template, wiring together a view and settings class
