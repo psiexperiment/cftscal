@@ -2,7 +2,7 @@ import importlib
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Dict, Property, Str, Value
+from atom.api import Dict, Int, Property, Str, Value
 from enaml.core.api import d_
 
 from enaml.workbench.api import Extension, PluginManifest
@@ -52,11 +52,11 @@ def reload_plugins(workbench):
         active_title = ui.workspace.window_title
 
     with enaml.imports():
-        for module_name, class_name in TO_REGISTER:
+        for rank, (module_name, class_name) in enumerate(TO_REGISTER):
             try:
                 module  = importlib.import_module(module_name)
                 cls     = getattr(module, class_name)
-                probe   = cls()
+                probe   = cls(rank=rank)
                 plugin_id    = probe.id
                 is_available = probe.available
                 is_registered = workbench.get_manifest(plugin_id) is not None
@@ -74,7 +74,7 @@ def reload_plugins(workbench):
                     workbench.unregister(plugin_id)
                     log.info('Unregistered plugin: %s', plugin_id)
                 elif not is_registered and is_available:
-                    workbench.register(cls())
+                    workbench.register(cls(rank=rank))
                     log.info('Registered plugin: %s', plugin_id)
                 # Registered + still available: leave in place; workspace
                 # reload below will recreate its content with fresh settings.
@@ -194,6 +194,18 @@ class _CalibrationPluginManifest(PluginManifest):
     view_class = d_(Value())
     settings_class = d_(Value())
     settings_config = d_(Dict())
+    #: This plugin's position in TO_REGISTER -- passed explicitly as a
+    #: constructor kwarg by main.py/reload_plugins() (a plugin doesn't
+    #: otherwise know its own position in that shared list). Drives the
+    #: Extension.rank below, which is what actually orders same-group
+    #: ActionItems in the Workspace menu (enaml.workbench.ui sorts an
+    #: extension point's contributions by rank, low to high; without
+    #: this they all default to rank 0 and ties are broken by whatever
+    #: order the plugins happened to be registered in -- which drifts
+    #: from TO_REGISTER's order whenever reload_plugins() re-registers
+    #: a plugin at a different time than the others, e.g. after a
+    #: workspace settings change).
+    rank = d_(Int())
     available = Property()
 
     def _get_available(self):
@@ -214,6 +226,7 @@ enamldef CalibrationPluginManifest(_CalibrationPluginManifest): manifest:
     Extension:
         id = manifest.id + '.actions'
         point = 'enaml.workbench.ui.actions'
+        rank = manifest.rank
         ActionItem:
             path = '/workspace/' + manifest.id
             label = manifest.title

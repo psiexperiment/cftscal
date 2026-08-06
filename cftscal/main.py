@@ -61,12 +61,12 @@ def main():
     workbench.register(CalibrationManifest())
 
     with enaml.imports():
-        for module_name, class_name in TO_REGISTER:
+        for rank, (module_name, class_name) in enumerate(TO_REGISTER):
             try:
                 module = importlib.import_module(module_name)
-                instance = getattr(module, class_name)()
+                instance = getattr(module, class_name)(rank=rank)
                 if instance.available:
-                    workbench.register(getattr(module, class_name)())
+                    workbench.register(getattr(module, class_name)(rank=rank))
                 else:
                     print(f'{module_name} is not available')
             except ModuleNotFoundError as e:
