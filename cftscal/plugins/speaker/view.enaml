@@ -198,7 +198,7 @@ enamldef SpeakerView(Container):
 
         DockItem:
             name = 'speaker_list'
-            title = 'Speaker Calibrations'
+            title = 'Calibrations'
             closable = False
             stretch = 0
 

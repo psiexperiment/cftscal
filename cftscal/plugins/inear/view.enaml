@@ -292,7 +292,7 @@ enamldef InEarView(Container):
 
         DockItem:
             name = 'inear_list'
-            title = 'In-Ear Calibrations'
+            title = 'Calibrations'
             closable = False
             stretch = 0
 

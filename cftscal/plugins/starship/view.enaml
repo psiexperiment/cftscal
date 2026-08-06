@@ -215,7 +215,7 @@ enamldef StarshipView(Container): starship_view:
 
         DockItem:
             name = 'starship_list'
-            title = 'Starship Calibrations'
+            title = 'Calibrations'
             closable = False
             stretch = 0
 
