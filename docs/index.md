@@ -11,6 +11,3 @@ See **[Calibration Concepts](concepts.md)**, a short explanation of how calibrat
 ## Everyone else
 
 Jump straight to **[Getting Started](getting-started.md)** for installation and first launch, then the workflow page for whatever you're trying to do.
-
-!!! note "Scope of this documentation"
-    cftscal has plugins for several equipment types (speakers, starships, input amplifiers, in-ear calibrations, and more) that all follow the same basic patterns. This documentation covers **measurement microphone calibration** and **input recording** in depth, since they're the workflows almost everyone needs first — the [Calibration Concepts](concepts.md) page, however, applies to the whole application.
