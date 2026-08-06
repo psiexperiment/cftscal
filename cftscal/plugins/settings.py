@@ -202,8 +202,25 @@ class CalibrationSettings(Atom):
                 if not any(filename.iterdir()):
                     shutil.rmtree(filename, ignore_errors=True)
                 elif metadata is not None:
-                    meta = {'datetime': now.isoformat(), **metadata}
-                    (filename / 'metadata.json').write_text(
+                    # psi/psidata may have already written their own
+                    # metadata.json into this folder (run provenance:
+                    # hostname/timestamp/version). Merge on top of it
+                    # rather than clobbering it -- our fields are what
+                    # cftscal's calibration classes read, but psi's are
+                    # still worth keeping around.
+                    meta_file = filename / 'metadata.json'
+                    existing = {}
+                    if meta_file.exists():
+                        try:
+                            existing = json.loads(meta_file.read_text())
+                        except (OSError, json.JSONDecodeError):
+                            existing = {}
+                    meta = {
+                        **existing,
+                        'datetime': now.isoformat(),
+                        **metadata,
+                    }
+                    meta_file.write_text(
                         json.dumps(meta, indent=2, sort_keys=True)
                     )
 

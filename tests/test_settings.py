@@ -6,11 +6,14 @@ Focus on construction-time defaults — the kind of bug that hides behind
 a stale local config file (``load_config()`` overwrites the bad default
 before anyone notices) and only surfaces on a fresh install.
 '''
+import json
+from pathlib import Path
+
 import pytest
 
 from cftscal.plugins.microphone.settings import MicrophoneCalibrationSettings
 from cftscal.plugins.input_recording.settings import InputRecordingSettings
-from cftscal.plugins.settings import SensorDevice
+from cftscal.plugins.settings import CalibrationSettings, SensorDevice
 from cftscal.plugins.workspace import WorkspaceSettings
 
 
@@ -205,6 +208,89 @@ class TestWorkspaceSettingsEnabledPlugins:
 
         restored = self._make_settings(tmp_path, monkeypatch)
         assert restored.enabled_plugins == ['input-recording', 'starship']
+
+
+class TestRunCalMetadataMerge:
+    '''
+    ``_run_cal`` writes cftscal's own metadata.json into the calibration
+    folder after ``psi`` returns. psi/psidata may have already written
+    their own metadata.json there for run provenance (hostname/timestamp/
+    version) -- ``_run_cal`` must merge cftscal's fields on top rather
+    than clobbering that file, mirroring the equivalent fix in
+    migrate_metadata.py for historical calibrations.
+    '''
+
+    def _make_settings(self, tmp_path, monkeypatch):
+        # WorkspaceSettings() is constructed internally by _run_cal; point
+        # its config folder at a scratch dir like TestPersistEnabledPlugins
+        # does, so it doesn't touch the real ~/.config.
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        settings = CalibrationSettings()
+        settings.data_path = tmp_path
+        return settings
+
+    def _run(self, settings, tmp_path, monkeypatch, psi_side_effect):
+        def fake_check_output(args, env=None):
+            psi_side_effect(Path(args[2]))
+            return b''
+
+        monkeypatch.setattr(
+            'cftscal.plugins.settings.subprocess.check_output',
+            fake_check_output,
+        )
+        pathname = tmp_path / 'cal' / '{date_time}'
+        settings._run_cal(
+            pathname, 'cftscal.paradigms.fake',
+            metadata={'pistonphone': 'PP1'},
+        )
+        return next((tmp_path / 'cal').iterdir(), None)
+
+    def test_merges_with_preexisting_psi_metadata(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+
+        def psi_writes_provenance_metadata(out_dir):
+            out_dir.mkdir(parents=True)
+            (out_dir / 'data.csv').write_text('...')
+            (out_dir / 'metadata.json').write_text(json.dumps({
+                'hostname': 'rig1',
+                'version': {'psi': '0.6.4'},
+            }))
+
+        out_dir = self._run(
+            settings, tmp_path, monkeypatch, psi_writes_provenance_metadata,
+        )
+        meta = json.loads((out_dir / 'metadata.json').read_text())
+        assert meta['pistonphone'] == 'PP1'
+        assert meta['hostname'] == 'rig1'
+        assert meta['version'] == {'psi': '0.6.4'}
+        assert 'datetime' in meta
+
+    def test_writes_when_psi_wrote_no_metadata(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+
+        def psi_writes_only_data(out_dir):
+            out_dir.mkdir(parents=True)
+            (out_dir / 'data.csv').write_text('...')
+
+        out_dir = self._run(
+            settings, tmp_path, monkeypatch, psi_writes_only_data,
+        )
+        meta = json.loads((out_dir / 'metadata.json').read_text())
+        assert meta['pistonphone'] == 'PP1'
+        assert 'datetime' in meta
+
+    def test_empty_output_dir_pruned_not_written(self, tmp_path, monkeypatch):
+        # User aborted before any data was acquired -- no metadata.json
+        # should appear, and the empty dir psi created is removed.
+        settings = self._make_settings(tmp_path, monkeypatch)
+
+        def psi_aborted(out_dir):
+            out_dir.mkdir(parents=True)
+
+        self._run(settings, tmp_path, monkeypatch, psi_aborted)
+        assert list((tmp_path / 'cal').iterdir()) == []
 
 
 class _StubCalibration:
