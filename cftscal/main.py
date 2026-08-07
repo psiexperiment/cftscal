@@ -3,13 +3,19 @@ from psi.application import configure_logging
 
 import importlib
 
-# OpenGL rendering makes cftscal's result plots noticeably smoother, but it
-# crashes some plots in psiexperiment during live acquisition -- so this is
-# only enabled here, in cftscal's own process, never in the `psi` subprocess
-# that runs calibrations (a separate process with its own pyqtgraph state,
-# unaffected by this).
-import pyqtgraph as pg
-pg.setConfigOptions(useOpenGL=True)
+# NOTE: do NOT set pg.setConfigOptions(useOpenGL=True) here. It was
+# previously enabled to make cftscal's result plots smoother, on the
+# assumption that it stayed isolated to cftscal's own process and never
+# reached psiexperiment's plotting code (which crashes with it on some
+# systems) since `psi` always runs as a separate subprocess. That
+# assumption is wrong for PGCanvas specifically (psi/data/plots_manifest.py
+# in psiexperiment): every cftscal plugin view imports and instantiates it
+# directly, in-process, to render its result plot -- so useOpenGL=True here
+# reaches it too. On at least one real system this reproducibly segfaults
+# (Windows access violation in pg.GraphicsView.useOpenGL) the moment any
+# plugin workspace is selected, killing cftscal with no error message. See
+# the reload_plugins()/workspace_factory() call path in
+# cftscal/plugins/manifest.enaml for where PGCanvas actually gets realized.
 
 import enaml
 from enaml.application import deferred_call
