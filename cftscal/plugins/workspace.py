@@ -4,10 +4,9 @@ log = logging.getLogger(__name__)
 import json
 from pathlib import Path
 
-from atom.api import Atom, Dict, Float, List, Str, Typed, Value
+from atom.api import Atom, Dict, Enum, Float, List, Property, Str, Typed, Value
 
 from psi import get_config_folder
-from psi.application import list_io
 
 import sounddevice as sd
 
@@ -27,7 +26,34 @@ def get_supported_samplerates(device=None):
 class WorkspaceSettings(Atom):
 
     data_path = Typed(Path)
-    hw_configuration = Str()
+
+    #: Either the system's audio interface ("Sound Card", configured via
+    #: selected_device/sample_rate below) or a custom psiexperiment IO
+    #: manifest .enaml file (custom_io_path/custom_io_class below) -- e.g.
+    #: for NI-DAQ, TDT, or other hardware with its own IO manifest.
+    hw_mode = Enum('Sound Card', 'Custom (Enaml IO manifest)')
+
+    #: Path to the .enaml file containing the custom IO manifest, and the
+    #: name of the enamldef class within it to load. Only meaningful when
+    #: hw_mode == 'Custom (Enaml IO manifest)'.
+    custom_io_path = Str()
+    custom_io_class = Str('IOManifest')
+
+    #: The actual string passed to psi's ``--io`` argument / cftscal's
+    #: ``load_io_manifest()`` -- derived from hw_mode and (when custom)
+    #: custom_io_path/custom_io_class rather than stored directly, so
+    #: there's a single place composing it. See _run_cal in
+    #: cftscal/plugins/settings.py and io_manifest() in cftscal/util.py,
+    #: the only two readers.
+    hw_configuration = Property()
+
+    def _get_hw_configuration(self):
+        if self.hw_mode == 'Sound Card':
+            return 'Sound Card'
+        if not self.custom_io_path:
+            return ''
+        klass = self.custom_io_class.strip() or 'IOManifest'
+        return f'{self.custom_io_path}::{klass}'
 
     # Optional callback fired after save_config() writes the JSON file.
     # Set by the caller (e.g. show_workspace_settings) to trigger plugin reload.
@@ -36,7 +62,6 @@ class WorkspaceSettings(Atom):
     selected_device_info = Str()
     sample_rate = Float()
 
-    available_hw_configurations = List(Str())
     available_devices = List(Dict())
     available_sample_rates = List(Float())
 
@@ -59,15 +84,6 @@ class WorkspaceSettings(Atom):
     def _default_data_path(self):
         from cftscal import CAL_ROOT
         return CAL_ROOT
-
-    def _default_hw_configuration(self):
-        configs = self.available_hw_configurations
-        return configs[0] if configs else ''
-
-    def _default_available_hw_configurations(self):
-        configs = [str(i) for i in list_io()]
-        configs.append('Sound Card')
-        return sorted(configs)
 
     def _default_available_devices(self):
         return [dict(d) for d in sd.query_devices()]
@@ -122,7 +138,9 @@ class WorkspaceSettings(Atom):
         file.parent.mkdir(exist_ok=True, parents=True)
         config = {
             'data_path': str(self.data_path),
-            'hw_configuration': self.hw_configuration,
+            'hw_mode': self.hw_mode,
+            'custom_io_path': self.custom_io_path,
+            'custom_io_class': self.custom_io_class,
             'selected_device': self.selected_device,
             'sample_rate': self.sample_rate,
             'enabled_plugins': list(self.enabled_plugins),
@@ -140,9 +158,25 @@ class WorkspaceSettings(Atom):
             for k, v in config.items():
                 if k == 'data_path':
                     v = Path(v)
+                if k == 'hw_configuration':
+                    # Back-compat: configs saved before hw_mode/
+                    # custom_io_path/custom_io_class replaced the single
+                    # free-form hw_configuration string (picked from a
+                    # flat list of every discovered IO file/module path).
+                    self._load_legacy_hw_configuration(v)
+                    continue
                 setattr(self, k, v)
         except Exception as e:
             log.warning(f'Error loading workspace config: {e}')
+
+    def _load_legacy_hw_configuration(self, value):
+        if value == 'Sound Card':
+            self.hw_mode = 'Sound Card'
+            return
+        self.hw_mode = 'Custom (Enaml IO manifest)'
+        path, sep, klass = value.partition('::')
+        self.custom_io_path = path
+        self.custom_io_class = klass if sep else 'IOManifest'
 
 
 if __name__ == '__main__':

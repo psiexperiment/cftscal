@@ -46,11 +46,11 @@ enamldef WorkspaceSettingsView(Window): win:
             Label:
                 text = 'Hardware'
             ObjectCombo:
-                items << settings.available_hw_configurations
-                selected := settings.hw_configuration
+                items = ['Sound Card', 'Custom (Enaml IO manifest)']
+                selected := settings.hw_mode
 
             Conditional:
-                condition << settings.hw_configuration == 'Sound Card'
+                condition << settings.hw_mode == 'Sound Card'
 
                 Label:
                     text = 'Audio device'
@@ -70,6 +70,33 @@ enamldef WorkspaceSettingsView(Window): win:
                     items << settings.available_sample_rates
                     selected := settings.sample_rate
                     to_string = lambda r: str(int(r)) if r else ''
+
+            Conditional:
+                condition << settings.hw_mode == 'Custom (Enaml IO manifest)'
+
+                Label:
+                    text = 'IO manifest file'
+                HGroup:
+                    align_widths = False
+                    padding = 0
+                    Field: io_path:
+                        text << settings.custom_io_path
+                        read_only = True
+                    PushButton:
+                        text = 'Browse...'
+                        clicked ::
+                            current = settings.custom_io_path
+                            path = FileDialogEx.get_open_file_name(
+                                self, current_path=current,
+                                name_filters=['*.enaml'],
+                            )
+                            if path:
+                                settings.custom_io_path = path
+
+                Label:
+                    text = 'Manifest class'
+                Field:
+                    text := settings.custom_io_class
 
         Label:
             text = 'Always load these plugins (view-only, even without matching hardware)'

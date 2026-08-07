@@ -210,6 +210,115 @@ class TestWorkspaceSettingsEnabledPlugins:
         assert restored.enabled_plugins == ['input-recording', 'starship']
 
 
+class TestWorkspaceSettingsHwConfiguration:
+    '''
+    ``hw_configuration`` -- the string actually passed to psi's ``--io``
+    argument (see ``_run_cal`` in cftscal/plugins/settings.py) and to
+    ``load_io_manifest()`` (see ``io_manifest()`` in cftscal/util.py) -- is
+    a computed Property derived from ``hw_mode`` and, in custom mode,
+    ``custom_io_path``/``custom_io_class``. Neither of those two readers
+    changed: this locks in that the derivation still produces what they
+    expect, and that old ``workspace.json`` files (which persisted
+    ``hw_configuration`` directly, picked from a flat list of every
+    discovered IO file/module path) still load correctly.
+    '''
+
+    def _make_settings(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        return WorkspaceSettings()
+
+    def test_sound_card_mode(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Sound Card'
+        assert settings.hw_configuration == 'Sound Card'
+
+    def test_custom_mode_composes_path_and_class(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.custom_io_path = 'C:/rig/io.enaml'
+        settings.custom_io_class = 'MyManifest'
+        assert settings.hw_configuration == 'C:/rig/io.enaml::MyManifest'
+
+    def test_custom_mode_defaults_class_to_iomanifest(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.custom_io_path = 'C:/rig/io.enaml'
+        assert settings.custom_io_class == 'IOManifest'
+        assert settings.hw_configuration == 'C:/rig/io.enaml::IOManifest'
+
+    def test_custom_mode_blank_class_falls_back_to_iomanifest(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.custom_io_path = 'C:/rig/io.enaml'
+        settings.custom_io_class = '   '
+        assert settings.hw_configuration == 'C:/rig/io.enaml::IOManifest'
+
+    def test_custom_mode_without_path_is_empty(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        assert settings.hw_configuration == ''
+
+    def test_round_trips_through_save_and_load(self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.custom_io_path = 'C:/rig/io.enaml'
+        settings.custom_io_class = 'MyManifest'
+        settings.save_config()
+
+        restored = self._make_settings(tmp_path, monkeypatch)
+        assert restored.hw_mode == 'Custom (Enaml IO manifest)'
+        assert restored.custom_io_path == 'C:/rig/io.enaml'
+        assert restored.custom_io_class == 'MyManifest'
+        assert restored.hw_configuration == 'C:/rig/io.enaml::MyManifest'
+
+    def test_loads_legacy_sound_card_config(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        config_file = tmp_path / 'cfts' / 'workspace.json'
+        config_file.parent.mkdir(parents=True)
+        config_file.write_text(json.dumps({'hw_configuration': 'Sound Card'}))
+
+        settings = WorkspaceSettings()
+        assert settings.hw_mode == 'Sound Card'
+        assert settings.hw_configuration == 'Sound Card'
+
+    def test_loads_legacy_custom_config_with_class(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        config_file = tmp_path / 'cfts' / 'workspace.json'
+        config_file.parent.mkdir(parents=True)
+        config_file.write_text(json.dumps({
+            'hw_configuration': 'C:/rig/io.enaml::MyManifest',
+        }))
+
+        settings = WorkspaceSettings()
+        assert settings.hw_mode == 'Custom (Enaml IO manifest)'
+        assert settings.custom_io_path == 'C:/rig/io.enaml'
+        assert settings.custom_io_class == 'MyManifest'
+
+    def test_loads_legacy_custom_config_without_class(self, tmp_path, monkeypatch):
+        # e.g. an old STANDARD_IO dotted module path, which never carried
+        # an explicit '::ClassName' suffix -- defaults to IOManifest, same
+        # as load_io_manifest() itself does for a bare '.enaml' path.
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        config_file = tmp_path / 'cfts' / 'workspace.json'
+        config_file.parent.mkdir(parents=True)
+        config_file.write_text(json.dumps({
+            'hw_configuration': 'some_pkg.io.CustomManifest',
+        }))
+
+        settings = WorkspaceSettings()
+        assert settings.hw_mode == 'Custom (Enaml IO manifest)'
+        assert settings.custom_io_path == 'some_pkg.io.CustomManifest'
+        assert settings.custom_io_class == 'IOManifest'
+
+
 class TestRunCalMetadataMerge:
     '''
     ``_run_cal`` writes cftscal's own metadata.json into the calibration
