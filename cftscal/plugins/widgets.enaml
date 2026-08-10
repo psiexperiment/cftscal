@@ -174,9 +174,22 @@ class BasePlotManager(Atom):
 
         linestyle = getattr(QtCore.Qt.PenStyle, f'{line.capitalize()}Line')
         pen = pg.mkPen(color, width=width, style=linestyle)
-        return color, pg.PlotCurveItem(
+        # PlotDataItem, not PlotCurveItem: autoDownsample/clipToView are only
+        # ever read by PlotDataItem's own getData()/updateItems() -- it
+        # decimates to the current view range/pixel width *before* handing
+        # the reduced data down to the PlotCurveItem it wraps internally.
+        # A bare PlotCurveItem accepts those same kwargs into self.opts but
+        # never looks at them again; every point still goes straight into
+        # generatePath()/arrayToQPath() every repaint regardless. That was
+        # silently a no-op here -- for a several-second, 100 kHz recording
+        # that's hundreds of thousands of points rebuilt into a QPainterPath
+        # on every redraw, which is exactly what made the input_recording
+        # plot slow even with the fully-neutral-sounding options already
+        # set on it.
+        return color, pg.PlotDataItem(
             pen=pen,
             autoDownsample=True,
+            downsampleMethod='peak',
             clipToView=True,
             skipFiniteCheck=True,
         )
