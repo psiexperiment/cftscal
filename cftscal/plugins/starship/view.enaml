@@ -74,8 +74,19 @@ enamldef StarshipView(Container): starship_view:
                         first = []
                         second = []
                         for w in widgets:
-                            first.append(w.children[0])
-                            for c in w.children[1:]:
+                            # w.children would include Conditional/Looper
+                            # markers themselves (not just their generated
+                            # content) -- visible_widgets() resolves those
+                            # to the actual constrainable widgets, same as
+                            # self.visible_widgets() above already does at
+                            # this level. Using raw .children here worked
+                            # only by coincidence of activation timing/
+                            # ordering, and broke once SensorView (one of
+                            # the rows below) gained a second leading
+                            # Conditional.
+                            row = w.visible_widgets()
+                            first.append(row[0])
+                            for c in row[1:]:
                                 if isinstance(c, Label):
                                     second.append(c)
                                     break

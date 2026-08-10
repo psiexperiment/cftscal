@@ -68,7 +68,13 @@ enamldef SpeakerView(Container):
                         widgets = self.visible_widgets()
                         first = []
                         for w in widgets:
-                            first.append(w.children[0])
+                            # w.children would include Conditional/Looper
+                            # markers themselves, not just their generated
+                            # content -- visible_widgets() resolves those
+                            # to the actual constrainable widgets, same as
+                            # self.visible_widgets() above already does at
+                            # this level.
+                            first.append(w.visible_widgets()[0])
                         constraints = [
                             vbox(*widgets),
                             align('right', *first),
