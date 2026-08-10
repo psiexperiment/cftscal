@@ -70,13 +70,16 @@ _CHANNEL_LINE_STYLES = ('solid', 'dash', 'dot')
 
 class InputRecordingPlotManager(TimePSDPlotManager):
 
-    #: 'dBZ' is an unfiltered passthrough ("Z-weighting" is the standard
-    #: term for "no frequency weighting"). 'dBA' applies the standard
-    #: A-weighting curve. '1/3 Octave' is a steep bandpass centered on
-    #: `filter_fc`, for pulling a single low-level test tone out of
-    #: broadband noise (e.g. building rumble below 20 Hz) that would
-    #: otherwise swamp it.
-    filter_mode = Enum('dBZ', 'dBA', '1/3 Octave')
+    #: 'Unfiltered' is a raw passthrough -- deliberately not called 'dBZ'
+    #: ("Z-weighting"), since that name implies a standardized flat
+    #: response over a defined range (nominally 10 Hz-20 kHz per IEC
+    #: 61672-1), and this mode makes no such claim: it's whatever
+    #: bandwidth the raw recording happens to have, unfiltered. 'dBA'
+    #: applies the standard A-weighting curve. '1/3 Octave' is a steep
+    #: bandpass centered on `filter_fc`, for pulling a single low-level
+    #: test tone out of broadband noise (e.g. building rumble below 20 Hz)
+    #: that would otherwise swamp it.
+    filter_mode = Enum('Unfiltered', 'dBA', '1/3 Octave')
 
     #: One shared color per recording (item), keyed by item -- assigned
     #: lazily from the same color_cycle create_plot() draws from, but
@@ -108,6 +111,11 @@ class InputRecordingPlotManager(TimePSDPlotManager):
             return
         for item_data in self.data.values():
             self._update_plot(**item_data)
+        # Without this, changing filter_mode/filter_fc/filter_order only
+        # updated the time-domain curves (above) -- the PSD plot is
+        # computed and drawn entirely inside _update_analysis(), which
+        # these observers never called.
+        self._update_analysis()
 
     def _update_plot(self, x, y, fs, calibration, time_plot, psd_plot,
                      **kwargs):
@@ -116,7 +124,7 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         time_plot[0].setData(x, y)
 
     def _y_transform(self, y, fs):
-        if self.filter_mode == 'dBZ':
+        if self.filter_mode == 'Unfiltered':
             return y
         if self.filter_mode == 'dBA':
             sos = a_weighting_sos(fs)
@@ -136,7 +144,7 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     def _item_color(self, item):
         if item not in self.item_colors:
             # create_plot() draws the next color_cycle color; we only
-            # want the color, so the PlotCurveItem it also builds is
+            # want the color, so the PlotDataItem it also builds is
             # discarded -- it's never added to a view.
             color, _ = self.create_plot()
             self.item_colors[item] = color
@@ -411,7 +419,7 @@ enamldef InputRecordingView(Container):
                     Label:
                         text = 'Filter'
                     ObjectCombo:
-                        items = ['dBZ', 'dBA', '1/3 Octave']
+                        items = ['Unfiltered', 'dBA', '1/3 Octave']
                         selected := input_recording_plot.manager.filter_mode
 
                     Conditional:
