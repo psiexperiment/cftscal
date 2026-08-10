@@ -31,6 +31,20 @@ class InputRecordingSettings(CalibrationSettings):
     slot_channels = Dict().tag(persist=True)
     settings_filename = set_default('input-recording.json')
 
+    #: Bumped on every change that ready_to_record() depends on but that
+    #: Enaml's `<<` binding tracer cannot see through -- it only tracks
+    #: direct `obj.attr` reads executed in the traced expression's own
+    #: bytecode (or nested code without its own local scope), so it
+    #: misses reads inside a called method (active_channels(), called
+    #: from ready_to_record()) and inside comprehensions/generator
+    #: expressions (both compile to a separate code object with its own
+    #: locals, which the tracer explicitly skips -- see
+    #: enaml.core.code_tracing.inject_tracing's NEWLOCALS check). The
+    #: view's `enabled <<` binding reads this member directly (a plain
+    #: LOAD_ATTR, which *is* traced) purely to force re-evaluation; its
+    #: value is otherwise meaningless.
+    _readiness_tick = Int()
+
     def __init__(self, inputs):
         settings = []
         for label, name in inputs.items():
@@ -38,9 +52,11 @@ class InputRecordingSettings(CalibrationSettings):
                 input_label=label,
                 input_name=name,
             )
+            setting.sensor.observe('name', self._bump_readiness_tick)
             settings.append(setting)
         self.available_inputs = settings
         self.generator = GeneratorSettings()
+        self.generator.observe('name', self._bump_readiness_tick)
         # Default slot assignment: slot i -> the i-th real channel (the
         # same starting point as hardware order) -- overridden per-slot
         # once the user picks a different channel in that slot's
@@ -48,6 +64,15 @@ class InputRecordingSettings(CalibrationSettings):
         self.slot_channels = {
             str(i): channel.input_name for i, channel in enumerate(settings)
         }
+
+    def _bump_readiness_tick(self, change):
+        self._readiness_tick += 1
+
+    def _observe_slot_channels(self, change):
+        self._bump_readiness_tick(change)
+
+    def _observe_n_active_inputs(self, change):
+        self._bump_readiness_tick(change)
 
     def channel_for_slot(self, slot_index):
         '''
@@ -76,6 +101,24 @@ class InputRecordingSettings(CalibrationSettings):
 
     def active_channels(self):
         return [self.channel_for_slot(i) for i in range(self.n_active_inputs)]
+
+    def ready_to_record(self):
+        '''
+        Whether the current slot/sensor/generator configuration is
+        recordable -- i.e. whether ``run_input_recording()`` would not
+        immediately raise. Mirrors its validation (short of a persisted
+        assignment resolving to no channel at all, which run_input_recording
+        doesn't special-case either).
+        '''
+        active = self.active_channels()
+        if not active:
+            return False
+        if not self.generator.name:
+            return False
+        names = [c.input_name for c in active]
+        if len(set(names)) != len(names):
+            return False
+        return all(c.sensor.name for c in active)
 
     def run_input_recording(self):
         active = self.active_channels()

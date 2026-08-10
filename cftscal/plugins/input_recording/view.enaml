@@ -372,11 +372,15 @@ enamldef InputRecordingView(Container):
 
                     PushButton: start:
                         text = 'Record'
+                        # `settings._readiness_tick` is read (not used) only
+                        # so Enaml's dependency tracer -- which can't see
+                        # through a method call or the comprehensions that
+                        # used to live here -- re-evaluates this binding
+                        # whenever slot/sensor/generator state changes (see
+                        # InputRecordingSettings._readiness_tick).
                         enabled << (
-                            bool(settings.generator.name) and
-                            len({c.input_name for c in settings.active_channels()})
-                                == settings.n_active_inputs and
-                            all(c.sensor.name for c in settings.active_channels())
+                            settings._readiness_tick >= 0
+                            and settings.ready_to_record()
                         )
                         clicked ::
                             # `enabled` above should normally keep this

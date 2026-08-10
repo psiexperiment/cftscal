@@ -180,6 +180,83 @@ class TestInputRecordingSettings:
         ]
 
 
+class TestInputRecordingReadyToRecord:
+    '''
+    ready_to_record() backs the Record button's `enabled <<` binding
+    (input_recording/view.enaml). The binding used to inline this same
+    logic directly (a method call plus set/generator comprehensions), all
+    of which Enaml's `<<` tracer can't see through -- it only tracks plain
+    `obj.attr` reads executed directly in the traced expression's own
+    bytecode, not reads inside a called method or inside comprehensions/
+    generator expressions (those compile to a separate code object with
+    its own locals, which the tracer explicitly skips). That meant the
+    button could go stale -- e.g. a channel/sensor change wouldn't
+    re-enable it -- unless something *else* in the expression happened to
+    also be a direct dependency. `_readiness_tick` exists to fix that: it
+    must get bumped on every input that affects ready_to_record()'s
+    result, so the view's dependency-forcing read of it (see the comment
+    at the Record button) actually re-triggers on all of them.
+    '''
+
+    def _make_settings(self):
+        return InputRecordingSettings({
+            'Ch 0': 'ai0', 'Ch 1': 'ai1', 'Ch 2': 'ai2',
+        })
+
+    def test_false_with_no_generator(self):
+        settings = self._make_settings()
+        settings.available_inputs[0].sensor.name = 'MMM0'
+        assert settings.generator.name == ''
+        assert settings.ready_to_record() is False
+
+    def test_false_with_missing_sensor(self):
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        assert settings.ready_to_record() is False
+
+    def test_false_with_duplicate_slot_assignment(self):
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        settings.n_active_inputs = 2
+        settings.assign_slot(0, settings.available_inputs[0])
+        settings.assign_slot(1, settings.available_inputs[0])
+        for i in settings.available_inputs:
+            i.sensor.name = f'cal-{i.input_name}'
+        assert settings.ready_to_record() is False
+
+    def test_true_when_fully_configured(self):
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        settings.available_inputs[0].sensor.name = 'MMM0'
+        assert settings.ready_to_record() is True
+
+    def test_tick_bumps_on_slot_reassignment(self):
+        settings = self._make_settings()
+        before = settings._readiness_tick
+        settings.assign_slot(0, settings.available_inputs[1])
+        assert settings._readiness_tick > before
+
+    def test_tick_bumps_on_n_active_inputs_change(self):
+        settings = self._make_settings()
+        before = settings._readiness_tick
+        settings.n_active_inputs = 2
+        assert settings._readiness_tick > before
+
+    def test_tick_bumps_on_generator_name_change(self):
+        settings = self._make_settings()
+        before = settings._readiness_tick
+        settings.generator.name = 'chirp'
+        assert settings._readiness_tick > before
+
+    def test_tick_bumps_on_any_channel_sensor_name_change(self):
+        # Not just the currently-active channel's sensor -- any channel
+        # could become active via a later slot reassignment.
+        settings = self._make_settings()
+        before = settings._readiness_tick
+        settings.available_inputs[2].sensor.name = 'MMM0'
+        assert settings._readiness_tick > before
+
+
 class TestWorkspaceSettingsEnabledPlugins:
     '''
     WorkspaceSettings.enabled_plugins forces specific plugins to load in
