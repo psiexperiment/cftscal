@@ -419,6 +419,121 @@ class TestSensorHierarchy:
         assert d.available_devices == []  # not polluted
 
 
+class TestSensorReferencePersistence:
+    '''
+    SensorReference.set_persistence() must re-merge freshly-discoverable
+    references after restoring the persisted selection -- the inherited
+    PersistentSettings.set_persistence() sets available_references to
+    exactly the persisted list, which would otherwise silently discard
+    anything discoverable now but not yet present in a config saved
+    before it existed (e.g. a newly-recorded calibration). That isn't a
+    one-time gap either: it would happen fresh on *every* load, since
+    set_persistence() runs every time settings load, not just once. See
+    SensorReference.set_persistence.
+    '''
+
+    def _make_reference(self, monkeypatch, available):
+        from cftscal.plugins.settings import SensorReference
+        monkeypatch.setattr(
+            SensorReference, 'get_available_references', lambda self: list(available),
+        )
+        return SensorReference()
+
+    def test_set_persistence_restores_now_missing_entries(self, monkeypatch):
+        ref = self._make_reference(monkeypatch, ['BK-4138', 'Demo', 'unity'])
+        assert 'MMM5' not in ref.available_references
+
+        # A newly-recorded calibration shows up in what's freshly
+        # discoverable...
+        monkeypatch.setattr(
+            type(ref), 'get_available_references',
+            lambda self: ['BK-4138', 'Demo', 'unity', 'MMM5'],
+        )
+        # ...but the persisted config predates it.
+        ref.set_persistence({
+            'name': '', 'gain': 0.0,
+            'available_references': ['BK-4138', 'Demo', 'unity'],
+        })
+        assert 'MMM5' in ref.available_references
+
+    def test_set_persistence_preserves_selected_name_and_gain(self, monkeypatch):
+        ref = self._make_reference(monkeypatch, ['BK-4138', 'Demo', 'unity'])
+        ref.set_persistence({
+            'name': 'Demo', 'gain': 3.0,
+            'available_references': ['BK-4138', 'Demo', 'unity'],
+        })
+        assert ref.name == 'Demo'
+        assert ref.gain == 3.0
+
+    def test_set_persistence_keeps_user_added_entries(self, monkeypatch):
+        # A '+' addition from a prior session, no longer discoverable on
+        # disk (e.g. renamed/moved) -- must not be dropped either; the
+        # merge is a union, not a replace-with-fresh.
+        ref = self._make_reference(monkeypatch, ['BK-4138', 'unity'])
+        ref.set_persistence({
+            'name': '', 'gain': 0.0,
+            'available_references': ['BK-4138', 'unity', 'Custom/Added'],
+        })
+        assert 'Custom/Added' in ref.available_references
+        assert 'BK-4138' in ref.available_references
+
+
+class TestMultiTypeSensorReference:
+    '''
+    MultiTypeSensorReference (used by input_recording) picks a
+    calibration *type* first, then an instance scoped to that type's own
+    manager -- switching type must not leak the old type's selection or
+    option list into the new one, and resolve_object()/
+    get_available_references() must always route through the currently
+    selected type's manager.
+    '''
+
+    def _make_reference(self):
+        from cftscal.plugins.settings import MultiTypeSensorReference
+        return MultiTypeSensorReference()
+
+    def test_defaults_to_measurement_mic(self):
+        ref = self._make_reference()
+        assert ref.sensor_type == 'Meas. Mic.'
+
+    def test_available_references_matches_default_type_manager(self):
+        from cftscal.objects import measurement_microphone_manager
+        ref = self._make_reference()
+        assert set(ref.available_references) == set(
+            measurement_microphone_manager.list_names(),
+        )
+
+    def test_switch_type_scopes_available_references_to_new_type(self):
+        from cftscal.objects import starship_manager
+        ref = self._make_reference()
+        ref.switch_type('Starship')
+        assert ref.sensor_type == 'Starship'
+        assert set(ref.available_references) == set(starship_manager.list_names())
+
+    def test_switch_type_clears_name(self):
+        ref = self._make_reference()
+        ref.name = 'BK-4138'
+        ref.switch_type('Starship')
+        assert ref.name == ''
+
+    def test_resolve_object_routes_through_selected_type(self, monkeypatch):
+        from cftscal.objects import starship_manager
+        calls = []
+        # Patching the attribute on the manager *object* itself (not
+        # rebinding a module-level name) -- MultiTypeSensorReference.
+        # TYPE_MANAGERS already holds a direct reference to this same
+        # object, captured at class-definition time.
+        monkeypatch.setattr(
+            starship_manager, 'get_object',
+            lambda name: calls.append(name) or 'a-starship-object',
+        )
+        ref = self._make_reference()
+        ref.switch_type('Starship')
+        ref.name = 'SS1'
+        assert ref.resolve_object() == 'a-starship-object'
+        assert calls == ['SS1']
+
+
 class TestTargetGroupPath:
     '''
     ``group_path`` lives on the target settings (InputSettings,

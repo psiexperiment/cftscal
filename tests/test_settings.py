@@ -119,8 +119,11 @@ class TestInputRecordingSettings:
             settings.run_input_recording()
 
     def test_run_input_recording_happy_path(self, monkeypatch):
+        # The sensor's default sensor_type ('Meas. Mic.') resolves
+        # through measurement_microphone_manager, not input_manager --
+        # see MultiTypeSensorReference.
         monkeypatch.setattr(
-            'cftscal.plugins.settings.input_manager.get_object',
+            'cftscal.plugins.settings.measurement_microphone_manager.get_object',
             lambda name: _StubCalObject(),
         )
 

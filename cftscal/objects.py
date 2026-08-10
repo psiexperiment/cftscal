@@ -949,11 +949,22 @@ microphone_manager = CalibrationManager(GenericMicrophone)
 microphone_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
 microphone_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
 
-# All inputs including passthrough inputs
+# All inputs including passthrough inputs. Kept as the base
+# SensorReference class's default resolution target (see
+# cftscal/plugins/settings.py); input_recording itself picks a
+# calibration type first via MultiTypeSensorReference, then resolves
+# through that type's own single-type manager below -- not this one.
 input_manager = CalibrationManager(Input)
 input_manager.register('cftscal.objects.CFTSGenericMicrophoneLoader')
 input_manager.register('cftscal.objects.CFTSMeasurementMicrophoneLoader')
 input_manager.register('cftscal.objects.UnityInputCalibrationLoader')
+
+# Single-loader manager so Unity fits the same "one manager per
+# calibration type" shape MultiTypeSensorReference expects, alongside
+# measurement_microphone_manager/generic_microphone_manager/
+# starship_manager.
+unity_manager = CalibrationManager(Input)
+unity_manager.register('cftscal.objects.UnityInputCalibrationLoader')
 
 # All outputs. Eventually we may add more outputs and/or incorporate some sort
 # of passthrough output (e.g., unity/attenuation).

@@ -587,6 +587,20 @@ enamldef SensorView(HGroup):
         if collection is not None:
             collection.observe('updated', _on_collection_updated)
 
+    #: Type-then-instance picker -- only for a sensor that can draw from
+    #: more than one calibration type (MultiTypeSensorReference, used by
+    #: input_recording). Every other caller's sensor (a plain
+    #: SensorReference/SensorDevice subclass locked to one manager) has
+    #: no `sensor_type`, so this renders as nothing for them.
+    Conditional:
+        condition << hasattr(sensor, 'sensor_type')
+
+        ObjectCombo: type_select:
+            items << list(sensor.TYPE_MANAGERS.keys())
+            selected << sensor.sensor_type
+            selected ::
+                sensor.switch_type(selected)
+
     Conditional:
         condition << show_label
 

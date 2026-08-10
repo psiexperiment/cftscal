@@ -1,6 +1,9 @@
 from atom.api import Dict, Int, set_default, List, Str, Typed
 
-from ..settings import CalibrationSettings, GeneratorSettings, InputSettings
+from ..settings import (
+    CalibrationSettings, GeneratorSettings, InputSettings,
+    MultiTypeSensorReference,
+)
 
 
 class InputRecordingSettings(CalibrationSettings):
@@ -51,8 +54,10 @@ class InputRecordingSettings(CalibrationSettings):
             setting = InputSettings(
                 input_label=label,
                 input_name=name,
+                sensor=MultiTypeSensorReference(),
             )
             setting.sensor.observe('name', self._bump_readiness_tick)
+            setting.sensor.observe('sensor_type', self._bump_readiness_tick)
             settings.append(setting)
         self.available_inputs = settings
         self.generator = GeneratorSettings()

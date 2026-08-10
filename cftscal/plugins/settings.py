@@ -14,7 +14,7 @@ from psi.util import get_tagged_members, get_tagged_values
 from cftscal.objects import (
     generic_microphone_manager, input_amplifier_manager, input_manager,
     inear_manager, measurement_microphone_manager, output_manager,
-    speaker_manager, starship_manager, CalibrationManager,
+    speaker_manager, starship_manager, unity_manager, CalibrationManager,
 )
 
 from cftscal.plugins.workspace import WorkspaceSettings
@@ -321,13 +321,20 @@ class SensorReference(SensorSettings):
     Picks an existing calibration to load in an experiment.
 
     ``name`` is a fully-qualified calibration path (e.g. ``"MMM0"`` or
-    ``"Bramhall/MMM"``) that ``CalibrationManager.get_object(name)``
-    resolves to a calibrated object.  ``available_references`` is the
-    persistent picker list; on init we union disk-discovered paths (via
+    ``"Bramhall/MMM"``) that ``get_manager().get_object(name)`` resolves
+    to a calibrated object.  ``available_references`` is the persistent
+    picker list; on init we union disk-discovered paths (via
     ``get_available_references``) with anything the user has added via
     the SensorView "+" button in prior sessions.  Pair with
     :class:`SensorDevice` — pick one based on whether the plugin is
     loading an existing calibration or labelling a new one.
+
+    Subclasses that only ever draw from one calibration type (e.g.
+    :class:`MeasurementMicrophoneReference`) override ``get_manager()``.
+    :class:`MultiTypeSensorReference` (below) instead switches which
+    manager ``get_manager()`` returns based on a ``sensor_type``
+    selection, for plugins (input_recording) where a channel might be
+    wired to any of several differently-typed calibrations.
     '''
     #: Persistent list of calibration paths shown in the dropdown.
     available_references = List().tag(persist=True)
@@ -336,28 +343,47 @@ class SensorReference(SensorSettings):
         super().__init__(*args, **kwargs)
         self.refresh_available()
 
+    def get_manager(self):
+        return input_manager
+
+    def get_available_references(self):
+        return sorted(self.get_manager().list_names())
+
+    def resolve_object(self):
+        return self.get_manager().get_object(self.name)
+
     def refresh_available(self):
         '''Re-union disk-discovered references into the persistent list.
-        Called from ``__init__`` and from widget observers after a new
-        calibration is recorded.'''
+        Called from ``__init__``, from ``set_persistence()`` (below), and
+        from widget observers after a new calibration is recorded.'''
         _merge_picker_list(
             self, 'available_references', self.get_available_references(),
         )
 
-    def get_available_references(self):
-        return sorted(input_manager.list_names())
+    def set_persistence(self, config):
+        # PersistentSettings.set_persistence() (inherited) sets
+        # available_references to exactly the persisted list, discarding
+        # whatever refresh_available() had just merged in during
+        # __init__ -- so anything discoverable now but not yet present
+        # in a config saved before it existed (e.g. a newly-added
+        # calibration type) would otherwise vanish from the picker on
+        # every single load, not just be missing until the next
+        # calibration is recorded. Re-merge after the persisted name
+        # selection is restored so newly-available options aren't lost.
+        super().set_persistence(config)
+        self.refresh_available()
 
 
 class MeasurementMicrophoneReference(SensorReference):
 
-    def get_available_references(self):
-        return sorted(measurement_microphone_manager.list_names())
+    def get_manager(self):
+        return measurement_microphone_manager
 
 
 class GenericMicrophoneReference(SensorReference):
 
-    def get_available_references(self):
-        return sorted(generic_microphone_manager.list_names())
+    def get_manager(self):
+        return generic_microphone_manager
 
 
 class SensorDevice(SensorSettings):
@@ -391,8 +417,8 @@ class InputAmplifierReference(SensorReference):
     def _get_total_gain(self):
         return self.gain * self.gain_mult
 
-    def get_available_references(self):
-        return sorted(input_amplifier_manager.list_names())
+    def get_manager(self):
+        return input_amplifier_manager
 
     def get_env_vars(self, env_prefix, include_cal=True):
         return {
@@ -401,6 +427,49 @@ class InputAmplifierReference(SensorReference):
             f'{env_prefix}_FREQ_UB': str(self.freq_ub),
             f'{env_prefix}_FILT_60Hz': self.filt_60Hz,
         }
+
+
+class MultiTypeSensorReference(SensorReference):
+    '''
+    Draws from any of several differently-typed managers rather than one
+    fixed manager -- used by input_recording, where a channel might be
+    wired to a measurement mic, generic mic, or starship probe mic (a
+    starship's probe mic is a perfectly normal frequency-dependent
+    calibration too).
+
+    Picking ``sensor_type`` narrows ``available_references``/
+    ``resolve_object()`` to that type's own manager, so names/paths never
+    need cross-type disambiguation the way a single flat merged list
+    would -- each of measurement_microphone_manager/
+    generic_microphone_manager/starship_manager/unity_manager already
+    produces correct ``folder/name`` paths entirely on its own.
+    '''
+    TYPE_MANAGERS = {
+        'Meas. Mic.': measurement_microphone_manager,
+        'Generic Mic.': generic_microphone_manager,
+        'Starship': starship_manager,
+        'Unity': unity_manager,
+    }
+
+    sensor_type = Enum(*TYPE_MANAGERS.keys()).tag(persist=True)
+
+    def get_manager(self):
+        return self.TYPE_MANAGERS[self.sensor_type]
+
+    def switch_type(self, new_type):
+        '''Explicit, UI-triggered type change -- clears the now-invalid
+        name/option list for the old type. Deliberately not wired up as
+        an ``_observe_sensor_type`` handler: ``set_persistence()``
+        restores ``sensor_type`` via plain ``setattr`` alongside ``name``,
+        and their relative order isn't guaranteed, so an observer-based
+        clear could run *after* ``name`` was already correctly restored
+        and wipe it back out. Keeping the clear-on-switch behavior in an
+        explicit method callers opt into (the widget, on user action)
+        avoids that hazard entirely.'''
+        self.sensor_type = new_type
+        self.name = ''
+        self.available_references = []
+        self.refresh_available()
 
 
 class InputSettings(PersistentSettings):
@@ -441,7 +510,12 @@ class InputSettings(PersistentSettings):
             f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
         }
         if include_cal:
-            obj = input_manager.get_object(self.sensor.name)
+            # Only ever reached for a SensorReference-backed sensor --
+            # every SensorDevice-based caller (e.g. microphone's
+            # calibrate-a-new-device channels) already passes
+            # include_cal=False, since there's no existing calibration
+            # to resolve yet.
+            obj = self.sensor.resolve_object()
             cal = obj.get_current_calibration()
             env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
         return env
