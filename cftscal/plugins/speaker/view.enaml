@@ -236,6 +236,14 @@ enamldef SpeakerView(Container):
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
                     },
+                    'Device': {
+                        # Explicit device ID from metadata, independent of
+                        # which folder this calibration happens to be
+                        # filed under -- the tree is organized for
+                        # convenience and may not match this. Compare
+                        # against 'Name' to spot a mismatch.
+                        'to_str': lambda x: x.speaker,
+                    },
                     'Output': {
                         'to_str': lambda x: x.output_channel,
                     },

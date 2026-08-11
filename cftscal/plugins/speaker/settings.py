@@ -54,6 +54,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         env = ai.get_env_vars(env_prefix='CFTS_MICROPHONE')
         env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
         metadata = {
+            'speaker': ao.generator.name,
             'microphone': ai.sensor.name,
             'microphone_channel': ai.input_label,
             'output_channel': ao.output_label,

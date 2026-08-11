@@ -265,29 +265,70 @@ def _enrich_inear_from_preferences(cal_dir, metadata, overwrite=False):
     return enrichment
 
 
-def _enrich_channels_from_io(input_field=None, output_field=None):
+def _load_io_json(cal_dir):
+    io_file = cal_dir / 'io.json'
+    if not io_file.exists():
+        return None
+    try:
+        return json.loads(io_file.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+#: io.json is a serialized dump of the full psiexperiment IO manifest, not
+#: just the handful of "input"/"output" channels cftscal cares about -- it
+#: includes e.g. position encoders (NIDAQHardwareCIAngPosEncoderChannel)
+#: that psiexperiment's own list_inputs()/list_connections() (cftscal/
+#: util.py) already filter out via isinstance(obj, HardwareAIChannel) /
+#: HardwareAOChannel. A channel left permanently wired/active in the DAQ
+#: engine config (e.g. a turntable position encoder on older rigs) shows
+#: up "active" right alongside the real microphone channel, breaking the
+#: "exactly one active entry" disambiguation for no good reason -- exclude
+#: non-audio channel types the same way util.py does before ever counting
+#: candidates.
+_IO_JSON_TYPE_SUFFIX = {'input': 'AIChannel', 'output': 'AOChannel'}
+
+
+def _real_hw_channels(io_data, direction):
+    '''Active entries in ``io_data[direction]`` that are genuine hardware
+    analog channels (excludes counters/encoders/digital channels).'''
+    suffix = _IO_JSON_TYPE_SUFFIX[direction]
+    return [
+        (k, v) for k, v in io_data.get(direction, {}).items()
+        if v.get('active') and suffix in (v.get('__type__') or '')
+    ]
+
+
+def _enrich_channels_from_io(input_field=None, output_field=None,
+                              input_prefer_keys=(), gain_field=None):
     '''
-    Build an enricher that recovers input/output channel labels from the
-    run's ``io.json`` sidecar (a JSON dump of the full IO manifest
+    Build an enricher that recovers input/output channel labels (and,
+    optionally, the resolved input channel's own gain) from the run's
+    ``io.json`` sidecar (a JSON dump of the full IO manifest
     psiexperiment writes for every run).
 
-    Each ``io.json`` entry carries both its manifest ``name`` (the dict
-    key, e.g. ``"starship_A_microphone"``) and a human-readable ``label``
-    (e.g. ``"Starship A (microphone)"``) -- the same ``label`` every
-    plugin's ``settings.py`` writes into these fields for new recordings
-    (``ai.input_label``/``ao.output_label``/``ear.connection_label``), so
-    recovering ``label`` here keeps historical and current data in the
-    same column comparable rather than mixing raw manifest names in with
-    labels.
+    Each ``io.json`` entry carries its manifest ``name`` (the dict key,
+    e.g. ``"starship_A_microphone"``), a human-readable ``label`` (e.g.
+    ``"Starship A (microphone)"``) -- the same ``label`` every plugin's
+    ``settings.py`` writes into these fields for new recordings
+    (``ai.input_label``/``ao.output_label``/``ear.connection_label``) --
+    and its own ``gain`` (the channel's configured hardware preamp gain,
+    the same concept as e.g. ``CFTSMeasurementMicrophoneCalibration.gain``).
 
     ``io.json`` marks each configured channel ``active: true/false``; the
-    channel(s) active for a given direction are the one(s) actually used
-    for that recording. This is only unambiguous when exactly one channel
-    is active -- some hardware configurations have always-on monitoring
-    channels (e.g. a permanently-wired QC microphone) that show up as
-    simultaneously active alongside the real one, with no generic way to
-    tell them apart. When that happens the field is left blank rather
-    than risking a wrong guess.
+    channel(s) active for a given direction (after excluding non-audio
+    types via ``_real_hw_channels``) are the one(s) actually used for
+    that recording. Usually unambiguous once exactly one real channel is
+    active. When two or more real channels are simultaneously active
+    (e.g. starship recordings always have both the starship's own probe
+    mic and a separate reference/calibration mic active at once),
+    ``input_prefer_keys`` breaks the tie for the *input* direction only:
+    if exactly one active candidate's key is in ``input_prefer_keys``,
+    that one wins. The reference/calibration mic's channel key is not
+    consistently spelled across this lab's history (both
+    ``"microphone_calibration"`` and ``"calibration_microphone"`` appear,
+    in different eras) -- pass every known spelling. Still-ambiguous
+    cases are left blank rather than risking a wrong guess.
 
     Normally only fills a field that's still blank -- but with
     ``overwrite=True`` recomputes it regardless of what's already there,
@@ -296,42 +337,210 @@ def _enrich_channels_from_io(input_field=None, output_field=None):
     of needing the field manually cleared first.
     '''
     def enrich(cal_dir, metadata, overwrite=False):
-        io_file = cal_dir / 'io.json'
-        if not io_file.exists():
-            return {}
-        try:
-            io_data = json.loads(io_file.read_text())
-        except (OSError, json.JSONDecodeError):
+        io_data = _load_io_json(cal_dir)
+        if io_data is None:
             return {}
         result = {}
+        resolved_input = None
         for direction, field in (('input', input_field), ('output', output_field)):
-            if field is None or (metadata.get(field) and not overwrite):
-                continue  # not requested, or already have a real value
-            active = [
-                v.get('label') or k
-                for k, v in io_data.get(direction, {}).items() if v.get('active')
-            ]
-            if len(active) == 1:
-                result[field] = active[0]
-            # else: 0 or 2+ active entries -- ambiguous, leave existing
-            # value (if any) untouched rather than blanking it out.
+            if field is None:
+                continue
+            candidates = _real_hw_channels(io_data, direction)
+            chosen = None
+            if len(candidates) == 1:
+                chosen = candidates[0]
+            elif direction == 'input' and input_prefer_keys:
+                preferred = [c for c in candidates if c[0] in input_prefer_keys]
+                if len(preferred) == 1:
+                    chosen = preferred[0]
+            if chosen is None:
+                continue  # 0 or 2+ active candidates -- still ambiguous
+            if direction == 'input':
+                resolved_input = chosen[1]
+            if metadata.get(field) and not overwrite:
+                continue  # already have a real value
+            result[field] = chosen[1].get('label') or chosen[0]
+        if (gain_field is not None and resolved_input is not None
+                and (overwrite or not metadata.get(gain_field))):
+            gain = resolved_input.get('gain')
+            if gain is not None:
+                result[gain_field] = gain
         return result
+    return enrich
+
+
+#: The starship's *own* probe-tube mic channel -- distinct from the
+#: reference/calibration mic (see _enrich_channels_from_io's
+#: input_prefer_keys docstring). Both are real, simultaneously-active AI
+#: channels in a starship recording's io.json, each with its own
+#: separate gain; this one backs CFTSStarshipCalibration.gain (the
+#: starship device's own gain switch), not the reference mic's.
+_STARSHIP_MIC_RE = re.compile(r'^starship_\w+_microphone$')
+
+
+def _enrich_starship_gain_from_io(cal_dir, metadata, overwrite=False):
+    '''Recover the starship's own device gain (not the reference mic's --
+    see _STARSHIP_MIC_RE) from io.json, when unambiguous.'''
+    if metadata.get('gain') and not overwrite:
+        return {}
+    io_data = _load_io_json(cal_dir)
+    if io_data is None:
+        return {}
+    candidates = [
+        v for k, v in _real_hw_channels(io_data, 'input')
+        if _STARSHIP_MIC_RE.match(k)
+    ]
+    if len(candidates) == 1 and candidates[0].get('gain') is not None:
+        return {'gain': candidates[0]['gain']}
+    return {}
+
+
+def _enrich_input_recording_from_io(cal_dir, metadata, overwrite=False):
+    '''
+    Recover a real channel label (and gain) for legacy single-channel
+    input-recording metadata.
+
+    Recordings made before multi-channel support have a bare ``sensor``
+    key and no ``sensors`` dict -- CFTSInputRecording.sensors's fallback
+    synthesizes ``{'selected_input': {'label': 'selected_input', ...}}``,
+    showing that literal placeholder in the tree since no real label was
+    ever recorded. When io.json has exactly one active real input
+    channel, write a proper ``sensors`` dict with its actual label (and
+    gain, if present) so CFTSInputRecording.sensors reads real data
+    instead of synthesizing the placeholder. A no-op once metadata
+    already has a ``sensors`` dict, whether from a genuinely
+    multi-channel recording or a prior run of this enricher.
+    '''
+    if 'sensors' in metadata or 'sensor' not in metadata:
+        return {}
+    io_data = _load_io_json(cal_dir)
+    if io_data is None:
+        return {}
+    candidates = _real_hw_channels(io_data, 'input')
+    if len(candidates) != 1:
+        return {}
+    _, v = candidates[0]
+    entry = {'label': v.get('label') or 'selected_input', 'sensor': metadata['sensor']}
+    if v.get('gain') is not None:
+        entry['gain'] = v['gain']
+    return {'sensors': {'selected_input': entry}}
+
+
+def _fix_input_amplifier_total_gain(cal_dir, metadata, overwrite=False):
+    '''
+    Some historical input_amplifier recordings have ``total_gain``
+    recorded 100x too small (e.g. 500 instead of 50000) -- a genuine
+    historical bug in an old version of the acquisition program itself
+    (confirmed against the original filenames), not a parsing artifact
+    here, so it can't be fixed by re-parsing. Self-validates against the
+    recording's own independently-measured ``amplifier_gain.json``
+    instead: only corrects when ``measured / total_gain`` lands close to
+    100, so a recording genuinely configured at a different gain (whose
+    own measurement would corroborate its recorded value) is never
+    touched. Always checked, regardless of ``overwrite`` -- this is
+    correcting a value already known to be wrong, not filling a blank.
+    '''
+    total_gain = metadata.get('total_gain')
+    if not total_gain:
+        return {}
+    gain_file = cal_dir / 'amplifier_gain.json'
+    if not gain_file.exists():
+        return {}
+    try:
+        measured = json.loads(gain_file.read_text()).get('gain mean (linear)')
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if measured is None:
+        return {}
+    ratio = measured / total_gain
+    if 90 <= ratio <= 110:
+        return {'total_gain': total_gain * 100}
+    return {}
+
+
+def _compose(*enrichers):
+    '''Combine several enrichers into one, run in sequence with each
+    seeing the metadata as enriched by those before it.'''
+    def combined(cal_dir, metadata, overwrite=False):
+        result = {}
+        merged = metadata
+        for enricher in enrichers:
+            extra = enricher(cal_dir, merged, overwrite=overwrite)
+            if extra:
+                merged = {**merged, **extra}
+                result = {**result, **extra}
+        return result
+    return combined
+
+
+#: Both spellings of this lab's one reference/calibration mic channel
+#: appear across the real data -- the naming convention changed at some
+#: point in this rig's history. Neither is a typo; both must be checked.
+_REFERENCE_MIC_KEYS = ('microphone_calibration', 'calibration_microphone')
+
+
+def _enrich_device_from_folder(field):
+    '''
+    Build an enricher that backfills ``field`` (e.g. ``starship``/
+    ``speaker``/``sensor_id``) from the calibration's own on-disk
+    location, for subfolders with no REPARENT_KEY: ``cal_dir.parent`` is
+    always the device-name folder (CFTSBaseLoader._walk_objects's
+    convention -- whatever sits directly above the leaf calibration
+    folder is the object, everything above *that* is an organizational
+    folder), true for both already-bare-timestamp and still-legacy-named
+    folders alike, since only the leaf folder's name is ever affected by
+    migration.
+
+    Only a *backfill* for existing data, not something new recordings
+    need -- every plugin's settings.py already writes this field
+    directly at record time. Confirmed safe to use folder-derived
+    identity here specifically because no data has been acquired since
+    the target-folder-redirection feature existed, so there's no
+    historical case where the folder and the actual device diverge (see
+    CFTSStarshipCalibration.starship's docstring for why that divergence
+    is possible *going forward*, which is exactly why new recordings
+    don't rely on this).
+    '''
+    def enrich(cal_dir, metadata, overwrite=False):
+        if metadata.get(field) and not overwrite:
+            return {}
+        return {field: cal_dir.parent.name}
     return enrich
 
 
 # Subfolder -> function(cal_dir, metadata) -> dict of fields to merge in.
 # Runs on every calibration folder migrate() visits (not just ones with a
 # legacy name still to parse), since io.json/final.preferences are present
-# regardless of a folder's migration status. Absent here (microphone_generic,
-# input-recording, ir-sensor) means no enrichment is attempted for that type.
+# regardless of a folder's migration status. Absent here (ir-sensor) means
+# no enrichment is attempted for that type.
 ENRICHERS = {
-    'inear': _enrich_inear_from_preferences,
-    'microphone': _enrich_channels_from_io(input_field='input_channel'),
-    'speaker': _enrich_channels_from_io(
-        input_field='microphone_channel', output_field='output_channel'),
-    'starship': _enrich_channels_from_io(
-        input_field='microphone_channel', output_field='starship_channel'),
-    'input_amplifier': _enrich_channels_from_io(input_field='input_channel'),
+    'inear': _compose(
+        _enrich_inear_from_preferences,
+        _enrich_channels_from_io(output_field='starship_channel'),
+    ),
+    'microphone': _enrich_channels_from_io(
+        input_field='input_channel', input_prefer_keys=_REFERENCE_MIC_KEYS,
+        gain_field='gain'),
+    'speaker': _compose(
+        _enrich_channels_from_io(
+            input_field='microphone_channel', input_prefer_keys=_REFERENCE_MIC_KEYS,
+            output_field='output_channel', gain_field='gain'),
+        _enrich_device_from_folder('speaker'),
+    ),
+    'starship': _compose(
+        _enrich_channels_from_io(
+            input_field='microphone_channel', input_prefer_keys=_REFERENCE_MIC_KEYS,
+            output_field='starship_channel', gain_field='microphone_gain'),
+        _enrich_starship_gain_from_io,
+        _enrich_device_from_folder('starship'),
+    ),
+    'input_amplifier': _compose(
+        _enrich_channels_from_io(input_field='input_channel'),
+        _fix_input_amplifier_total_gain,
+        _enrich_device_from_folder('sensor_id'),
+    ),
+    'input-recording': _enrich_input_recording_from_io,
+    'microphone_generic': _enrich_device_from_folder('sensor_id'),
 }
 
 

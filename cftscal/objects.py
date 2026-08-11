@@ -654,12 +654,25 @@ class CFTSStarshipCalibration(CFTSFileCalibration):
     '''
 
     @property
+    def starship(self):
+        # Explicit device ID, independent of which folder this
+        # calibration happens to be filed under -- a target folder can
+        # be pointed anywhere, so `.name` (folder-derived) isn't
+        # guaranteed to match the device actually selected at record
+        # time. Old calibrations without this metadata render as ''.
+        return self.metadata.get('starship', '')
+
+    @property
     def microphone(self):
         return self.metadata['microphone']
 
     @property
     def microphone_channel(self):
         return self.metadata.get('microphone_channel', '')
+
+    @property
+    def microphone_gain(self):
+        return self.metadata.get('microphone_gain')
 
     @property
     def starship_channel(self):
@@ -743,6 +756,14 @@ class CFTSSpeakerCalibration(CFTSFileCalibration):
     '''
 
     @property
+    def speaker(self):
+        # Explicit device ID, independent of which folder this
+        # calibration happens to be filed under -- see
+        # CFTSStarshipCalibration.starship's docstring for why `.name`
+        # (folder-derived) isn't a reliable substitute.
+        return self.metadata.get('speaker', '')
+
+    @property
     def microphone(self):
         return self.metadata['microphone']
 
@@ -805,6 +826,14 @@ class InputAmplifier(CalibratedObject):
 
 
 class CFTSInputAmplifierCalibration(CFTSFileCalibration):
+
+    @property
+    def sensor_id(self):
+        # Explicit device ID, independent of which folder this
+        # calibration happens to be filed under -- see
+        # CFTSStarshipCalibration.starship's docstring for why `.name`
+        # (folder-derived) isn't a reliable substitute.
+        return self.metadata.get('sensor_id', '')
 
     @property
     def input_channel(self):
@@ -883,7 +912,10 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 
     @property
     def gain(self):
-        return self.metadata.get('gain', 0)
+        # None (not 0) when unrecorded -- matching starship/speaker's own
+        # gain properties -- so a truly-unknown gain isn't indistinguishable
+        # from a genuinely-recorded 0 dB.
+        return self.metadata.get('gain')
 
     @property
     def input_channel(self):
@@ -923,6 +955,14 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 
 
 class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
+
+    @property
+    def sensor_id(self):
+        # Explicit device ID, independent of which folder this
+        # calibration happens to be filed under -- see
+        # CFTSStarshipCalibration.starship's docstring for why `.name`
+        # (folder-derived) isn't a reliable substitute.
+        return self.metadata.get('sensor_id', '')
 
     @property
     def microphone(self):

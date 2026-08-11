@@ -212,13 +212,18 @@ class TestMigrate:
                       'method': 'tone'},
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(skipped_exists=1, renamed=1)
+        # wrote=0 (already fully migrated per the marker key, no re-parse
+        # of legacy-name-derived fields), but enriched=1 -- the
+        # folder-derived 'speaker' device backfill still applies
+        # regardless of has_legacy_name, and since it changed the file,
+        # this does NOT fall into the skipped_exists bucket either.
+        assert counts == _counts(enriched=1, renamed=1)
 
         new_dir = tmp_path / 'speaker' / 'SPK1' / '20260701-123456'
         assert new_dir.exists()
         metadata = json.loads((new_dir / 'metadata.json').read_text())
         assert metadata == {'datetime': '2026-07-01T12:34:56', 'microphone': 'MMM0',
-                             'method': 'tone'}
+                             'method': 'tone', 'speaker': 'SPK1'}
 
     def test_merges_into_foreign_metadata_file(self, tmp_path):
         '''A metadata.json that exists but lacks cftscal's fields (e.g.
@@ -325,7 +330,13 @@ class TestMigrate:
             'hide/20260701-123456_MMM0_GRAS-40DP_tube-0mm_golay',
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(wrote=1, renamed=1)
+        # enriched=1: the folder-derived 'starship' device backfill sees
+        # 'hide' as the object folder here (whatever sits directly above
+        # the leaf calibration folder -- same convention
+        # CFTSBaseLoader._walk_objects uses), matching how this
+        # fixture's grouping already works; 'MMM0' is the organizational
+        # folder wrapping it in this specific test layout.
+        assert counts == _counts(wrote=1, enriched=1, renamed=1)
 
         new_dir = (
             tmp_path / 'starship' / 'MMM0' / 'hide' / '20260701-123456'
@@ -333,6 +344,7 @@ class TestMigrate:
         assert new_dir.exists()
         metadata = json.loads((new_dir / 'metadata.json').read_text())
         assert metadata['microphone'] == 'GRAS-40DP'
+        assert metadata['starship'] == 'hide'
 
     def test_rename_conflict_leaves_both_untouched_but_still_writes_metadata(
         self, tmp_path,
@@ -380,7 +392,8 @@ class TestMigrate:
             '20260701-123456_AMP1_1000x_10-10000Hz-filt-60Hz-input',
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(wrote=1, renamed=1)
+        # enriched=1: the folder-derived 'sensor_id' device backfill.
+        assert counts == _counts(wrote=1, enriched=1, renamed=1)
 
         new_dir = tmp_path / 'input_amplifier' / 'AMP1' / '20260701-123456'
         metadata = json.loads((new_dir / 'metadata.json').read_text())
@@ -388,6 +401,7 @@ class TestMigrate:
         assert metadata['freq_lb'] == 10.0
         assert metadata['freq_ub'] == 10000.0
         assert metadata['filt_60Hz'] == 'on'
+        assert metadata['sensor_id'] == 'AMP1'
 
     def test_inear_reparents_under_starship_folder(self, tmp_path):
         # inear is special-cased via REPARENT_KEY: the master folder for
@@ -539,13 +553,30 @@ class TestEnrichChannelsFromIo:
     inconsistent within themselves.
     '''
 
-    def _write_io(self, cal_dir, input_active=(), output_active=()):
-        # `input_active`/`output_active` are lists of (name, label) pairs
-        # for the channels marked active; matches real io.json shape.
-        def entries(active):
-            return {name: {'label': label, 'active': True}
-                    for name, label in active}
-        io_data = {'input': entries(input_active), 'output': entries(output_active)}
+    def _write_io(self, cal_dir, input_active=(), output_active=(),
+                  extra_input=None, extra_output=None):
+        # `input_active`/`output_active` are lists of (name, label) or
+        # (name, label, gain) tuples for real-hardware-channel entries
+        # marked active -- matches real io.json's shape for
+        # NIDAQHardwareAIChannel/NIDAQHardwareAOChannel. `extra_input`/
+        # `extra_output` are raw dicts merged in as-is, for injecting
+        # non-audio channel types (e.g. a position encoder) or other
+        # edge cases the (name, label[, gain]) shorthand can't express.
+        def entries(active, type_):
+            out = {}
+            for item in active:
+                name, label = item[0], item[1]
+                entry = {'label': label, 'active': True, '__type__': type_}
+                if len(item) > 2:
+                    entry['gain'] = item[2]
+                out[name] = entry
+            return out
+        io_data = {
+            'input': {**entries(input_active, 'NIDAQHardwareAIChannel'),
+                      **(extra_input or {})},
+            'output': {**entries(output_active, 'NIDAQHardwareAOChannel'),
+                       **(extra_output or {})},
+        }
         (cal_dir / 'io.json').write_text(json.dumps(io_data))
 
     def test_single_active_input_recovers_label(self, tmp_path):
@@ -555,19 +586,112 @@ class TestEnrichChannelsFromIo:
 
     def test_falls_back_to_name_when_label_missing(self, tmp_path):
         (tmp_path / 'io.json').write_text(json.dumps({
-            'input': {'ai0': {'active': True}}, 'output': {},
+            'input': {'ai0': {'active': True, '__type__': 'NIDAQHardwareAIChannel'}},
+            'output': {},
         }))
         enrich = mm._enrich_channels_from_io(input_field='input_channel')
         assert enrich(tmp_path, {}) == {'input_channel': 'ai0'}
 
+    def test_non_audio_channel_type_excluded_from_candidates(self, tmp_path):
+        # e.g. a position encoder left permanently active in the DAQ
+        # engine config on older rigs -- must not count as a candidate
+        # (real bug: this made microphone recordings on affected rigs
+        # look ambiguous even though only one real mic channel was ever
+        # active).
+        self._write_io(
+            tmp_path, input_active=[('ai0', 'Calibration microphone')],
+            extra_input={
+                'turntable_angle': {
+                    'label': 'Turntable angle', 'active': True,
+                    '__type__': 'NIDAQHardwareCIAngPosEncoderChannel',
+                },
+            },
+        )
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {'input_channel': 'Calibration microphone'}
+
     def test_ambiguous_active_inputs_left_blank(self, tmp_path):
-        # e.g. starship/microphone's real io.json, where an always-on
-        # monitoring channel shows up active alongside the real one.
+        # e.g. starship's real io.json, where the starship's own probe
+        # mic and the reference/calibration mic are both real, genuinely
+        # simultaneously-active channels.
         self._write_io(tmp_path, input_active=[
             ('starship_A_microphone', 'Starship A (microphone)'),
             ('calibration_microphone', 'Calibration microphone'),
         ])
         enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {}
+
+    def test_prefer_keys_resolves_ambiguity(self, tmp_path):
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)'),
+            ('calibration_microphone', 'Calibration microphone'),
+        ])
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel',
+            input_prefer_keys=('microphone_calibration', 'calibration_microphone'),
+        )
+        assert enrich(tmp_path, {}) == {'microphone_channel': 'Calibration microphone'}
+
+    def test_prefer_keys_both_spellings_checked(self, tmp_path):
+        # The reference mic's channel key isn't spelled consistently
+        # across this lab's history -- both orderings are real.
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)'),
+            ('microphone_calibration', 'Calibration microphone'),
+        ])
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel',
+            input_prefer_keys=('microphone_calibration', 'calibration_microphone'),
+        )
+        assert enrich(tmp_path, {}) == {'microphone_channel': 'Calibration microphone'}
+
+    def test_prefer_keys_still_ambiguous_when_no_match(self, tmp_path):
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)'),
+            ('some_other_mic', 'Some other mic'),
+        ])
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel',
+            input_prefer_keys=('microphone_calibration', 'calibration_microphone'),
+        )
+        assert enrich(tmp_path, {}) == {}
+
+    def test_gain_field_recovers_resolved_input_channels_gain(self, tmp_path):
+        self._write_io(tmp_path, input_active=[('ai0', 'Ch 1', 20.0)])
+        enrich = mm._enrich_channels_from_io(
+            input_field='input_channel', gain_field='gain')
+        assert enrich(tmp_path, {}) == {'input_channel': 'Ch 1', 'gain': 20.0}
+
+    def test_gain_field_uses_prefer_keys_resolution(self, tmp_path):
+        # gain must come from the SAME channel the tie-break resolved,
+        # not just "whichever one happens to have a gain".
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)', 20.0),
+            ('calibration_microphone', 'Calibration microphone', 0.0),
+        ])
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel',
+            input_prefer_keys=('microphone_calibration', 'calibration_microphone'),
+            gain_field='microphone_gain',
+        )
+        assert enrich(tmp_path, {}) == {
+            'microphone_channel': 'Calibration microphone',
+            'microphone_gain': 0.0,
+        }
+
+    def test_gain_field_does_not_overwrite_existing_value(self, tmp_path):
+        self._write_io(tmp_path, input_active=[('ai0', 'Ch 1', 20.0)])
+        enrich = mm._enrich_channels_from_io(
+            input_field='input_channel', gain_field='gain')
+        assert enrich(tmp_path, {'gain': 40}) == {'input_channel': 'Ch 1'}
+
+    def test_gain_field_left_blank_when_input_still_ambiguous(self, tmp_path):
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)', 20.0),
+            ('some_other_mic', 'Some other mic', 30.0),
+        ])
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel', gain_field='gain')
         assert enrich(tmp_path, {}) == {}
 
     def test_no_active_inputs_left_blank(self, tmp_path):
@@ -610,6 +734,241 @@ class TestEnrichChannelsFromIo:
         (tmp_path / 'io.json').write_text('not json')
         enrich = mm._enrich_channels_from_io(input_field='input_channel')
         assert enrich(tmp_path, {}) == {}
+
+
+class TestEnrichStarshipGainFromIo:
+    '''
+    The starship's own device gain comes from its own probe-mic channel
+    (e.g. "starship_A_microphone"), never the reference/calibration mic's
+    -- these are two different, simultaneously-active real channels with
+    their own separate gains in the same io.json.
+    '''
+
+    def _write_io(self, cal_dir, entries):
+        # entries: dict of name -> (label, type_, active, gain)
+        io_data = {'input': {}, 'output': {}}
+        for name, (label, type_, active, gain) in entries.items():
+            entry = {'label': label, 'active': active, '__type__': type_}
+            if gain is not None:
+                entry['gain'] = gain
+            io_data['input'][name] = entry
+        (cal_dir / 'io.json').write_text(json.dumps(io_data))
+
+    def test_recovers_starship_mic_gain_not_reference_mic_gain(self, tmp_path):
+        self._write_io(tmp_path, {
+            'starship_A_microphone': (
+                'Starship A (microphone)', 'NIDAQHardwareAIChannel', True, 20.0),
+            'microphone_calibration': (
+                'Calibration microphone', 'NIDAQHardwareAIChannel', True, 0.0),
+        })
+        result = mm._enrich_starship_gain_from_io(tmp_path, {})
+        assert result == {'gain': 20.0}
+
+    def test_ignores_non_audio_channel_types(self, tmp_path):
+        self._write_io(tmp_path, {
+            'starship_A_microphone': (
+                'Starship A (microphone)', 'NIDAQHardwareAIChannel', True, 20.0),
+            'turntable_angle': (
+                'Turntable angle', 'NIDAQHardwareCIAngPosEncoderChannel', True, None),
+        })
+        result = mm._enrich_starship_gain_from_io(tmp_path, {})
+        assert result == {'gain': 20.0}
+
+    def test_ambiguous_when_two_starship_connections_active(self, tmp_path):
+        self._write_io(tmp_path, {
+            'starship_A_microphone': (
+                'Starship A (microphone)', 'NIDAQHardwareAIChannel', True, 20.0),
+            'starship_B_microphone': (
+                'Starship B (microphone)', 'NIDAQHardwareAIChannel', True, 40.0),
+        })
+        result = mm._enrich_starship_gain_from_io(tmp_path, {})
+        assert result == {}
+
+    def test_does_not_overwrite_existing_gain(self, tmp_path):
+        self._write_io(tmp_path, {
+            'starship_A_microphone': (
+                'Starship A (microphone)', 'NIDAQHardwareAIChannel', True, 20.0),
+        })
+        result = mm._enrich_starship_gain_from_io(tmp_path, {'gain': 40})
+        assert result == {}
+
+    def test_overwrite_recomputes(self, tmp_path):
+        self._write_io(tmp_path, {
+            'starship_A_microphone': (
+                'Starship A (microphone)', 'NIDAQHardwareAIChannel', True, 20.0),
+        })
+        result = mm._enrich_starship_gain_from_io(
+            tmp_path, {'gain': 40}, overwrite=True)
+        assert result == {'gain': 20.0}
+
+    def test_missing_io_file_returns_empty(self, tmp_path):
+        assert mm._enrich_starship_gain_from_io(tmp_path, {}) == {}
+
+
+class TestEnrichInputRecordingFromIo:
+
+    def _write_io(self, cal_dir, active):
+        # active: list of (name, label, gain)
+        entries = {}
+        for name, label, gain in active:
+            entry = {'label': label, 'active': True,
+                     '__type__': 'NIDAQHardwareAIChannel'}
+            if gain is not None:
+                entry['gain'] = gain
+            entries[name] = entry
+        (cal_dir / 'io.json').write_text(
+            json.dumps({'input': entries, 'output': {}}))
+
+    def test_recovers_real_label_and_gain_for_legacy_shape(self, tmp_path):
+        self._write_io(tmp_path, [('ai0', 'Ch 2', 20.0)])
+        result = mm._enrich_input_recording_from_io(
+            tmp_path, {'sensor': 'MMM0'})
+        assert result == {
+            'sensors': {'selected_input': {
+                'label': 'Ch 2', 'sensor': 'MMM0', 'gain': 20.0,
+            }},
+        }
+
+    def test_no_gain_key_when_io_lacks_gain(self, tmp_path):
+        self._write_io(tmp_path, [('ai0', 'Ch 2', None)])
+        result = mm._enrich_input_recording_from_io(
+            tmp_path, {'sensor': 'MMM0'})
+        assert result['sensors']['selected_input'] == {
+            'label': 'Ch 2', 'sensor': 'MMM0',
+        }
+
+    def test_noop_when_sensors_dict_already_present(self, tmp_path):
+        self._write_io(tmp_path, [('ai0', 'Ch 2', 20.0)])
+        metadata = {'sensors': {'ai0': {'label': 'Ch 2', 'sensor': 'MMM0'}}}
+        assert mm._enrich_input_recording_from_io(tmp_path, metadata) == {}
+
+    def test_noop_when_no_legacy_sensor_key(self, tmp_path):
+        self._write_io(tmp_path, [('ai0', 'Ch 2', 20.0)])
+        assert mm._enrich_input_recording_from_io(tmp_path, {}) == {}
+
+    def test_noop_when_ambiguous(self, tmp_path):
+        self._write_io(tmp_path, [('ai0', 'Ch 2', 20.0), ('ai1', 'Ch 3', 0.0)])
+        result = mm._enrich_input_recording_from_io(
+            tmp_path, {'sensor': 'MMM0'})
+        assert result == {}
+
+    def test_missing_io_file_returns_empty(self, tmp_path):
+        assert mm._enrich_input_recording_from_io(
+            tmp_path, {'sensor': 'MMM0'}) == {}
+
+
+class TestFixInputAmplifierTotalGain:
+
+    def _write_gain(self, cal_dir, measured):
+        (cal_dir / 'amplifier_gain.json').write_text(
+            json.dumps({'gain mean (linear)': measured}))
+
+    def test_corrects_when_ratio_near_100(self, tmp_path):
+        self._write_gain(tmp_path, 50373.45)
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 500.0})
+        assert result == {'total_gain': 50000.0}
+
+    def test_leaves_alone_when_ratio_near_1(self, tmp_path):
+        self._write_gain(tmp_path, 50598.22)
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 50000.0})
+        assert result == {}
+
+    def test_leaves_alone_without_amplifier_gain_file(self, tmp_path):
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 500.0})
+        assert result == {}
+
+    def test_leaves_alone_without_total_gain(self, tmp_path):
+        self._write_gain(tmp_path, 50373.45)
+        assert mm._fix_input_amplifier_total_gain(tmp_path, {}) == {}
+
+    def test_leaves_alone_when_ratio_unrelated(self, tmp_path):
+        # e.g. the one real ~10,100 outlier that isn't part of the 100x
+        # pattern -- must not get "corrected" into nonsense.
+        self._write_gain(tmp_path, 10103.66)
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 500.0})
+        assert result == {}
+
+    def test_corrupt_amplifier_gain_file_leaves_alone(self, tmp_path):
+        (tmp_path / 'amplifier_gain.json').write_text('not json')
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 500.0})
+        assert result == {}
+
+    def test_runs_regardless_of_overwrite_flag(self, tmp_path):
+        # Corrects a known-wrong value -- not gated by --overwrite, same
+        # as inear's `output`.
+        self._write_gain(tmp_path, 50373.45)
+        result = mm._fix_input_amplifier_total_gain(
+            tmp_path, {'total_gain': 500.0}, overwrite=False)
+        assert result == {'total_gain': 50000.0}
+
+
+class TestEnrichDeviceFromFolder:
+    '''
+    Backfill-only: real settings.py already writes the device field
+    directly for new recordings. Safe to derive from cal_dir.parent for
+    historical data specifically because no data has been acquired since
+    the target-folder-redirection feature existed (confirmed with user),
+    so there's no historical case where the folder and the actual
+    device diverge.
+    '''
+
+    def test_recovers_device_from_parent_folder(self, tmp_path):
+        cal_dir = tmp_path / 'MMM6' / '20260701-123456'
+        cal_dir.mkdir(parents=True)
+        enrich = mm._enrich_device_from_folder('starship')
+        assert enrich(cal_dir, {}) == {'starship': 'MMM6'}
+
+    def test_does_not_overwrite_existing_value(self, tmp_path):
+        cal_dir = tmp_path / 'MMM6' / '20260701-123456'
+        cal_dir.mkdir(parents=True)
+        enrich = mm._enrich_device_from_folder('starship')
+        assert enrich(cal_dir, {'starship': 'MMM5'}) == {}
+
+    def test_overwrite_recomputes(self, tmp_path):
+        cal_dir = tmp_path / 'MMM6' / '20260701-123456'
+        cal_dir.mkdir(parents=True)
+        enrich = mm._enrich_device_from_folder('starship')
+        assert enrich(cal_dir, {'starship': 'MMM5'}, overwrite=True) == {
+            'starship': 'MMM6',
+        }
+
+    def test_field_name_is_configurable(self, tmp_path):
+        cal_dir = tmp_path / 'SPK1' / '20260701-123456'
+        cal_dir.mkdir(parents=True)
+        enrich = mm._enrich_device_from_folder('speaker')
+        assert enrich(cal_dir, {}) == {'speaker': 'SPK1'}
+
+
+class TestCompose:
+
+    def test_runs_each_enricher_and_merges_results(self):
+        def a(cal_dir, metadata, overwrite=False):
+            return {'x': 1}
+        def b(cal_dir, metadata, overwrite=False):
+            return {'y': 2}
+        combined = mm._compose(a, b)
+        assert combined(None, {}) == {'x': 1, 'y': 2}
+
+    def test_later_enricher_sees_earlier_enrichers_output(self):
+        def a(cal_dir, metadata, overwrite=False):
+            return {'x': 1}
+        def b(cal_dir, metadata, overwrite=False):
+            return {'saw_x': metadata.get('x')}
+        combined = mm._compose(a, b)
+        assert combined(None, {}) == {'x': 1, 'saw_x': 1}
+
+    def test_enricher_returning_nothing_is_skipped(self):
+        def a(cal_dir, metadata, overwrite=False):
+            return {}
+        def b(cal_dir, metadata, overwrite=False):
+            return {'y': 2}
+        combined = mm._compose(a, b)
+        assert combined(None, {}) == {'y': 2}
 
 
 class TestMigrateEnrichment:
@@ -676,7 +1035,13 @@ class TestMigrateEnrichment:
         counts = mm.migrate(tmp_path)
         assert counts == _counts(skipped_exists=1)
 
-    def test_recovers_starship_channel_only_when_input_is_unambiguous(self, tmp_path):
+    def test_starship_full_pipeline_resolves_both_channels_and_gains(self, tmp_path):
+        # Real starship io.json always has both the starship's own probe
+        # mic and the reference/calibration mic simultaneously active --
+        # the prefer_keys tie-break resolves microphone_channel/
+        # microphone_gain to the reference mic, while starship_channel
+        # and gain come from the starship's own channels (output
+        # direction and _enrich_starship_gain_from_io, respectively).
         cal_dir = _make_cal_dir(
             tmp_path, 'starship', 'SS1', '20260701-123456',
             metadata={'datetime': '2026-07-01T12:34:56', 'microphone': 'MMM0'},
@@ -685,14 +1050,17 @@ class TestMigrateEnrichment:
             'input': {
                 'starship_A_microphone': {
                     'label': 'Starship A (microphone)', 'active': True,
+                    '__type__': 'NIDAQHardwareAIChannel', 'gain': 20.0,
                 },
                 'calibration_microphone': {
                     'label': 'Calibration microphone', 'active': True,
+                    '__type__': 'NIDAQHardwareAIChannel', 'gain': 0.0,
                 },
             },
             'output': {
                 'starship_A_primary': {
                     'label': 'Starship A (primary)', 'active': True,
+                    '__type__': 'NIDAQHardwareAOChannel',
                 },
             },
         }
@@ -702,10 +1070,36 @@ class TestMigrateEnrichment:
         assert counts == _counts(skipped_exists=1, enriched=1)
 
         metadata = json.loads((cal_dir / 'metadata.json').read_text())
-        assert 'microphone_channel' not in metadata
         # Recovers the human-readable label, matching what settings.py
         # writes for new recordings -- not the raw manifest name.
+        assert metadata['microphone_channel'] == 'Calibration microphone'
+        assert metadata['microphone_gain'] == 0.0
         assert metadata['starship_channel'] == 'Starship A (primary)'
+        assert metadata['gain'] == 20.0
+
+    def test_starship_microphone_channel_left_blank_without_prefer_key_match(self, tmp_path):
+        cal_dir = _make_cal_dir(
+            tmp_path, 'starship', 'SS1', '20260701-123456',
+            metadata={'datetime': '2026-07-01T12:34:56', 'microphone': 'MMM0'},
+        )
+        io_data = {
+            'input': {
+                'starship_A_microphone': {
+                    'label': 'Starship A (microphone)', 'active': True,
+                    '__type__': 'NIDAQHardwareAIChannel',
+                },
+                'some_other_mic': {
+                    'label': 'Some other mic', 'active': True,
+                    '__type__': 'NIDAQHardwareAIChannel',
+                },
+            },
+            'output': {},
+        }
+        (cal_dir / 'io.json').write_text(json.dumps(io_data))
+
+        mm.migrate(tmp_path)
+        metadata = json.loads((cal_dir / 'metadata.json').read_text())
+        assert 'microphone_channel' not in metadata
 
     def test_overwrite_corrects_a_previously_wrong_channel_value(self, tmp_path):
         # Simulates real data affected by the raw-name-instead-of-label
@@ -720,6 +1114,7 @@ class TestMigrateEnrichment:
             'input': {
                 'microphone_calibration': {
                     'label': 'Microphone Calibration', 'active': True,
+                    '__type__': 'NIDAQHardwareAIChannel',
                 },
             },
             'output': {},

@@ -20,6 +20,7 @@ from cftscal.objects import (
     CFTSInEarLoader,
     CFTSInputAmplifierCalibration,
     CFTSInputRecording,
+    CFTSMeasurementMicrophoneCalibration,
     CFTSSpeakerCalibration,
     CFTSStarshipCalibration,
     _CURRENT_MARKER,
@@ -846,20 +847,44 @@ class TestDeviceChannelGainProperties:
     different key.
     '''
 
+    def test_measurement_microphone_gain_defaults_none_not_zero(self, tmp_path):
+        # Distinguishes a truly-unknown gain from a genuinely-recorded
+        # 0 dB one (matching starship/speaker's own gain properties).
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'pistonphone': 'PP1',
+        })
+        cal = CFTSMeasurementMicrophoneCalibration('MMM0', tmp_path)
+        assert cal.gain is None
+
+    def test_measurement_microphone_gain_recorded_value(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'pistonphone': 'PP1',
+            'gain': 0,
+        })
+        cal = CFTSMeasurementMicrophoneCalibration('MMM0', tmp_path)
+        assert cal.gain == 0
+
     def test_starship_microphone_channel_and_starship_channel(self, tmp_path):
         _make_calibration(tmp_path, metadata={
             'datetime': '2026-07-01T00:00:00',
+            'starship': 'MMM6',
             'microphone': 'GRAS-40DP',
             'microphone_channel': 'Ch 1',
+            'microphone_gain': 0,
             'starship_channel': 'A',
             'coupler': 'tube-2mm',
             'gain': 40,
             'stimulus': 'golay',
         })
         cal = CFTSStarshipCalibration('SS1', tmp_path)
+        assert cal.starship == 'MMM6'
         assert cal.microphone == 'GRAS-40DP'
         assert cal.microphone_channel == 'Ch 1'
+        assert cal.microphone_gain == 0
         assert cal.starship_channel == 'A'
+        assert cal.gain == 40
 
     def test_starship_channel_fields_default_blank_for_old_data(self, tmp_path):
         _make_calibration(tmp_path, metadata={
@@ -869,12 +894,30 @@ class TestDeviceChannelGainProperties:
             'stimulus': 'golay',
         })
         cal = CFTSStarshipCalibration('SS1', tmp_path)
+        assert cal.starship == ''
         assert cal.microphone_channel == ''
+        assert cal.microphone_gain is None
         assert cal.starship_channel == ''
+
+    def test_starship_device_id_independent_of_folder_name(self, tmp_path):
+        # A target folder can be pointed anywhere, so the explicit
+        # `starship` field is deliberately allowed to disagree with
+        # `.name` (folder-derived) -- that's the whole point of it.
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'starship': 'MMM6',
+            'microphone': 'GRAS-40DP',
+            'coupler': 'tube-2mm',
+            'stimulus': 'golay',
+        })
+        cal = CFTSStarshipCalibration('Lab1', tmp_path)
+        assert cal.name == 'Lab1'
+        assert cal.starship == 'MMM6'
 
     def test_speaker_output_microphone_channel_and_gain(self, tmp_path):
         _make_calibration(tmp_path, metadata={
             'datetime': '2026-07-01T00:00:00',
+            'speaker': 'SPK1',
             'microphone': 'GRAS-40DP',
             'microphone_channel': 'Ch 1',
             'output_channel': 'Ch 0',
@@ -882,6 +925,7 @@ class TestDeviceChannelGainProperties:
             'method': 'golay',
         })
         cal = CFTSSpeakerCalibration('SPK1', tmp_path)
+        assert cal.speaker == 'SPK1'
         assert cal.microphone_channel == 'Ch 1'
         assert cal.output_channel == 'Ch 0'
         assert cal.gain == 20
@@ -893,6 +937,7 @@ class TestDeviceChannelGainProperties:
             'method': 'golay',
         })
         cal = CFTSSpeakerCalibration('SPK1', tmp_path)
+        assert cal.speaker == ''
         assert cal.microphone_channel == ''
         assert cal.output_channel == ''
         assert cal.gain is None
@@ -900,6 +945,7 @@ class TestDeviceChannelGainProperties:
     def test_generic_microphone_uses_new_key(self, tmp_path):
         _make_calibration(tmp_path, metadata={
             'datetime': '2026-07-01T00:00:00',
+            'sensor_id': 'GEN1',
             'microphone': 'MMM0',
             'microphone_channel': 'Ch 1',
             'input_channel': 'Ch 2',
@@ -909,6 +955,7 @@ class TestDeviceChannelGainProperties:
             'stimulus': 'golay',
         })
         cal = CFTSGenericMicrophoneCalibration('GEN1', tmp_path)
+        assert cal.sensor_id == 'GEN1'
         assert cal.microphone == 'MMM0'
         assert cal.microphone_channel == 'Ch 1'
         assert cal.input_channel == 'Ch 2'
@@ -924,6 +971,7 @@ class TestDeviceChannelGainProperties:
             'stimulus': 'golay',
         })
         cal = CFTSGenericMicrophoneCalibration('GEN1', tmp_path)
+        assert cal.sensor_id == ''
         assert cal.microphone == 'MMM0'
         assert cal.microphone_channel == ''
         assert cal.input_channel == ''
@@ -944,6 +992,7 @@ class TestDeviceChannelGainProperties:
     def test_input_amplifier_channel_and_total_gain(self, tmp_path):
         _make_calibration(tmp_path, metadata={
             'datetime': '2026-07-01T00:00:00',
+            'sensor_id': 'AMP1',
             'input_channel': 'Ch 3',
             'total_gain': 1000.0,
             'freq_lb': 10.0,
@@ -951,6 +1000,7 @@ class TestDeviceChannelGainProperties:
             'filt_60Hz': 'on',
         })
         cal = CFTSInputAmplifierCalibration('AMP1', tmp_path)
+        assert cal.sensor_id == 'AMP1'
         assert cal.input_channel == 'Ch 3'
         assert cal.total_gain == 1000.0
 
@@ -959,6 +1009,7 @@ class TestDeviceChannelGainProperties:
             'datetime': '2026-07-01T00:00:00',
         })
         cal = CFTSInputAmplifierCalibration('AMP1', tmp_path)
+        assert cal.sensor_id == ''
         assert cal.input_channel == ''
         assert cal.total_gain is None
 

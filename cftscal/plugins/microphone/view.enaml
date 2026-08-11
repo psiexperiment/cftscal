@@ -225,7 +225,7 @@ enamldef MicrophoneView(Container):
                         'to_str': lambda x: x.sensor_id,
                     },
                     'Gain': {
-                        'to_str': lambda x: f'{x.gain:g} dB',
+                        'to_str': lambda x: f'{x.gain:g} dB' if x.gain is not None else '?',
                     },
                     'Sens': {
                         'to_str': lambda x: f'{x.sens:.2f} mV/Pa',

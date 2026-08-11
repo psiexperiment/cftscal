@@ -36,6 +36,7 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             **ai.sensor.get_env_vars(include_cal=False, env_prefix=env_prefix),
         }
         metadata = {
+            'sensor_id': ai.sensor.name,
             'input_channel': ai.input_label,
             'total_gain': ai.sensor.gain,
             'freq_lb': ai.sensor.freq_lb,

@@ -275,6 +275,16 @@ enamldef StarshipView(Container): starship_view:
                         'id': True,
                         'to_str': lambda x: x.name,
                     },
+                    'Device': {
+                        # Explicit device ID from metadata, independent of
+                        # which folder this calibration happens to be
+                        # filed under -- the tree is organized for
+                        # convenience and may not match this. Compare
+                        # against 'Name' to spot a mismatch.
+                        'groupby': False,
+                        'id': False,
+                        'to_str': lambda x: getattr(x, 'starship', ''),
+                    },
                     'Microphone': {
                         'groupby': False,
                         'id': False,
@@ -294,6 +304,11 @@ enamldef StarshipView(Container): starship_view:
                         'groupby': False,
                         'id': False,
                         'to_str': lambda x: f'{x.gain:g} dB' if getattr(x, 'gain', None) is not None else '?',
+                    },
+                    'Mic. Gain': {
+                        'groupby': False,
+                        'id': False,
+                        'to_str': lambda x: f'{x.microphone_gain:g} dB' if getattr(x, 'microphone_gain', None) is not None else '?',
                     },
                     'Coupler': {
                         'groupby': False,

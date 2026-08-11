@@ -150,11 +150,19 @@ enamldef InputAmplifierView(Container): container:
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
                     },
+                    'Device': {
+                        # Explicit device ID from metadata, independent of
+                        # which folder this calibration happens to be
+                        # filed under -- the tree is organized for
+                        # convenience and may not match this. Compare
+                        # against 'Name' to spot a mismatch.
+                        'to_str': lambda x: x.sensor_id,
+                    },
                     'Input': {
                         'to_str': lambda x: x.input_channel,
                     },
-                    'Total Gain': {
-                        'to_str': lambda x: f'{x.total_gain:g} dB' if x.total_gain is not None else '?',
+                    'Gain': {
+                        'to_str': lambda x: f'{x.total_gain:g} x' if x.total_gain is not None else '?',
                     },
                     'Meas. Gain': {
                         'to_str': lambda x: f'{x.measured_gain:.2f} x',

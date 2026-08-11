@@ -88,6 +88,7 @@ class MicrophoneComparisonSettings(CalibrationSettings):
             ),
         }
         metadata = {
+            'sensor_id': self.generic_input.sensor.name,
             'input_channel': self.generic_input.input_label,
             'gain': self.generic_input.sensor.gain,
             'microphone': self.measurement_input.sensor.name,

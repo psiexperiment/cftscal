@@ -46,8 +46,10 @@ class StarshipCalibrationSettings(CalibrationSettings):
             **starship.get_env_vars(include_cal=False),
         }
         metadata = {
+            'starship': starship.starship,
             'microphone': microphone.sensor.name,
             'microphone_channel': microphone.input_label,
+            'microphone_gain': microphone.sensor.gain,
             'starship_channel': starship.connection_label,
             'coupler': self.calibration_coupler,
             'gain': starship.gain,
@@ -63,8 +65,10 @@ class StarshipCalibrationSettings(CalibrationSettings):
         env = microphone.get_env_vars()
         env.update(starship.get_env_vars(include_cal=False))
         metadata = {
+            'starship': starship.starship,
             'microphone': microphone.sensor.name,
             'microphone_channel': microphone.input_label,
+            'microphone_gain': microphone.sensor.gain,
             'starship_channel': starship.connection_label,
             'coupler': self.calibration_coupler,
             'gain': starship.gain,
