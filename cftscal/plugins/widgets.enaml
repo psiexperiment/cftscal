@@ -91,6 +91,31 @@ def _list_group_paths(base_path):
     return sorted(paths)
 
 
+def _remove_selected(combo):
+    '''
+    Remove an ``ObjectCombo``'s currently selected item from its
+    (two-way-bound) ``items`` list, and select the first remaining item
+    (or leave it blank if none remain).
+
+    Pairs with the "+" ``AddItem`` button everywhere one exists -- but
+    unlike adding, removing isn't guaranteed to stick: ``available_*``
+    lists are re-merged as a *union* of the persisted list and whatever
+    ``refresh_available()`` discovers on disk (see ``_merge_picker_list``
+    in ``cftscal.plugins.settings``), so removing a value that still has
+    a real calibration behind it will bring it right back the next time
+    that runs (e.g. after recording a new calibration). This only
+    "sticks" for purely user-added entries with nothing on disk backing
+    them -- typos, one-offs, entries for a device that was never actually
+    used.
+    '''
+    if not combo.selected:
+        return
+    items = combo.items[:]
+    items.remove(combo.selected)
+    combo.items = items
+    combo.selected = items[0] if items else ''
+
+
 enamldef AddItem(PopupView): popup:
 
     attr combo
@@ -100,11 +125,27 @@ enamldef AddItem(PopupView): popup:
     alias label: label.text
     alias regex: field.regex
 
+    #: Live (per-keystroke) mirror of the field's raw editor text, kept
+    #: only for driving OK's enabled state -- distinct from field.text
+    #: itself, which (deliberately, see below) only updates on Enter.
+    #: field.field_text() gives the same live value but as a plain
+    #: method call, which Enaml's binding tracer can't see through to
+    #: react to, so it can't drive `enabled <<` on its own; mirroring it
+    #: into this attr via a direct Qt signal connection (below) gives
+    #: something bindable.
+    attr _live_text = ''
+
     func _add_item():
+        # field.text only updates via submit_triggers (Enter) -- when
+        # this runs from the OK button click instead, it's still
+        # whatever it was before (typically empty), which added a blank
+        # entry. field.field_text() reads the live widget content
+        # directly regardless of how _add_item() was triggered.
+        text = field.field_text()
         items = combo.items[:]
-        items.append(field.text)
+        items.append(text)
         combo.items = items
-        combo.selected = field.text
+        combo.selected = text
         popup.close()
 
     Container:
@@ -131,9 +172,19 @@ enamldef AddItem(PopupView): popup:
             submit_triggers = ['return_pressed']
             text ::
                 popup._add_item()
+            activated ::
+                # Mirror every keystroke into popup._live_text so OK can
+                # react immediately (see its attr docstring above) --
+                # hooked directly on the Qt widget since submit_triggers
+                # excludes 'auto_sync' (adding it would make `text ::`
+                # above fire mid-typing too, prematurely submitting and
+                # closing the popup on any pause over sync_time).
+                self.proxy.widget.textEdited.connect(
+                    lambda text: setattr(popup, '_live_text', text)
+                )
         PushButton: pb_ok:
             text = 'OK'
-            enabled << bool(field.text)
+            enabled << bool(popup._live_text)
             clicked ::
                 popup._add_item()
 
@@ -636,6 +687,13 @@ enamldef SensorView(HGroup):
                 )
                 popup.show()
 
+        PushButton: remove:
+            text = '-'
+            constraints = [width == 25]
+            enabled << bool(select.selected)
+            clicked ::
+                _remove_selected(select)
+
     Conditional:
         condition << show_gain
 
@@ -651,7 +709,24 @@ enamldef InputAmplifierView(Container):
 
     alias sensor: sensor_view.sensor
     alias mode: sensor_view.mode
+    #: Channel selector, sharing the first row with the sensor's own
+    #: device combo (label, channel combo, device combo) -- matches the
+    #: pattern used by starship/speaker's "Cal. Mic."/"Microphone" rows,
+    #: rather than giving the channel selector a separate row.
+    alias channel_items: channel_select.items
+    alias channel_selected: channel_select.selected
+    attr channel_to_string = str
+    attr channel_label = 'Input'
 
+    # share_layout=True (default is False for a plain Container) makes
+    # this widget's internal constraints solve as part of the same pass
+    # as whatever container it's embedded in -- without it, a caller's
+    # attempt to align an outside label's width against this widget's
+    # own Sensor label (see input_amplifier/view.enaml) is silently
+    # ignored: this Container gets its own independent layout boundary,
+    # so cross-boundary width equality never actually reaches its
+    # grandchildren.
+    share_layout = True
     padding = 0
 
     # Each row's own layout leaves its label at natural (hug) width and
@@ -678,10 +753,24 @@ enamldef InputAmplifierView(Container):
             align('width', *first),
         ]
 
-    SensorView: sensor_view:
-        show_gain = False
-        fill_row = True
+    HGroup: sensor_row:
+        share_layout = True
+        align_widths = False
+        padding = 0
+        spacing = 5
         hug_width = 'ignore'
+
+        Label: channel_label_widget:
+            text = channel_label
+
+        ObjectCombo: channel_select:
+            to_string = channel_to_string
+
+        SensorView: sensor_view:
+            show_label = False
+            show_gain = False
+            fill_row = True
+            hug_width = 'ignore'
 
     HGroup: gain_row:
         share_layout = True
@@ -782,3 +871,10 @@ enamldef GeneratorView(HGroup):
             clicked ::
                 popup = AddItem(self, combo=select, label=label)
                 popup.show()
+
+        PushButton: remove:
+            text = '-'
+            constraints = [width == 25]
+            enabled << bool(select.selected)
+            clicked ::
+                _remove_selected(select)
