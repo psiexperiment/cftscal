@@ -78,6 +78,7 @@ enamldef InputAmplifierView(Container): container:
                             amp_settings,
                             amp_path,
                             hbox(spacer(0), amp_cal_start),
+                            spacing=0,
                         )
                     ]
 

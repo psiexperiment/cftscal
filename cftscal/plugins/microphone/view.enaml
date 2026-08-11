@@ -198,6 +198,7 @@ enamldef MicrophoneView(Container):
             stretch = 0
 
             CalibratedObjects: mic_tree:
+                enable_current = True
                 mapping = {
                     'Name': {
                         'groupby': True,

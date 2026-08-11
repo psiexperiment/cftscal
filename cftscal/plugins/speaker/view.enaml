@@ -5,6 +5,7 @@ from atom.api import Str
 from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
+from enaml.stdlib.message_box import warning
 from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
 )
@@ -170,16 +171,28 @@ enamldef SpeakerView(Container):
                                 enabled << bool(ai.sensor.name) \
                                     and bool(ao.generator.name)
                                 clicked ::
-                                    settings.run_cal(ao, ai, 'golay')
-                                    speaker_tree.collection.update_groups()
+                                    try:
+                                        settings.run_cal(ao, ai, 'golay')
+                                    except (ValueError, LookupError) as exc:
+                                        warning(self, 'Cannot calibrate', str(exc))
+                                    else:
+                                        speaker_tree.collection.update_groups()
 
                             PushButton: chirp_start:
                                 text = 'Chirp'
                                 enabled << bool(ai.sensor.name) \
                                     and bool(ao.generator.name)
                                 clicked ::
-                                    settings.run_cal(speaker, ai, 'chirp')
-                                    speaker_tree.collection.update_groups()
+                                    try:
+                                        # NB: was `speaker` (undefined in
+                                        # this scope -- a pre-existing
+                                        # NameError bug) instead of `ao`,
+                                        # matching golay_start above.
+                                        settings.run_cal(ao, ai, 'chirp')
+                                    except (ValueError, LookupError) as exc:
+                                        warning(self, 'Cannot calibrate', str(exc))
+                                    else:
+                                        speaker_tree.collection.update_groups()
 
         DockItem:
             name = 'speaker_sens_plot'
@@ -199,6 +212,7 @@ enamldef SpeakerView(Container):
             stretch = 0
 
             CalibratedObjects: speaker_tree:
+                enable_current = True
                 mapping = {
                     'Name': {
                         'groupby': True,

@@ -17,6 +17,7 @@ from cftscal.objects import (
     CFTSBaseLoader,
     CFTSInEarLoader,
     CFTSInputRecording,
+    _CURRENT_MARKER,
 )
 
 
@@ -254,6 +255,100 @@ class TestListCalibrationsFolderFilter:
         results = loader.list_calibrations('MMM0', folder='Lab1')
         assert len(results) == 1
         assert results[0].filename.parent.parent.name == 'Lab1'
+
+
+# ---------------------------------------------------------------------------
+# CalibratedObject.get_current_calibration -- pinning
+# ---------------------------------------------------------------------------
+
+class _PinTestLoader(_WalkOnlyLoader):
+    class cal_class:
+        def __init__(self, name, filename):
+            self.name = name
+            self.filename = filename
+
+
+class TestCurrentCalibration:
+    '''
+    get_current_calibration() always requires an explicit pin -- no
+    fallback to "most recent by datetime" for any calibration type.
+    Silently picking whatever's newest risked an unintended (e.g. test/
+    debug) calibration going live unnoticed.
+    '''
+
+    def _make_object(self, tmp_path, cal_names, folder=''):
+        for cal_name in cal_names:
+            _make_calibration(tmp_path / 'MMM0' / cal_name)
+        loader = _PinTestLoader(tmp_path)
+        return CalibratedObject('MMM0', [loader], folder=folder)
+
+    def test_no_pin_raises(self, tmp_path):
+        obj = self._make_object(tmp_path, ['20260701-abc', '20260702-def'])
+        with pytest.raises(LookupError):
+            obj.get_current_calibration()
+
+    def test_pin_wins_over_newer_unpinned(self, tmp_path):
+        obj = self._make_object(tmp_path, ['20260701-abc', '20260702-def'])
+        older = next(c for c in obj.list_calibrations()
+                     if c.filename.name == '20260701-abc')
+        obj.set_current_calibration(older)
+        # 20260702-def sorts later but was never pinned -- must not win.
+        assert obj.get_current_calibration().filename.name == '20260701-abc'
+
+    def test_get_pinned_calibration_roundtrip(self, tmp_path):
+        obj = self._make_object(tmp_path, ['20260701-abc'])
+        assert obj.get_pinned_calibration() is None
+
+        cal = obj.list_calibrations()[0]
+        obj.set_current_calibration(cal)
+        pinned = obj.get_pinned_calibration()
+        assert pinned is not None
+        assert pinned.filename == cal.filename
+
+        obj.clear_current_calibration()
+        assert obj.get_pinned_calibration() is None
+
+    def test_marker_file_written_at_object_dir(self, tmp_path):
+        obj = self._make_object(tmp_path, ['20260701-abc'])
+        cal = obj.list_calibrations()[0]
+        obj.set_current_calibration(cal)
+        marker = tmp_path / 'MMM0' / _CURRENT_MARKER
+        assert marker.exists()
+        assert json.loads(marker.read_text()) == {'current': '20260701-abc'}
+
+    def test_pinned_entry_deleted_from_disk_falls_back_to_none(self, tmp_path):
+        import shutil
+
+        obj = self._make_object(tmp_path, ['20260701-abc'])
+        cal = obj.list_calibrations()[0]
+        obj.set_current_calibration(cal)
+
+        shutil.rmtree(tmp_path / 'MMM0' / '20260701-abc')
+
+        assert obj.get_pinned_calibration() is None
+        with pytest.raises(LookupError):
+            obj.get_current_calibration()
+
+    def test_folder_none_cannot_be_pinned(self, tmp_path):
+        # folder=None is CalibrationManager.get_object()'s "any folder"
+        # mode -- ambiguous, so there's no single directory to pin
+        # against.
+        _make_calibration(tmp_path / 'MMM0' / '20260701-abc')
+        loader = _PinTestLoader(tmp_path)
+        obj = CalibratedObject('MMM0', [loader], folder=None)
+        assert obj.get_pinned_calibration() is None
+        with pytest.raises(ValueError):
+            obj.set_current_calibration(obj.list_calibrations()[0])
+
+    def test_non_cftsbaseloader_cannot_be_pinned(self):
+        # A loader with no real per-object directory (e.g.
+        # EPLStarshipLoader's flat .calib files) has nowhere to put a
+        # marker.
+        loader = _FakeLoader([('', 'MMM0')])
+        obj = CalibratedObject('MMM0', [loader], folder='')
+        assert obj.get_pinned_calibration() is None
+        with pytest.raises(ValueError):
+            obj.set_current_calibration(object())
 
 
 # ---------------------------------------------------------------------------
@@ -559,8 +654,13 @@ class TestTargetGroupPath:
         s = StarshipSettings(connection_name='ss0', group_path='Lab1')
         assert s.get_persistence()['group_path'] == 'Lab1'
 
-    def test_inear_inherits_group_path(self):
+    def test_inear_inherits_group_path(self, monkeypatch):
         from cftscal.plugins.settings import InEarSettings
+        # Avoid touching the real on-disk inear tree, which may still
+        # carry pre-migration metadata (the coupler/output rename is
+        # applied by the migration script, not retroactively assumed
+        # here) -- this test only cares about group_path inheritance.
+        monkeypatch.setattr(InEarSettings, 'get_available_couplers', lambda self: [])
         e = InEarSettings(connection_name='ss0', group_path='Lab1')
         # InEar inherits StarshipSettings' group_path field.
         assert e.get_persistence()['group_path'] == 'Lab1'
@@ -603,13 +703,15 @@ class TestUnifiedPickerMechanism:
         data = s.get_persistence()
         assert 'starship_X' in data['available_starships']
 
-    def test_inear_available_ears_is_persistent_list(self):
+    def test_inear_available_couplers_is_persistent_list(self, monkeypatch):
         from cftscal.plugins.settings import InEarSettings
+        # Same isolation concern as test_inear_inherits_group_path above.
+        monkeypatch.setattr(InEarSettings, 'get_available_couplers', lambda self: [])
         e = InEarSettings()
-        assert isinstance(e.available_ears, list)
-        e.available_ears = sorted(set(e.available_ears) | {'left_v2'})
+        assert isinstance(e.available_couplers, list)
+        e.available_couplers = sorted(set(e.available_couplers) | {'C1_v2'})
         data = e.get_persistence()
-        assert 'left_v2' in data['available_ears']
+        assert 'C1_v2' in data['available_couplers']
 
     def test_merge_helper_unions_and_sorts(self):
         from cftscal.plugins.settings import _merge_picker_list

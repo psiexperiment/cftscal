@@ -426,13 +426,17 @@ enamldef InputRecordingView(Container):
                             # unreachable, but don't rely on that alone --
                             # run_input_recording() raises ValueError on
                             # invalid state (e.g. a duplicate-channel
-                            # assignment slipping through), and that must
-                            # not fail silently. (Enaml notification
-                            # blocks disallow a bare `return`, hence
-                            # try/except/else rather than an early exit.)
+                            # assignment slipping through) and LookupError
+                            # if a selected channel's reference calibration
+                            # hasn't been pinned as current (see
+                            # CalibratedObject.get_current_calibration),
+                            # and neither must fail silently. (Enaml
+                            # notification blocks disallow a bare `return`,
+                            # hence try/except/else rather than an early
+                            # exit.)
                             try:
                                 settings.run_input_recording()
-                            except ValueError as exc:
+                            except (ValueError, LookupError) as exc:
                                 warning(self, 'Cannot record', str(exc))
                             else:
                                 input_tree.collection.update_groups()

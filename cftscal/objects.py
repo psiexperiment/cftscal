@@ -26,6 +26,13 @@ from cftsdata.api import InearCalibration, MicrophoneCalibration
 from . import CAL_ROOT
 
 
+#: Marker file (see CalibratedObject.set_current_calibration) written
+#: directly inside an object's own directory -- not inside any individual
+#: calibration's directory -- naming which of that object's calibrations
+#: is pinned as "current".
+_CURRENT_MARKER = 'current.json'
+
+
 @total_ordering
 class Calibration:
     '''
@@ -160,8 +167,86 @@ class CalibratedObject:
             )
         return calibrations
 
+    def _object_dir(self):
+        '''
+        The on-disk directory for this object, or None if there isn't one
+        unambiguously.
+
+        Only ever resolved via a genuine `CFTSBaseLoader`-backed loader
+        (a real directory-per-calibration layout with a `metadata.json`
+        sidecar in each) -- `EPLStarshipLoader`'s flat `.calib` files have
+        no per-object directory to place a marker in.  `self.folder is
+        None` is `CalibrationManager.get_object()`'s "any folder" lookup
+        mode, which is likewise ambiguous (could span several folders).
+        '''
+        if self.folder is None:
+            return None
+        for loader in self.loaders:
+            if isinstance(loader, CFTSBaseLoader):
+                return (loader.base_path / self.folder / self.name if self.folder
+                        else loader.base_path / self.name)
+        return None
+
+    def get_pinned_calibration(self):
+        '''
+        Return the calibration explicitly pinned as "current" via
+        `set_current_calibration()`, or None if nothing is pinned (or the
+        pinned entry no longer exists on disk).
+
+        Distinct from `get_current_calibration()`'s hard failure when
+        nothing is pinned, so callers (the tree view) can tell "nothing
+        pinned" from "this is it" without a try/except.
+        '''
+        obj_dir = self._object_dir()
+        if obj_dir is None:
+            return None
+        marker = obj_dir / _CURRENT_MARKER
+        if not marker.exists():
+            return None
+        try:
+            pinned_name = json.loads(marker.read_text())['current']
+        except (OSError, KeyError, json.JSONDecodeError):
+            return None
+        for cal in self.list_calibrations():
+            if cal.filename.name == pinned_name:
+                return cal
+        return None
+
+    def set_current_calibration(self, calibration):
+        '''Pin ``calibration`` (one of this object's own) as "current".'''
+        obj_dir = self._object_dir()
+        if obj_dir is None:
+            raise ValueError(
+                f'Cannot pin a calibration for {self.path!r}: no unambiguous '
+                f'on-disk location for it.'
+            )
+        marker = obj_dir / _CURRENT_MARKER
+        marker.write_text(json.dumps({'current': calibration.filename.name}))
+
+    def clear_current_calibration(self):
+        '''Un-pin whatever calibration is currently pinned, if any.'''
+        obj_dir = self._object_dir()
+        if obj_dir is not None:
+            (obj_dir / _CURRENT_MARKER).unlink(missing_ok=True)
+
     def get_current_calibration(self):
-        return sorted(self.list_calibrations())[-1]
+        '''
+        Return the calibration to actually use for this object.
+
+        Always requires an explicit pin (via `set_current_calibration()`)
+        -- there is no fallback to "most recent by datetime". Silently
+        picking whatever's newest risked an unintended (e.g. test/debug)
+        recording going live unnoticed; better to fail loudly and make the
+        user confirm which calibration is authoritative.
+        '''
+        pinned = self.get_pinned_calibration()
+        if pinned is None:
+            raise LookupError(
+                f'No calibration is set as current for {self.path!r}. '
+                f'Right-click a calibration in the tree view and choose '
+                f'"Set as current".'
+            )
+        return pinned
 
     def __repr__(self):
         return f'{self.__class__.__name__} :: {self.name}'
@@ -577,6 +662,10 @@ class CFTSStarshipCalibration(CFTSFileCalibration):
         return self.metadata['coupler']
 
     @property
+    def gain(self):
+        return self.metadata.get('gain')
+
+    @property
     def stimulus(self):
         return self.metadata['stimulus']
 
@@ -937,8 +1026,16 @@ class CFTSInEarCalibration(CFTSFileCalibration):
         return self.metadata['starship']
 
     @property
-    def ear(self):
-        return self.metadata['ear']
+    def coupler(self):
+        return self.metadata['coupler']
+
+    @property
+    def output(self):
+        return self.metadata.get('output', 'primary')
+
+    @property
+    def gain(self):
+        return self.metadata.get('gain')
 
     def load_recording(self):
         return InearCalibration(self.filename)

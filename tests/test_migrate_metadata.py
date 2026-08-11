@@ -114,12 +114,21 @@ class TestInputRecording:
 
 class TestInear:
 
-    def test_extracts_ear_and_starship(self):
+    def test_extracts_coupler_and_starship(self):
         result = mm._parse_inear(
             _folder('20260701-123456_left_SS1')
         )
-        assert result['ear'] == 'left'
+        assert result['coupler'] == 'left'
+        assert result['output'] == 'primary'
         assert result['starship'] == 'SS1'
+
+    def test_secondary_suffix_sets_output(self):
+        result = mm._parse_inear(
+            _folder('20260701-123456_C1-secondary_MMM5')
+        )
+        assert result['coupler'] == 'C1'
+        assert result['output'] == 'secondary'
+        assert result['starship'] == 'MMM5'
 
 
 class TestIrSensor:
@@ -377,3 +386,63 @@ class TestMigrate:
         assert metadata['freq_lb'] == 10.0
         assert metadata['freq_ub'] == 10000.0
         assert metadata['filt_60Hz'] == 'on'
+
+    def test_inear_reparents_under_starship_folder(self, tmp_path):
+        # inear is special-cased via REPARENT_KEY: the master folder for
+        # a migrated calibration is the starship (device ID) parsed from
+        # the legacy leaf name, not the coupler folder it's nested under
+        # today.
+        cal_dir = _make_cal_dir(
+            tmp_path, 'inear', 'C1-secondary',
+            '20260701-123456_C1-secondary_MMM5',
+        )
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(wrote=1, renamed=1)
+
+        new_dir = tmp_path / 'inear' / 'MMM5' / '20260701-123456'
+        assert new_dir.exists()
+        assert not cal_dir.exists()
+        # The now-empty old coupler folder is cleaned up.
+        assert not (tmp_path / 'inear' / 'C1-secondary').exists()
+
+        metadata = json.loads((new_dir / 'metadata.json').read_text())
+        assert metadata['coupler'] == 'C1'
+        assert metadata['output'] == 'secondary'
+        assert metadata['starship'] == 'MMM5'
+
+    def test_inear_reparent_preserves_org_folder_nesting(self, tmp_path):
+        # A calibration organized under an extra lab/study folder above
+        # the coupler folder keeps that nesting -- only the coupler
+        # segment is replaced by the starship.
+        cal_dir = _make_cal_dir(
+            tmp_path, 'inear', 'Lab1/C1',
+            '20260701-123456_C1_MMM5',
+        )
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(wrote=1, renamed=1)
+
+        new_dir = tmp_path / 'inear' / 'Lab1' / 'MMM5' / '20260701-123456'
+        assert new_dir.exists()
+        assert not cal_dir.exists()
+        assert not (tmp_path / 'inear' / 'Lab1' / 'C1').exists()
+
+    def test_inear_reparent_conflict_is_reported_not_overwritten(self, tmp_path):
+        # Two different coupler folders whose calibrations happen to
+        # share the exact same timestamp both resolve to the same
+        # inear/MMM5/<timestamp>/ destination -- must be reported as a
+        # conflict, not silently clobbered.
+        cal_dir_1 = _make_cal_dir(
+            tmp_path, 'inear', 'C1', '20260701-123456_C1_MMM5',
+        )
+        cal_dir_2 = _make_cal_dir(
+            tmp_path, 'inear', 'C2', '20260701-123456_C2_MMM5',
+        )
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(wrote=2, renamed=1, rename_conflicts=1)
+
+        new_dir = tmp_path / 'inear' / 'MMM5' / '20260701-123456'
+        assert new_dir.exists()
+        # Exactly one of the two source folders got moved out; the other
+        # is left in place (with its metadata.json already written) for
+        # the user to resolve by hand.
+        assert cal_dir_1.exists() != cal_dir_2.exists()

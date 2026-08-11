@@ -3,6 +3,7 @@ import numpy as np
 from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
+from enaml.stdlib.message_box import warning
 from enaml.widgets.api import (
     Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo,
     PushButton
@@ -218,8 +219,12 @@ enamldef StarshipView(Container): starship_view:
                                 and bool(starship.starship) \
                                 and '(' not in starship.starship
                             clicked ::
-                                settings.run_cal_golay(starship, mic_settings)
-                                starship_tree.collection.update_groups()
+                                try:
+                                    settings.run_cal_golay(starship, mic_settings)
+                                except (ValueError, LookupError) as exc:
+                                    warning(self, 'Cannot calibrate', str(exc))
+                                else:
+                                    starship_tree.collection.update_groups()
 
                         PushButton: chirp_start:
                             text = 'Chirp'
@@ -227,8 +232,12 @@ enamldef StarshipView(Container): starship_view:
                                 and bool(starship.starship) \
                                 and '(' not in starship.starship
                             clicked ::
-                                settings.run_cal_chirp(starship, mic_settings)
-                                starship_tree.collection.update_groups()
+                                try:
+                                    settings.run_cal_chirp(starship, mic_settings)
+                                except (ValueError, LookupError) as exc:
+                                    warning(self, 'Cannot calibrate', str(exc))
+                                else:
+                                    starship_tree.collection.update_groups()
 
         DockItem:
             name = 'starship_sens_plot'
@@ -248,6 +257,7 @@ enamldef StarshipView(Container): starship_view:
             stretch = 0
 
             CalibratedObjects: starship_tree:
+                enable_current = True
                 mapping = {
                     'Name': {
                         'groupby': True,

@@ -1,7 +1,7 @@
-from atom.api import set_default, Value, observe
+from atom.api import set_default, Bool, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QApplication, QAbstractItemView
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QAbstractItemView
 from qtpy.QtGui import QColor, QBrush, QDrag
 from qtpy.QtCore import Qt, QMimeData
 import shutil
@@ -17,10 +17,15 @@ class FastTreeWidget(QTreeWidget):
     A custom QTreeWidget subclass that handles its own data population,
     context menu logic, two-way binding, and auto-resizing.
     """
-    def __init__(self, parent, mapping, collection):
+    def __init__(self, parent, mapping, collection, enable_current=False):
         super().__init__(parent)
         self.mapping = mapping
         self.collection = None # Set to None initially so set_collection handles the first bind
+        # Whether this tree exposes "Set as current"/"Clear current" and
+        # the pinned-row star indicator -- opt-in per instance (see
+        # CalibratedObjects/FastTreeView), since pinning only applies to
+        # measurement microphone/speaker/starship trees.
+        self.enable_current = enable_current
 
         # Parse attributes out
         self.group_attrs = [k for k, v in self.mapping.items() if v.get('groupby', False)]
@@ -50,19 +55,8 @@ class FastTreeWidget(QTreeWidget):
         self.itemChanged.connect(self.handle_item_changed)
         self.itemDoubleClicked.connect(self.handle_item_double_clicked)
 
-        # Refresh when the application regains focus — covers the workflow
-        # where the user reorganizes folders in Explorer and returns to the
-        # app.  Qt auto-disconnects when the widget is destroyed.
-        app = QApplication.instance()
-        if app is not None:
-            app.applicationStateChanged.connect(self._on_app_state_changed)
-
         ## NEW: Use the setter to bind the collection and populate the initial tree
         self.set_collection(collection)
-
-    def _on_app_state_changed(self, state):
-        if state == Qt.ApplicationActive and self.collection is not None:
-            self.collection.update_groups()
 
     def keyPressEvent(self, event):
         # F5 refreshes the tree from disk — a familiar shortcut for users who
@@ -193,9 +187,14 @@ class FastTreeWidget(QTreeWidget):
             group.observe('selected', self._on_model_selected_changed)
             group.observe('color', self._on_model_color_changed)
 
+            pinned = group.item.get_pinned_calibration() if self.enable_current else None
+
             for sub in group.subitems:
                 s_item = QTreeWidgetItem(g_item)
-                s_item.setText(0, sub.item.filename.name)
+                leaf_name = sub.item.filename.name
+                if pinned is not None and sub.item.filename == pinned.filename:
+                    leaf_name = f'{leaf_name} ★'
+                s_item.setText(0, leaf_name)
                 # Leaves can be dragged (to file the calibration under a
                 # different folder) but not dropped onto.
                 s_item.setFlags(
@@ -568,6 +567,14 @@ class FastTreeWidget(QTreeWidget):
     def _context_menu_for_leaf(self, sub, global_pos):
         menu = QMenu()
         export_action = menu.addAction('Export as WAV…')
+        current_action = None
+        if self.enable_current:
+            obj = sub.parent.item
+            pinned = obj.get_pinned_calibration()
+            is_current = pinned is not None and pinned.filename == sub.item.filename
+            current_action = menu.addAction(
+                'Clear current' if is_current else 'Set as current'
+            )
         delete_action = menu.addAction('Delete')
         action = menu.exec_(global_pos)
         if action == export_action:
@@ -577,6 +584,12 @@ class FastTreeWidget(QTreeWidget):
             )
             if filename:
                 export_calibration(sub.item, filename)
+        elif current_action is not None and action == current_action:
+            if is_current:
+                obj.clear_current_calibration()
+            else:
+                obj.set_current_calibration(sub.item)
+            self.collection.update_groups()
         elif action == delete_action:
             name = f'{sub.item.datetime} from {sub.item.name}'
             reply = QMessageBox.question(
@@ -738,13 +751,20 @@ class FastTreeView(RawWidget):
     """
     collection = d_(Value())
     mapping = d_(Value())
+    #: Opt-in: exposes "Set as current"/"Clear current" in the leaf
+    #: context menu and a star indicator on the pinned row. See
+    #: CalibratedObject.get_current_calibration in cftscal.objects.
+    enable_current = d_(Bool(False))
     view = Value()
 
     hug_width = set_default('weak')
     hug_height = set_default('weak')
 
     def create_widget(self, parent):
-        self.view = FastTreeWidget(parent, self.mapping, self.collection)
+        self.view = FastTreeWidget(
+            parent, self.mapping, self.collection,
+            enable_current=self.enable_current,
+        )
         return self.view
 
     ## NEW: If the parent Enaml component swaps out the entire collection object

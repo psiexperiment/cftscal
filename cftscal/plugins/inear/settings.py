@@ -19,14 +19,17 @@ class InEarCalibrationSettings(CalibrationSettings):
         self.ears = settings
 
     def run_cal(self, ear):
-        # Target = the ear connection being calibrated.  InEarSettings
+        # Target = the starship (device ID) being checked -- the master
+        # folder for inear calibrations, not the coupler.  InEarSettings
         # inherits group_path from StarshipSettings.
         pathname = self._make_path(
-            'inear', ear.group_path, ear.ear, '{date_time}',
+            'inear', ear.group_path, ear.starship, '{date_time}',
         )
         env = ear.get_env_vars()
         metadata = {
-            'ear': ear.ear,
+            'coupler': ear.coupler,
             'starship': ear.starship,
+            'gain': ear.gain,
+            'output': ear.output,
         }
         self._run_cal(pathname, 'cftscal.paradigms.iec', env, metadata=metadata)

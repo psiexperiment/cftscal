@@ -47,6 +47,7 @@ class StarshipCalibrationSettings(CalibrationSettings):
         metadata = {
             'microphone': microphone.input_name,
             'coupler': self.calibration_coupler,
+            'gain': starship.gain,
             'stimulus': 'golay',
         }
         self._run_cal(pathname, 'cftscal.paradigms.pt_calibration_golay',
@@ -61,6 +62,7 @@ class StarshipCalibrationSettings(CalibrationSettings):
         metadata = {
             'microphone': microphone.input_name,
             'coupler': self.calibration_coupler,
+            'gain': starship.gain,
             'stimulus': 'chirp',
         }
         self._run_cal(pathname, 'cftscal.paradigms.pt_calibration_chirp',

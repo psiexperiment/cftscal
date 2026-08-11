@@ -135,10 +135,16 @@ def _parse_input_recording(folder):
 
 
 def _parse_inear(folder):
-    # Filename: {date_time}_{ear}_{starship}
+    # Filename: {date_time}_{coupler}_{starship}, where {coupler} may
+    # carry a '-secondary' suffix (e.g. 'C1-secondary') marking the
+    # secondary output of that coupler rather than a distinct coupler.
+    ear_token = folder.name.split('_', 2)[1]
+    output = 'secondary' if ear_token.endswith('-secondary') else 'primary'
+    coupler = ear_token.removesuffix('-secondary')
     return {
         'datetime': _parse_datetime(folder.name),
-        'ear': folder.name.split('_', 2)[1],
+        'coupler': coupler,
+        'output': output,
         'starship': folder.name.rsplit('_', 1)[1],
     }
 
@@ -187,8 +193,19 @@ MARKER_KEYS = {
     'starship': 'microphone',
     'input_amplifier': 'total_gain',
     'input-recording': 'generator',
-    'inear': 'starship',
+    'inear': ('starship', 'coupler'),
     'ir-sensor': 'input_name',
+}
+
+
+# Subfolder -> parsed-metadata key whose value should become the leaf
+# calibration's new immediate parent folder, replacing whatever coupler/ear
+# folder it's nested under today -- the "master folder" for that subfolder
+# becomes the device ID rather than whatever the leaf happened to be filed
+# under historically. Every other subfolder type is absent here and keeps
+# the plain rename-in-place behavior.
+REPARENT_KEY = {
+    'inear': 'starship',
 }
 
 
@@ -294,18 +311,24 @@ def migrate(root, dry_run=False, overwrite=False):
                     counts['skipped_error'] += 1
                 continue
 
-            # The directory name still carries legacy metadata. It must be
-            # captured into metadata.json now, regardless of --overwrite --
-            # otherwise the rename below would discard it for good. Only
-            # an already fully-migrated file is exempt, unless --overwrite
-            # is given to force a re-derive/rewrite anyway.
+            # The directory name still carries legacy metadata -- parse it
+            # now. Needed both for the metadata write below (unless
+            # already migrated and not --overwrite) and, for subfolders in
+            # REPARENT_KEY, to know the new parent folder -- so this
+            # happens unconditionally rather than only in the write branch.
+            try:
+                parsed = parser(cal_dir)
+            except Exception as e:
+                print(f'SKIP  {cal_dir}: could not parse ({e})')
+                counts['skipped_error'] += 1
+                continue
+
+            # It must be captured into metadata.json now, regardless of
+            # --overwrite -- otherwise the move/rename below would discard
+            # it for good. Only an already fully-migrated file is exempt,
+            # unless --overwrite is given to force a re-derive/rewrite
+            # anyway.
             if overwrite or not _is_migrated(existing, marker_key):
-                try:
-                    parsed = parser(cal_dir)
-                except Exception as e:
-                    print(f'SKIP  {cal_dir}: could not parse ({e})')
-                    counts['skipped_error'] += 1
-                    continue
                 # Folder-name-derived fields win on key collisions -- they're
                 # what cftscal's calibration classes read -- but any foreign
                 # fields already in the file (e.g. psiexperiment's own
@@ -324,18 +347,35 @@ def migrate(root, dry_run=False, overwrite=False):
             else:
                 counts['skipped_exists'] += 1
 
-            new_path = cal_dir.parent / date_only_name
+            reparent_key = REPARENT_KEY.get(subfolder)
+            old_parent = cal_dir.parent
+            if reparent_key is not None:
+                new_path = old_parent.parent / str(parsed[reparent_key]) / date_only_name
+            else:
+                new_path = old_parent / date_only_name
+            move_verb, moved_verb = (
+                ('MOVE', 'MOVED') if reparent_key is not None
+                else ('RENAME', 'RENAMED')
+            )
+
             if new_path.exists():
-                print(f'SKIP  rename {cal_dir} -> {new_path.name}: '
+                print(f'SKIP  {move_verb.lower()} {cal_dir} -> {new_path}: '
                       f'target already exists')
                 counts['rename_conflicts'] += 1
             elif dry_run:
-                print(f'WOULD RENAME {cal_dir} -> {new_path}')
+                print(f'WOULD {move_verb} {cal_dir} -> {new_path}')
                 counts['renamed'] += 1
             else:
+                if reparent_key is not None:
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
                 cal_dir.rename(new_path)
-                print(f'RENAMED {cal_dir} -> {new_path}')
+                print(f'{moved_verb} {cal_dir} -> {new_path}')
                 counts['renamed'] += 1
+                # Clean up the now-vestigial old coupler/ear folder once
+                # its last calibration has moved out of it.
+                if (reparent_key is not None and old_parent.exists()
+                        and not any(old_parent.iterdir())):
+                    old_parent.rmdir()
     return counts
 
 

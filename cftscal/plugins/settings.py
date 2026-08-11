@@ -615,28 +615,37 @@ class StarshipSettings(PersistentSettings):
 
 class InEarSettings(StarshipSettings):
 
-    ear = Str().tag(persist=True)
+    #: Coupler/ear-mold identifier (e.g. "C1") -- historically called
+    #: "ear", but it's really identifying the coupler, not an anatomical
+    #: ear or animal. Which output of that coupler this recording used
+    #: is now the separate `output` field below, rather than encoded as
+    #: a "-secondary" suffix baked into this string.
+    coupler = Str().tag(persist=True)
 
-    #: Persistent list of ear identifiers ("left", "right", or whatever
-    #: the user has added).  Same merge pattern as available_starships.
-    available_ears = List().tag(persist=True)
+    #: Whether this recording is of the coupler's primary or secondary
+    #: output.
+    output = Enum('primary', 'secondary').tag(persist=True)
+
+    #: Persistent list of coupler identifiers, populated via the standard
+    #: merge pattern.  Same merge pattern as available_starships.
+    available_couplers = List().tag(persist=True)
 
     def refresh_available(self):
         # Chain to StarshipSettings' refresh (which will re-merge
         # available_starships via polymorphic dispatch to *our*
-        # get_available_starships), then extend with the ear list.  Any
-        # future work added to StarshipSettings.refresh_available is
+        # get_available_starships), then extend with the coupler list.
+        # Any future work added to StarshipSettings.refresh_available is
         # picked up automatically.
         super().refresh_available()
         _merge_picker_list(
-            self, 'available_ears', self.get_available_ears(),
+            self, 'available_couplers', self.get_available_couplers(),
         )
+
+    def get_available_couplers(self):
+        return sorted(inear_manager.get_property('coupler'))
 
     def get_available_starships(self):
         # Override — inear picker combines both managers' names.
         return sorted(
             starship_manager.list_names() + inear_manager.list_names()
         )
-
-    def get_available_ears(self):
-        return sorted(inear_manager.get_property('ear'))
