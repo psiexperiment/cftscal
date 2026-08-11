@@ -6,7 +6,7 @@ from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
+    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton
 )
 
 from psi.data.plots_manifest import PGCanvas
@@ -72,27 +72,35 @@ enamldef InputAmplifierView(Container): container:
                 condition << settings is not None
 
                 Container:
-                    constraints = [
-                        vbox(
-                            hbox(input_label, input_select),
-                            amp_settings,
-                            amp_path,
-                            hbox(spacer(0), amp_cal_start),
-                            spacing=0,
-                        )
-                    ]
-
-                    Label: input_label:
-                        text = 'Input'
-
-                    ObjectCombo: input_select:
-                        items = settings.available_inputs
-                        selected := settings.selected_input
-                        to_string = lambda ai: ai.input_label
+                    # amp_settings's own first row (the "Input" label, via
+                    # its internal layout_constraints that already aligns
+                    # Input/Gain/Filter to each other) and amp_path's
+                    # "Target folder" label are two independent
+                    # Container scopes -- fold both into one alignment
+                    # group here so every label in the panel shares one
+                    # width. The button row's first widget is a
+                    # PushButton, not a Label, so it's naturally excluded.
+                    layout_constraints => ():
+                        widgets = self.visible_widgets()
+                        first = []
+                        for w in widgets:
+                            if w is amp_settings:
+                                candidate = w.visible_widgets()[0].visible_widgets()[0]
+                            else:
+                                candidate = w.visible_widgets()[0]
+                            if isinstance(candidate, Label):
+                                first.append(candidate)
+                        return [
+                            vbox(*widgets, spacing=5),
+                            align('width', *first),
+                        ]
 
                     InputAmplifierView: amp_settings:
                         sensor << settings.selected_input.sensor
                         mode = 'add'
+                        channel_items = settings.available_inputs
+                        channel_selected := settings.selected_input
+                        channel_to_string = lambda ai: ai.input_label
 
                     GroupPathPicker: amp_path:
                         plugin_settings = settings
@@ -100,12 +108,18 @@ enamldef InputAmplifierView(Container): container:
                         collection << amp_tree.collection
                         path_target << settings.selected_input
 
-                    PushButton: amp_cal_start:
-                        text = 'Calibrate'
-                        enabled << bool(settings.selected_input.sensor.name)
-                        clicked ::
-                            settings.run_calibration(settings.selected_input)
-                            amp_tree.collection.update_groups()
+                    HGroup: button_row:
+                        share_layout = True
+                        padding = 0
+                        spacing = 5
+                        leading_spacer = spacer(0)
+
+                        PushButton: amp_cal_start:
+                            text = 'Calibrate'
+                            enabled << bool(settings.selected_input.sensor.name)
+                            clicked ::
+                                settings.run_calibration(settings.selected_input)
+                                amp_tree.collection.update_groups()
 
         DockItem:
             name = 'amp_gain_plot'

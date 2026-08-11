@@ -1064,16 +1064,18 @@ class CFTSInEarLoader(CFTSBaseLoader):
         Discover in-ear calibrations grouped by starship, reading identity
         from ``metadata.json`` rather than parsing filename segments.
 
-        In-ear calibrations traditionally live at
-        ``inear/<ear>/<cal>/metadata.json`` — the on-disk parent of the
-        calibration is the ear (e.g., ``left``, ``right``), and the
-        starship name comes from the metadata sidecar.  This override
-        treats the starship as the object identity (matching the other
-        CFTS loaders' one-object-per-name model) and uses whatever sits
-        between the loader's ``base_path`` and the calibration directory
-        as the organizational folder — typically the ear, but any nested
-        org folders added via drag-drop or the group_path picker are
-        preserved.
+        In-ear calibrations live at ``inear/<starship>/<cal>/metadata.json``
+        — the starship (device ID) is the master folder, matching the
+        object identity read from the metadata sidecar — same convention
+        as every other CFTS loader: ``cal_dir.parent`` is the object's own
+        directory, and whatever sits above *that* and below ``base_path``
+        is the organizational folder (lab/study/etc., from drag-drop or
+        the group_path picker). Using ``cal_dir.parent`` itself as the
+        organizational folder (as an earlier version of this did) treated
+        the starship-named object folder as if it were an org folder,
+        which put every object in a same-named folder one level too deep
+        (e.g. ``MMM5/MMM5`` in the tree view) once calibrations moved
+        under their starship folder instead of an ear/coupler folder.
         '''
         objects = {}
         if not self.base_path.exists():
@@ -1088,7 +1090,7 @@ class CFTSInEarLoader(CFTSBaseLoader):
             if not starship:
                 continue
             try:
-                rel = cal_dir.parent.relative_to(self.base_path)
+                rel = cal_dir.parent.parent.relative_to(self.base_path)
             except ValueError:
                 continue
             folder = '' if str(rel) == '.' else rel.as_posix()

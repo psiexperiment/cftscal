@@ -15,7 +15,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import speaker_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, SensorView, SinglePlotManager,
-    ObjectCollection,
+    ObjectCollection, _remove_selected,
 )
 
 
@@ -77,7 +77,7 @@ enamldef SpeakerView(Container):
                             # this level.
                             first.append(w.visible_widgets()[0])
                         constraints = [
-                            vbox(*widgets, spacing=0),
+                            vbox(*widgets, spacing=5),
                             align('right', *first),
                             align('left', *first),
                         ]
@@ -134,15 +134,17 @@ enamldef SpeakerView(Container):
                                 vbox(
                                     hbox(
                                         speaker_label,
-                                        hbox(speaker_select, speaker_add, spacing=0),
+                                        hbox(speaker_select, speaker_add, speaker_remove, spacing=5),
                                         spacing=5,
                                     ),
                                     speaker_target,
-                                    hbox(spacer(0), golay_start, chirp_start, spacing=0),
+                                    hbox(spacer(0), golay_start, chirp_start, spacing=5),
                                     spacing=5,
                                 ),
                                 speaker_add.width == 25,
-                                align('v_center', speaker_label, speaker_select, speaker_add),
+                                speaker_remove.width == 25,
+                                align('v_center', speaker_label, speaker_select,
+                                    speaker_add, speaker_remove),
                                 align('v_center', golay_start, chirp_start),
                                 align('width', speaker_label, speaker_target.visible_widgets()[0]),
                             ]
@@ -159,6 +161,12 @@ enamldef SpeakerView(Container):
                                 clicked ::
                                     popup = AddItem(self, combo=speaker_select, label='Speaker')
                                     popup.show()
+
+                            PushButton: speaker_remove:
+                                text = '-'
+                                enabled << bool(speaker_select.selected)
+                                clicked ::
+                                    _remove_selected(speaker_select)
 
                             GroupPathPicker: speaker_target:
                                 plugin_settings = settings

@@ -14,7 +14,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import starship_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, SensorView, SinglePlotManager,
-    ObjectCollection,
+    ObjectCollection, _remove_selected,
 )
 
 
@@ -93,7 +93,7 @@ enamldef StarshipView(Container): starship_view:
                                     break
 
                         constraints = [
-                            vbox(*widgets),
+                            vbox(*widgets, spacing=5),
                             align('right', *first),
                             align('left', *second),
                             align('right', *second),
@@ -167,19 +167,24 @@ enamldef StarshipView(Container): starship_view:
                                         starship_channel,
                                         starship_select,
                                         starship_add,
-                                        spacing=0,
+                                        starship_remove,
+                                        spacing=5,
                                     ),
                                     starship_gain,
                                     starship_gain_label,
                                     spacing=5,
                                 ),
-                                hbox(spacer(0), golay_start, chirp_start, spacing=0),
+                                starship_target,
+                                hbox(spacer(0), golay_start, chirp_start, spacing=5),
                                 spacing=5,
                             ),
                             starship_add.width == 25,
+                            starship_remove.width == 25,
                             align('v_center', starship_label, starship_channel,
-                                  starship_select, starship_add, starship_gain,
-                                  starship_gain_label),
+                                  starship_select, starship_add, starship_remove,
+                                  starship_gain, starship_gain_label),
+                            align('width', starship_label,
+                                  starship_target.visible_widgets()[0]),
                         ]
 
                         Label: starship_label:
@@ -199,6 +204,12 @@ enamldef StarshipView(Container): starship_view:
                             clicked ::
                                 popup = AddItem(self, combo=starship_select, label='Starship')
                                 popup.show()
+
+                        PushButton: starship_remove:
+                            text = '-'
+                            enabled << bool(starship_select.selected)
+                            clicked ::
+                                _remove_selected(starship_select)
 
                         ObjectCombo: starship_gain:
                             items = [20, 40]

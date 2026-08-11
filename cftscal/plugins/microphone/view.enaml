@@ -13,7 +13,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, ObjectCollection,
-    SinglePlotManager,
+    SinglePlotManager, _remove_selected,
 )
 
 
@@ -76,7 +76,7 @@ enamldef MicrophoneView(Container):
                             vbox(
                                 *widgets[:-1],
                                 hbox(spacer(0), widgets[-1]),
-                                spacing=0,
+                                spacing=5,
                             ),
                             align('left', *second),
                         ]
@@ -86,6 +86,7 @@ enamldef MicrophoneView(Container):
                         padding = 0
                         share_layout = True
                         align_widths = False
+                        spacing = 5
                         constraints = [
                             pistonphone_frequency.width == 50,
                             pistonphone_level.width == 50,
@@ -162,6 +163,13 @@ enamldef MicrophoneView(Container):
                                     regex=r'^[\w\d/_\- ]+$',
                                 )
                                 popup.show()
+
+                        PushButton:
+                            text = '-'
+                            constraints = [width == 25]
+                            enabled << bool(sensor_id_select.selected)
+                            clicked ::
+                                _remove_selected(sensor_id_select)
 
                         Label:
                             text = 'Gain'

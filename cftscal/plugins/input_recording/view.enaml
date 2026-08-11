@@ -317,7 +317,7 @@ enamldef InputRecordingView(Container):
                             vbox(
                                 *widgets[:-1],
                                 hbox(spacer(0), widgets[-1]),
-                                spacing=0,
+                                spacing=5,
                             ),
                             align('left', *second),
                         ]

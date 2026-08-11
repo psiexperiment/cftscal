@@ -87,7 +87,7 @@ enamldef MicrophoneComparisonView(Container): view:
                                     break
 
                         constraints = [
-                            vbox(*widgets),
+                            vbox(*widgets, spacing=5),
                             align('right', *first),
                             align('left', *second),
                             align('right', *second),

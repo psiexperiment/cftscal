@@ -21,7 +21,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import inear_manager
 from cftscal.plugins.widgets import (
     AddItem, GroupPathPicker, SinglePlotManager, CalibratedObjects,
-    MultiPlotManager, ObjectCollection,
+    MultiPlotManager, ObjectCollection, _remove_selected,
 )
 
 
@@ -190,7 +190,7 @@ enamldef InEarView(Container):
                             # this level.
                             first.append(w.visible_widgets()[0])
                         constraints = [
-                            vbox(*widgets),
+                            vbox(*widgets, spacing=5),
                             align('right', *first),
                         ]
                         return constraints
@@ -215,22 +215,43 @@ enamldef InEarView(Container):
                                     'updated', _on_collection_updated,
                                 )
                             constraints = [
-                                hbox(
-                                    output_label,
-                                    hbox(starship_select, starship_gain, spacing=0),
-                                    starship_gain_label,
-                                    hbox(coupler_select, coupler_add, spacing=0),
-                                    output_select,
-                                    coupler_target,
-                                    spacer(0),
-                                    cal_start,
+                                vbox(
+                                    hbox(
+                                        output_label,
+                                        hbox(starship_select, starship_gain, spacing=5),
+                                        starship_gain_label,
+                                        spacing=5,
+                                    ),
+                                    hbox(
+                                        coupler_select, coupler_add, coupler_remove,
+                                        output_select,
+                                        spacing=5,
+                                    ),
+                                    hbox(target_row_label, coupler_target, spacing=5),
+                                    hbox(spacer(0), cal_start),
                                     spacing=5,
                                 ),
                                 coupler_add.width == 25,
+                                coupler_remove.width == 25,
                                 align('v_center', output_label,
                                     starship_select, starship_gain,
-                                    starship_gain_label, coupler_select, coupler_add,
-                                    output_select, coupler_target, cal_start),
+                                    starship_gain_label),
+                                align('v_center', coupler_select, coupler_add,
+                                    coupler_remove, output_select),
+                                align('v_center', target_row_label, coupler_target),
+                                align('left', starship_select, coupler_select),
+                                # coupler_target (a GroupPathPicker/Container)
+                                # resists being left-aligned directly against
+                                # widgets in other rows via align('left', ...)
+                                # -- kiwi silently fails to satisfy it even
+                                # though the same pattern works for plain
+                                # widgets like coupler_select. Sidestep it: a
+                                # blank label matched in *width* to
+                                # output_label (the same trick used for
+                                # Target folder rows elsewhere) reproduces the
+                                # same 13px indent without relying on
+                                # cross-container left-alignment.
+                                align('width', output_label, target_row_label),
                             ]
 
                             Label: output_label:
@@ -257,9 +278,18 @@ enamldef InEarView(Container):
                                     popup = AddItem(self, combo=coupler_select, label='Coupler')
                                     popup.show()
 
+                            PushButton: coupler_remove:
+                                text = '-'
+                                enabled << bool(coupler_select.selected)
+                                clicked ::
+                                    _remove_selected(coupler_select)
+
                             ObjectCombo: output_select:
                                 items = ['primary', 'secondary']
                                 selected := ear.output
+
+                            Label: target_row_label:
+                                text = ''
 
                             GroupPathPicker: coupler_target:
                                 plugin_settings = settings

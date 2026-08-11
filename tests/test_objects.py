@@ -364,32 +364,48 @@ class _InEarStub(CFTSInEarLoader):
 
 class TestInEarLoader:
 
-    def test_traditional_ear_layout(self, tmp_path):
-        # inear/<ear>/<cal>/metadata.json{starship: SS1}
+    def test_master_folder_is_starship(self, tmp_path):
+        # inear/<starship>/<cal>/metadata.json{starship: SS1} -- the
+        # starship (device ID) is the master folder, at the root, so
+        # there's no organizational folder above it.
         _make_calibration(
-            tmp_path / 'left' / '20260701-abc',
-            metadata={'ear': 'left', 'starship': 'SS1', 'datetime': ''},
+            tmp_path / 'SS1' / '20260701-abc',
+            metadata={'coupler': 'C1', 'starship': 'SS1', 'datetime': ''},
         )
         _make_calibration(
-            tmp_path / 'right' / '20260702-def',
-            metadata={'ear': 'right', 'starship': 'SS1', 'datetime': ''},
+            tmp_path / 'SS2' / '20260702-def',
+            metadata={'coupler': 'C1', 'starship': 'SS2', 'datetime': ''},
         )
         loader = _InEarStub(tmp_path)
         result = loader._walk_objects()
-        # Same starship in two different ears → two distinct objects,
-        # ear becomes the folder.
-        assert set(result) == {('left', 'SS1'), ('right', 'SS1')}
+        assert set(result) == {('', 'SS1'), ('', 'SS2')}
+
+    def test_two_couplers_same_starship_are_one_object(self, tmp_path):
+        # Both couplers' recordings land under the same starship folder,
+        # so they're the same object with two calibrations.
+        _make_calibration(
+            tmp_path / 'SS1' / '20260701-abc',
+            metadata={'coupler': 'C1', 'starship': 'SS1', 'datetime': ''},
+        )
+        _make_calibration(
+            tmp_path / 'SS1' / '20260702-def',
+            metadata={'coupler': 'C2', 'starship': 'SS1', 'datetime': ''},
+        )
+        loader = _InEarStub(tmp_path)
+        result = loader._walk_objects()
+        assert set(result) == {('', 'SS1')}
+        assert len(result[('', 'SS1')]) == 2
 
     def test_missing_starship_skipped(self, tmp_path):
         _make_calibration(
-            tmp_path / 'left' / '20260701-abc',
-            metadata={'ear': 'left', 'datetime': ''},  # no starship
+            tmp_path / 'SS1' / '20260701-abc',
+            metadata={'coupler': 'C1', 'datetime': ''},  # no starship
         )
         loader = _InEarStub(tmp_path)
         assert loader._walk_objects() == {}
 
     def test_bad_metadata_skipped(self, tmp_path):
-        cal_dir = tmp_path / 'left' / '20260701-abc'
+        cal_dir = tmp_path / 'SS1' / '20260701-abc'
         cal_dir.mkdir(parents=True)
         (cal_dir / 'metadata.json').write_text('not json')
         loader = _InEarStub(tmp_path)
@@ -397,14 +413,17 @@ class TestInEarLoader:
 
     def test_nested_org_folder_preserved(self, tmp_path):
         # Users can drag inear cals into deeper org folders; the folder
-        # path should reflect that.
+        # path should reflect whatever sits above the starship folder,
+        # not the starship folder itself (that's the object, not an org
+        # folder -- see _walk_objects' docstring for the MMM5/MMM5 bug
+        # this guards against).
         _make_calibration(
-            tmp_path / 'Lab1' / 'left' / '20260701-abc',
-            metadata={'ear': 'left', 'starship': 'SS1', 'datetime': ''},
+            tmp_path / 'Lab1' / 'SS1' / '20260701-abc',
+            metadata={'coupler': 'C1', 'starship': 'SS1', 'datetime': ''},
         )
         loader = _InEarStub(tmp_path)
         result = loader._walk_objects()
-        assert list(result) == [('Lab1/left', 'SS1')]
+        assert list(result) == [('Lab1', 'SS1')]
 
 
 # ---------------------------------------------------------------------------
