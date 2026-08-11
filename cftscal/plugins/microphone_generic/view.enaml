@@ -240,8 +240,23 @@ enamldef MicrophoneComparisonView(Container): view:
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
                     },
-                    'Meas. Mic.': {
-                        'to_str': lambda x: x.measurement_microphone,
+                    'Input': {
+                        'to_str': lambda x: x.input_channel,
+                    },
+                    'Gain': {
+                        'to_str': lambda x: f'{x.gain:g} dB' if x.gain is not None else '?',
+                    },
+                    'Microphone': {
+                        'to_str': lambda x: x.microphone,
+                    },
+                    'Mic. Channel': {
+                        'to_str': lambda x: x.microphone_channel,
+                    },
+                    'Speaker': {
+                        'to_str': lambda x: x.speaker,
+                    },
+                    'Speaker Channel': {
+                        'to_str': lambda x: x.speaker_channel,
                     },
                     'Max. Freq.': {
                         'to_str': lambda x: f'{x.max_frequency*1e-3:.0f} kHz',

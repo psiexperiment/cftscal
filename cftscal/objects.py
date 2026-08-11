@@ -658,6 +658,14 @@ class CFTSStarshipCalibration(CFTSFileCalibration):
         return self.metadata['microphone']
 
     @property
+    def microphone_channel(self):
+        return self.metadata.get('microphone_channel', '')
+
+    @property
+    def starship_channel(self):
+        return self.metadata.get('starship_channel', '')
+
+    @property
     def coupler(self):
         return self.metadata['coupler']
 
@@ -739,6 +747,18 @@ class CFTSSpeakerCalibration(CFTSFileCalibration):
         return self.metadata['microphone']
 
     @property
+    def microphone_channel(self):
+        return self.metadata.get('microphone_channel', '')
+
+    @property
+    def output_channel(self):
+        return self.metadata.get('output_channel', '')
+
+    @property
+    def gain(self):
+        return self.metadata.get('gain')
+
+    @property
     def method(self):
         return self.metadata['method']
 
@@ -785,6 +805,14 @@ class InputAmplifier(CalibratedObject):
 
 
 class CFTSInputAmplifierCalibration(CFTSFileCalibration):
+
+    @property
+    def input_channel(self):
+        return self.metadata.get('input_channel', '')
+
+    @property
+    def total_gain(self):
+        return self.metadata.get('total_gain')
 
     @cached_property
     def measured_gain(self):
@@ -897,8 +925,32 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
 
     @property
-    def measurement_microphone(self):
-        return self.metadata['measurement_microphone']
+    def microphone(self):
+        # Falls back to the legacy `measurement_microphone` key so
+        # calibrations recorded before the rename to match speaker/
+        # starship's naming still render.
+        return self.metadata.get(
+            'microphone', self.metadata.get('measurement_microphone', ''))
+
+    @property
+    def microphone_channel(self):
+        return self.metadata.get('microphone_channel', '')
+
+    @property
+    def input_channel(self):
+        return self.metadata.get('input_channel', '')
+
+    @property
+    def gain(self):
+        return self.metadata.get('gain')
+
+    @property
+    def speaker(self):
+        return self.metadata.get('speaker', '')
+
+    @property
+    def speaker_channel(self):
+        return self.metadata.get('speaker_channel', '')
 
     @property
     def stimulus(self):
@@ -1036,6 +1088,10 @@ class CFTSInEarCalibration(CFTSFileCalibration):
     @property
     def gain(self):
         return self.metadata.get('gain')
+
+    @property
+    def starship_channel(self):
+        return self.metadata.get('starship_channel', '')
 
     def load_recording(self):
         return InearCalibration(self.filename)

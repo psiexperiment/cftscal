@@ -150,6 +150,12 @@ enamldef InputAmplifierView(Container): container:
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
                     },
+                    'Input': {
+                        'to_str': lambda x: x.input_channel,
+                    },
+                    'Total Gain': {
+                        'to_str': lambda x: f'{x.total_gain:g} dB' if x.total_gain is not None else '?',
+                    },
                     'Meas. Gain': {
                         'to_str': lambda x: f'{x.measured_gain:.2f} x',
                     }

@@ -12,7 +12,11 @@ from pathlib import Path
 import pytest
 
 from cftscal.plugins.microphone.settings import MicrophoneCalibrationSettings
+from cftscal.plugins.microphone_generic.settings import MicrophoneComparisonSettings
 from cftscal.plugins.input_recording.settings import InputRecordingSettings
+from cftscal.plugins.ir_sensor.settings import IRSensorSettings
+from cftscal.plugins.speaker.settings import SpeakerCalibrationSettings
+from cftscal.plugins.starship.settings import StarshipCalibrationSettings
 from cftscal.plugins.settings import CalibrationSettings, SensorDevice
 from cftscal.plugins.workspace import WorkspaceSettings
 
@@ -158,7 +162,7 @@ class TestInputRecordingSettings:
         assert 'CFTS_INPUT_AI1_GAIN' not in captured['env']
         assert captured['metadata'] == {
             'generator': settings.generator.name,
-            'sensors': {'ai2': {'label': 'Ch 2', 'sensor': 'MMM0'}},
+            'sensors': {'ai2': {'label': 'Ch 2', 'sensor': 'MMM0', 'gain': 20.0}},
         }
 
     def test_slot_channels_persists_and_round_trips(self):
@@ -258,6 +262,133 @@ class TestInputRecordingReadyToRecord:
         before = settings._readiness_tick
         settings.available_inputs[2].sensor.name = 'MMM0'
         assert settings._readiness_tick > before
+
+
+class TestSelectedItemPersistenceRoundTrip:
+    '''
+    "available list + currently selected item" must persist via the
+    List member's ``selected='selected_x'`` tag (see
+    ``CalibrationSettings.get_config``/``set_config``), not by
+    independently tagging both the list and the singular ``selected_x``
+    member persist -- the latter shape lets the *separate* ``selected_x``
+    snapshot get applied onto whatever ``selected_x`` still
+    object-identically points at post-``__init__`` (``available_x[0]``)
+    instead of the entry it was actually pointing at when saved, silently
+    corrupting that first entry's own data and resetting the UI's
+    selection on every reload. Regression coverage for that bug across
+    every plugin it was found in.
+    '''
+
+    @pytest.fixture(autouse=True)
+    def _isolate_cal_root(self, tmp_path, monkeypatch):
+        # Constructing these settings classes builds SensorReference/
+        # StarshipSettings sub-objects whose __init__ unconditionally
+        # calls refresh_available(), which queries a real
+        # CalibrationManager/CFTSBaseLoader -- redirect CAL_ROOT so that
+        # never touches the real calibration tree.
+        monkeypatch.setattr('cftscal.objects.CAL_ROOT', tmp_path)
+
+    def test_starship_selected_input(self):
+        settings = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+        )
+        settings.selected_input = settings.available_inputs[1]
+        settings.selected_input.sensor.name = 'MMM1'
+        settings.available_inputs[0].sensor.name = 'MMM0'
+
+        restored = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+        )
+        restored.set_config(settings.get_config())
+
+        assert restored.selected_input is restored.available_inputs[1]
+        assert restored.selected_input.sensor.name == 'MMM1'
+        # Would be 'MMM1' before the fix -- the selected entry's
+        # snapshot got misapplied onto available_inputs[0].
+        assert restored.available_inputs[0].sensor.name == 'MMM0'
+
+    def test_speaker_selected_input_and_output(self):
+        settings = SpeakerCalibrationSettings(
+            {'Ch 0': 'ao0', 'Ch 1': 'ao1'}, {'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+        )
+        settings.selected_input = settings.available_inputs[1]
+        settings.selected_input.sensor.name = 'MMM1'
+        settings.available_inputs[0].sensor.name = 'MMM0'
+        settings.selected_output = settings.available_outputs[1]
+        settings.selected_output.generator.name = 'SPK1'
+        settings.available_outputs[0].generator.name = 'SPK0'
+
+        restored = SpeakerCalibrationSettings(
+            {'Ch 0': 'ao0', 'Ch 1': 'ao1'}, {'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+        )
+        restored.set_config(settings.get_config())
+
+        assert restored.selected_input is restored.available_inputs[1]
+        assert restored.selected_input.sensor.name == 'MMM1'
+        assert restored.available_inputs[0].sensor.name == 'MMM0'
+        assert restored.selected_output is restored.available_outputs[1]
+        assert restored.selected_output.generator.name == 'SPK1'
+        assert restored.available_outputs[0].generator.name == 'SPK0'
+
+    def test_ir_sensor_selected_input_and_output(self):
+        settings = IRSensorSettings(
+            {'Ch 0': 'ai0', 'Ch 1': 'ai1'}, {'Ch 0': 'ao0', 'Ch 1': 'ao1'},
+        )
+        settings.selected_input = settings.available_inputs[1]
+        settings.available_inputs[1].group_path = 'Lab1'
+        settings.available_inputs[0].group_path = 'Lab0'
+        settings.selected_output = settings.available_outputs[1]
+        settings.available_outputs[1].group_path = 'Lab1'
+        settings.available_outputs[0].group_path = 'Lab0'
+
+        restored = IRSensorSettings(
+            {'Ch 0': 'ai0', 'Ch 1': 'ai1'}, {'Ch 0': 'ao0', 'Ch 1': 'ao1'},
+        )
+        restored.set_config(settings.get_config())
+
+        assert restored.selected_input is restored.available_inputs[1]
+        assert restored.selected_input.group_path == 'Lab1'
+        assert restored.available_inputs[0].group_path == 'Lab0'
+        assert restored.selected_output is restored.available_outputs[1]
+        assert restored.selected_output.group_path == 'Lab1'
+        assert restored.available_outputs[0].group_path == 'Lab0'
+
+    def test_microphone_generic_all_three_selections(self):
+        settings = MicrophoneComparisonSettings(
+            measurement_inputs={'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+            generic_inputs={'Ch 0': 'ai2', 'Ch 1': 'ai3'},
+            speaker_outputs={'Ch 0': 'ao0', 'Ch 1': 'ao1'},
+        )
+        settings.measurement_input = settings.measurement_inputs[1]
+        settings.measurement_input.sensor.name = 'MMM1'
+        settings.measurement_inputs[0].sensor.name = 'MMM0'
+
+        settings.generic_input = settings.generic_inputs[1]
+        settings.generic_input.sensor.name = 'GEN1'
+        settings.generic_inputs[0].sensor.name = 'GEN0'
+
+        settings.speaker_output = settings.speaker_outputs[1]
+        settings.speaker_output.generator.name = 'SPK1'
+        settings.speaker_outputs[0].generator.name = 'SPK0'
+
+        restored = MicrophoneComparisonSettings(
+            measurement_inputs={'Ch 0': 'ai0', 'Ch 1': 'ai1'},
+            generic_inputs={'Ch 0': 'ai2', 'Ch 1': 'ai3'},
+            speaker_outputs={'Ch 0': 'ao0', 'Ch 1': 'ao1'},
+        )
+        restored.set_config(settings.get_config())
+
+        assert restored.measurement_input is restored.measurement_inputs[1]
+        assert restored.measurement_input.sensor.name == 'MMM1'
+        assert restored.measurement_inputs[0].sensor.name == 'MMM0'
+
+        assert restored.generic_input is restored.generic_inputs[1]
+        assert restored.generic_input.sensor.name == 'GEN1'
+        assert restored.generic_inputs[0].sensor.name == 'GEN0'
+
+        assert restored.speaker_output is restored.speaker_outputs[1]
+        assert restored.speaker_output.generator.name == 'SPK1'
+        assert restored.speaker_outputs[0].generator.name == 'SPK0'
 
 
 class TestWorkspaceSettingsEnabledPlugins:

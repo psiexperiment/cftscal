@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from cftscal import migrate_metadata as mm
 
@@ -49,7 +50,7 @@ class TestMicrophoneGeneric:
         result = mm._parse_microphone_generic(
             _folder('20260701-123456_generic_MMM0_golay')
         )
-        assert result['measurement_microphone'] == 'MMM0'
+        assert result['microphone'] == 'MMM0'
         assert result['stimulus'] == 'golay'
 
 
@@ -119,16 +120,17 @@ class TestInear:
             _folder('20260701-123456_left_SS1')
         )
         assert result['coupler'] == 'left'
-        assert result['output'] == 'primary'
         assert result['starship'] == 'SS1'
+        # No longer guessed from the filename -- see TestEnrichInear.
+        assert 'output' not in result
 
-    def test_secondary_suffix_sets_output(self):
+    def test_secondary_suffix_stripped_from_coupler(self):
         result = mm._parse_inear(
             _folder('20260701-123456_C1-secondary_MMM5')
         )
         assert result['coupler'] == 'C1'
-        assert result['output'] == 'secondary'
         assert result['starship'] == 'MMM5'
+        assert 'output' not in result
 
 
 class TestIrSensor:
@@ -151,7 +153,7 @@ def _make_cal_dir(tmp_path, subfolder, object_name, cal_name, metadata=None):
     return cal_dir
 
 
-ZERO = {'wrote': 0, 'skipped_exists': 0, 'skipped_error': 0,
+ZERO = {'wrote': 0, 'enriched': 0, 'skipped_exists': 0, 'skipped_error': 0,
         'renamed': 0, 'rename_conflicts': 0}
 
 
@@ -397,7 +399,11 @@ class TestMigrate:
             '20260701-123456_C1-secondary_MMM5',
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(wrote=1, renamed=1)
+        # No final.preferences sidecar in this fixture, so 'output' is
+        # never recovered, but 'gain' is still filled in as 40 (the fixed
+        # historical value) since it was simply missing -- that's the
+        # enrichment step, folded into this same migrate() pass.
+        assert counts == _counts(wrote=1, enriched=1, renamed=1)
 
         new_dir = tmp_path / 'inear' / 'MMM5' / '20260701-123456'
         assert new_dir.exists()
@@ -407,8 +413,11 @@ class TestMigrate:
 
         metadata = json.loads((new_dir / 'metadata.json').read_text())
         assert metadata['coupler'] == 'C1'
-        assert metadata['output'] == 'secondary'
         assert metadata['starship'] == 'MMM5'
+        assert metadata['gain'] == 40
+        # No final.preferences sidecar in this fixture -- output is no
+        # longer guessed from the filename, so it's simply absent.
+        assert 'output' not in metadata
 
     def test_inear_reparent_preserves_org_folder_nesting(self, tmp_path):
         # A calibration organized under an extra lab/study folder above
@@ -419,7 +428,7 @@ class TestMigrate:
             '20260701-123456_C1_MMM5',
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(wrote=1, renamed=1)
+        assert counts == _counts(wrote=1, enriched=1, renamed=1)
 
         new_dir = tmp_path / 'inear' / 'Lab1' / 'MMM5' / '20260701-123456'
         assert new_dir.exists()
@@ -438,7 +447,9 @@ class TestMigrate:
             tmp_path, 'inear', 'C2', '20260701-123456_C2_MMM5',
         )
         counts = mm.migrate(tmp_path)
-        assert counts == _counts(wrote=2, renamed=1, rename_conflicts=1)
+        # Enrichment (gain=40) runs before the move-conflict check, so
+        # both folders get it -- even the one whose move ultimately fails.
+        assert counts == _counts(wrote=2, enriched=2, renamed=1, rename_conflicts=1)
 
         new_dir = tmp_path / 'inear' / 'MMM5' / '20260701-123456'
         assert new_dir.exists()
@@ -446,3 +457,281 @@ class TestMigrate:
         # is left in place (with its metadata.json already written) for
         # the user to resolve by hand.
         assert cal_dir_1.exists() != cal_dir_2.exists()
+
+
+class TestIsMigratedAlternatives:
+    '''MARKER_KEYS['microphone_generic'] uses a list of alternatives so a
+    calibration migrated before the measurement_microphone -> microphone
+    rename still reads as migrated.'''
+
+    def test_either_alternative_counts_as_migrated(self):
+        assert mm._is_migrated(
+            {'datetime': 'x', 'measurement_microphone': 'MMM0'},
+            ['microphone', 'measurement_microphone'],
+        )
+        assert mm._is_migrated(
+            {'datetime': 'x', 'microphone': 'MMM0'},
+            ['microphone', 'measurement_microphone'],
+        )
+
+    def test_neither_alternative_present_is_not_migrated(self):
+        assert not mm._is_migrated(
+            {'datetime': 'x'},
+            ['microphone', 'measurement_microphone'],
+        )
+
+
+class TestEnrichInear:
+
+    def test_fills_missing_gain_with_40(self, tmp_path):
+        result = mm._enrich_inear_from_preferences(tmp_path, {})
+        assert result['gain'] == 40
+
+    def test_does_not_overwrite_existing_gain(self, tmp_path):
+        # New recordings write a real, possibly non-40 gain -- migration
+        # must never clobber it.
+        result = mm._enrich_inear_from_preferences(tmp_path, {'gain': 20})
+        assert 'gain' not in result
+
+    def test_extracts_output_from_final_preferences(self, tmp_path):
+        prefs = {
+            'context': {'parameters': {'system_starship_settings': {
+                'system_output': {'selected': 'secondary'},
+            }}},
+        }
+        (tmp_path / 'final.preferences').write_text(yaml.dump(prefs))
+        result = mm._enrich_inear_from_preferences(tmp_path, {'gain': 40})
+        assert result == {'output': 'secondary'}
+
+    def test_missing_final_preferences_leaves_output_unset(self, tmp_path):
+        result = mm._enrich_inear_from_preferences(tmp_path, {'gain': 40})
+        assert 'output' not in result
+
+    def test_malformed_final_preferences_is_ignored(self, tmp_path):
+        (tmp_path / 'final.preferences').write_text('a: [1, 2')
+        result = mm._enrich_inear_from_preferences(tmp_path, {'gain': 40})
+        assert 'output' not in result
+
+    def test_final_preferences_missing_expected_keys_is_ignored(self, tmp_path):
+        (tmp_path / 'final.preferences').write_text(yaml.dump({'context': {}}))
+        result = mm._enrich_inear_from_preferences(tmp_path, {'gain': 40})
+        assert 'output' not in result
+
+    def test_overwrite_does_not_clobber_a_real_recorded_gain(self, tmp_path):
+        # Unlike _enrich_channels_from_io's channel fields, gain must
+        # never be forced back to 40 under --overwrite -- current
+        # recordings write a real, possibly non-40 gain that --overwrite
+        # is not meant to touch.
+        result = mm._enrich_inear_from_preferences(
+            tmp_path, {'gain': 20}, overwrite=True,
+        )
+        assert 'gain' not in result
+
+
+class TestEnrichChannelsFromIo:
+    '''
+    Recovered values must be the human-readable ``label`` (e.g. "Starship
+    A (microphone)"), not the raw manifest ``name``/dict key (e.g.
+    "starship_A_microphone") -- that's what every plugin's settings.py
+    writes into these same fields for new recordings (``ai.input_label``/
+    ``ao.output_label``/etc.), and mixing the two would make the very
+    columns this is for (comparing historical vs current calibrations)
+    inconsistent within themselves.
+    '''
+
+    def _write_io(self, cal_dir, input_active=(), output_active=()):
+        # `input_active`/`output_active` are lists of (name, label) pairs
+        # for the channels marked active; matches real io.json shape.
+        def entries(active):
+            return {name: {'label': label, 'active': True}
+                    for name, label in active}
+        io_data = {'input': entries(input_active), 'output': entries(output_active)}
+        (cal_dir / 'io.json').write_text(json.dumps(io_data))
+
+    def test_single_active_input_recovers_label(self, tmp_path):
+        self._write_io(tmp_path, input_active=[('ai0', 'Ch 1')])
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {'input_channel': 'Ch 1'}
+
+    def test_falls_back_to_name_when_label_missing(self, tmp_path):
+        (tmp_path / 'io.json').write_text(json.dumps({
+            'input': {'ai0': {'active': True}}, 'output': {},
+        }))
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {'input_channel': 'ai0'}
+
+    def test_ambiguous_active_inputs_left_blank(self, tmp_path):
+        # e.g. starship/microphone's real io.json, where an always-on
+        # monitoring channel shows up active alongside the real one.
+        self._write_io(tmp_path, input_active=[
+            ('starship_A_microphone', 'Starship A (microphone)'),
+            ('calibration_microphone', 'Calibration microphone'),
+        ])
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {}
+
+    def test_no_active_inputs_left_blank(self, tmp_path):
+        self._write_io(tmp_path)
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {}
+
+    def test_does_not_overwrite_existing_value(self, tmp_path):
+        self._write_io(tmp_path, input_active=[('ai0', 'Ch 1')])
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {'input_channel': 'already-set'}) == {}
+
+    def test_overwrite_recomputes_existing_value(self, tmp_path):
+        # Lets a bad value (e.g. one written by an earlier, buggy
+        # enricher that recovered the raw manifest name instead of the
+        # label) get corrected by re-running with --overwrite, instead
+        # of requiring the field to be manually cleared first.
+        self._write_io(tmp_path, input_active=[('ai0', 'Ch 1')])
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(
+            tmp_path, {'input_channel': 'ai0'}, overwrite=True,
+        ) == {'input_channel': 'Ch 1'}
+
+    def test_recovers_both_input_and_output(self, tmp_path):
+        self._write_io(
+            tmp_path, input_active=[('ai0', 'Ch 1')],
+            output_active=[('ao0', 'Ch 0')],
+        )
+        enrich = mm._enrich_channels_from_io(
+            input_field='microphone_channel', output_field='output_channel')
+        assert enrich(tmp_path, {}) == {
+            'microphone_channel': 'Ch 1', 'output_channel': 'Ch 0',
+        }
+
+    def test_missing_io_file_returns_empty(self, tmp_path):
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {}
+
+    def test_corrupt_io_file_returns_empty(self, tmp_path):
+        (tmp_path / 'io.json').write_text('not json')
+        enrich = mm._enrich_channels_from_io(input_field='input_channel')
+        assert enrich(tmp_path, {}) == {}
+
+
+class TestMigrateEnrichment:
+    '''io.json/final.preferences enrichment is folded into migrate() itself
+    (not a separate pass/flag), and runs for every folder it visits --
+    both already-migrated (bare-timestamp) folders and ones still being
+    parsed from a legacy name in the same pass.'''
+
+    def test_enriches_bare_named_already_migrated_inear_folder(self, tmp_path):
+        cal_dir = _make_cal_dir(
+            tmp_path, 'inear', 'MMM5', '20260701-123456',
+            metadata={'datetime': '2026-07-01T12:34:56', 'starship': 'MMM5',
+                      'coupler': 'C1'},
+        )
+        prefs = {
+            'context': {'parameters': {'system_starship_settings': {
+                'system_output': {'selected': 'secondary'},
+            }}},
+        }
+        (cal_dir / 'final.preferences').write_text(yaml.dump(prefs))
+
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(skipped_exists=1, enriched=1)
+
+        metadata = json.loads((cal_dir / 'metadata.json').read_text())
+        assert metadata['output'] == 'secondary'
+        assert metadata['gain'] == 40
+
+    def test_enriches_legacy_named_folder_in_the_same_pass(self, tmp_path):
+        cal_dir = _make_cal_dir(
+            tmp_path, 'inear', 'C1', '20260701-123456_C1_MMM5',
+        )
+        prefs = {
+            'context': {'parameters': {'system_starship_settings': {
+                'system_output': {'selected': 'primary'},
+            }}},
+        }
+        (cal_dir / 'final.preferences').write_text(yaml.dump(prefs))
+
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(wrote=1, enriched=1, renamed=1)
+
+        new_dir = tmp_path / 'inear' / 'MMM5' / '20260701-123456'
+        metadata = json.loads((new_dir / 'metadata.json').read_text())
+        assert metadata['output'] == 'primary'
+        assert metadata['gain'] == 40
+        assert metadata['coupler'] == 'C1'
+        assert metadata['starship'] == 'MMM5'
+
+    def test_enrichment_is_idempotent_on_a_second_run(self, tmp_path):
+        cal_dir = _make_cal_dir(
+            tmp_path, 'inear', 'MMM5', '20260701-123456',
+            metadata={'datetime': '2026-07-01T12:34:56', 'starship': 'MMM5',
+                      'coupler': 'C1'},
+        )
+        prefs = {
+            'context': {'parameters': {'system_starship_settings': {
+                'system_output': {'selected': 'secondary'},
+            }}},
+        }
+        (cal_dir / 'final.preferences').write_text(yaml.dump(prefs))
+
+        mm.migrate(tmp_path)
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(skipped_exists=1)
+
+    def test_recovers_starship_channel_only_when_input_is_unambiguous(self, tmp_path):
+        cal_dir = _make_cal_dir(
+            tmp_path, 'starship', 'SS1', '20260701-123456',
+            metadata={'datetime': '2026-07-01T12:34:56', 'microphone': 'MMM0'},
+        )
+        io_data = {
+            'input': {
+                'starship_A_microphone': {
+                    'label': 'Starship A (microphone)', 'active': True,
+                },
+                'calibration_microphone': {
+                    'label': 'Calibration microphone', 'active': True,
+                },
+            },
+            'output': {
+                'starship_A_primary': {
+                    'label': 'Starship A (primary)', 'active': True,
+                },
+            },
+        }
+        (cal_dir / 'io.json').write_text(json.dumps(io_data))
+
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(skipped_exists=1, enriched=1)
+
+        metadata = json.loads((cal_dir / 'metadata.json').read_text())
+        assert 'microphone_channel' not in metadata
+        # Recovers the human-readable label, matching what settings.py
+        # writes for new recordings -- not the raw manifest name.
+        assert metadata['starship_channel'] == 'Starship A (primary)'
+
+    def test_overwrite_corrects_a_previously_wrong_channel_value(self, tmp_path):
+        # Simulates real data affected by the raw-name-instead-of-label
+        # bug: a plain re-run must not "fix" it (the field already looks
+        # populated), but --overwrite must.
+        cal_dir = _make_cal_dir(
+            tmp_path, 'microphone', 'BK-4138', '20260701-123456',
+            metadata={'datetime': '2026-07-01T12:34:56', 'sensor_id': 'BK-4138',
+                      'pistonphone': 'PP1', 'input_channel': 'microphone_calibration'},
+        )
+        io_data = {
+            'input': {
+                'microphone_calibration': {
+                    'label': 'Microphone Calibration', 'active': True,
+                },
+            },
+            'output': {},
+        }
+        (cal_dir / 'io.json').write_text(json.dumps(io_data))
+
+        counts = mm.migrate(tmp_path)
+        assert counts == _counts(skipped_exists=1)
+        metadata = json.loads((cal_dir / 'metadata.json').read_text())
+        assert metadata['input_channel'] == 'microphone_calibration'
+
+        counts = mm.migrate(tmp_path, overwrite=True)
+        assert counts == _counts(skipped_exists=1, enriched=1)
+        metadata = json.loads((cal_dir / 'metadata.json').read_text())
+        assert metadata['input_channel'] == 'Microphone Calibration'

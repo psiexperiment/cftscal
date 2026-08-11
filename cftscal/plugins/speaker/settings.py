@@ -15,9 +15,12 @@ from ..settings import (
 
 class SpeakerCalibrationSettings(CalibrationSettings):
 
-    available_outputs = List(Typed(OutputSettings, ())).tag(persist=True)
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
-    selected_input = Typed(InputSettings, ()).tag(persist=True)
+    available_outputs = List(Typed(OutputSettings, ())) \
+        .tag(persist=True, selected='selected_output')
+    selected_output = Typed(OutputSettings, ())
+    available_inputs = List(Typed(InputSettings, ())) \
+        .tag(persist=True, selected='selected_input')
+    selected_input = Typed(InputSettings, ())
     settings_filename = set_default('speaker.json')
 
     def __init__(self, outputs, inputs):
@@ -30,6 +33,7 @@ class SpeakerCalibrationSettings(CalibrationSettings):
             )
             settings.append(setting)
         self.available_outputs = settings
+        self.selected_output = self.available_outputs[0]
 
         settings = []
         for label, name in inputs.items():
@@ -51,6 +55,9 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
         metadata = {
             'microphone': ai.sensor.name,
+            'microphone_channel': ai.input_label,
+            'output_channel': ao.output_label,
+            'gain': ai.sensor.gain,
             'method': which,
         }
         self._run_cal(pathname, f'cftscal.paradigms.speaker_calibration_{which}',

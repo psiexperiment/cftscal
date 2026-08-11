@@ -29,6 +29,7 @@ class InEarCalibrationSettings(CalibrationSettings):
         metadata = {
             'coupler': ear.coupler,
             'starship': ear.starship,
+            'starship_channel': ear.connection_label,
             'gain': ear.gain,
             'output': ear.output,
         }

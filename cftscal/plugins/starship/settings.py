@@ -9,8 +9,9 @@ class StarshipCalibrationSettings(CalibrationSettings):
     starship_connections = List(Typed(StarshipSettings, ())) \
         .tag(persist=True, selected='selected_starship')
     selected_starship = Typed(StarshipSettings, ())
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
-    selected_input = Typed(InputSettings, ()).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())) \
+        .tag(persist=True, selected='selected_input')
+    selected_input = Typed(InputSettings, ())
     calibration_coupler = Str().tag(persist=True)
     settings_filename = set_default('starship.json')
 
@@ -45,7 +46,9 @@ class StarshipCalibrationSettings(CalibrationSettings):
             **starship.get_env_vars(include_cal=False),
         }
         metadata = {
-            'microphone': microphone.input_name,
+            'microphone': microphone.sensor.name,
+            'microphone_channel': microphone.input_label,
+            'starship_channel': starship.connection_label,
             'coupler': self.calibration_coupler,
             'gain': starship.gain,
             'stimulus': 'golay',
@@ -60,7 +63,9 @@ class StarshipCalibrationSettings(CalibrationSettings):
         env = microphone.get_env_vars()
         env.update(starship.get_env_vars(include_cal=False))
         metadata = {
-            'microphone': microphone.input_name,
+            'microphone': microphone.sensor.name,
+            'microphone_channel': microphone.input_label,
+            'starship_channel': starship.connection_label,
             'coupler': self.calibration_coupler,
             'gain': starship.gain,
             'stimulus': 'chirp',

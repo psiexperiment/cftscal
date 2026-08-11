@@ -159,6 +159,7 @@ class InputRecordingSettings(CalibrationSettings):
             sensors[channel.input_name] = {
                 'label': channel.input_label,
                 'sensor': channel.sensor.name,
+                'gain': channel.sensor.gain,
             }
         metadata = {
             'generator': self.generator.name,

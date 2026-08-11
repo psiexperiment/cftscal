@@ -504,6 +504,12 @@ enamldef InputRecordingView(Container):
                             v['sensor'] for v in x.sensors.values()
                         ),
                     },
+                    'Gain': {
+                        'to_str': lambda x: ', '.join(
+                            f'{v["gain"]:g} dB' for v in x.sensors.values()
+                            if 'gain' in v
+                        ),
+                    },
                 }
 
                 collection = ObjectCollection(

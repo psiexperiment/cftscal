@@ -299,7 +299,7 @@ enamldef InEarView(Container):
                                 show_label = False
 
                             PushButton: cal_start:
-                                text = 'Run'
+                                text = 'Calibrate'
                                 enabled << bool(ear.starship) and bool(ear.coupler)
                                 clicked ::
                                     try:
@@ -361,6 +361,11 @@ enamldef InEarView(Container):
                             'groupby': False,
                             'id': False,
                             'to_str': lambda x: getattr(x, 'coupler', ''),
+                        },
+                        'Starship Channel': {
+                            'groupby': False,
+                            'id': False,
+                            'to_str': lambda x: getattr(x, 'starship_channel', ''),
                         },
                         'Output': {
                             'groupby': False,

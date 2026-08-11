@@ -8,7 +8,6 @@ enamldef InEarManifest(CalibrationPluginManifest): manifest:
 
     id = 'inear'
     title = 'Starship Check'
-    shortcut = 'Ctrl+i'
 
     view_class = InEarView
     settings_class = InEarCalibrationSettings

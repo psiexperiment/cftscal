@@ -15,8 +15,13 @@ from cftscal.objects import (
     CalibrationLoader,
     CalibrationManager,
     CFTSBaseLoader,
+    CFTSGenericMicrophoneCalibration,
+    CFTSInEarCalibration,
     CFTSInEarLoader,
+    CFTSInputAmplifierCalibration,
     CFTSInputRecording,
+    CFTSSpeakerCalibration,
+    CFTSStarshipCalibration,
     _CURRENT_MARKER,
 )
 
@@ -831,6 +836,150 @@ class TestInputRecordingSensors:
         assert cal.sensors == {
             'selected_input': {'label': 'selected_input', 'sensor': 'MMM0'},
         }
+
+
+class TestDeviceChannelGainProperties:
+    '''
+    Device/channel/gain metadata added for cross-plugin calibration
+    comparison. Old field-name fallbacks matter here: real historical
+    data was recorded before some of these fields existed or under a
+    different key.
+    '''
+
+    def test_starship_microphone_channel_and_starship_channel(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'GRAS-40DP',
+            'microphone_channel': 'Ch 1',
+            'starship_channel': 'A',
+            'coupler': 'tube-2mm',
+            'gain': 40,
+            'stimulus': 'golay',
+        })
+        cal = CFTSStarshipCalibration('SS1', tmp_path)
+        assert cal.microphone == 'GRAS-40DP'
+        assert cal.microphone_channel == 'Ch 1'
+        assert cal.starship_channel == 'A'
+
+    def test_starship_channel_fields_default_blank_for_old_data(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'GRAS-40DP',
+            'coupler': 'tube-2mm',
+            'stimulus': 'golay',
+        })
+        cal = CFTSStarshipCalibration('SS1', tmp_path)
+        assert cal.microphone_channel == ''
+        assert cal.starship_channel == ''
+
+    def test_speaker_output_microphone_channel_and_gain(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'GRAS-40DP',
+            'microphone_channel': 'Ch 1',
+            'output_channel': 'Ch 0',
+            'gain': 20,
+            'method': 'golay',
+        })
+        cal = CFTSSpeakerCalibration('SPK1', tmp_path)
+        assert cal.microphone_channel == 'Ch 1'
+        assert cal.output_channel == 'Ch 0'
+        assert cal.gain == 20
+
+    def test_speaker_channel_and_gain_default_blank_for_old_data(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'GRAS-40DP',
+            'method': 'golay',
+        })
+        cal = CFTSSpeakerCalibration('SPK1', tmp_path)
+        assert cal.microphone_channel == ''
+        assert cal.output_channel == ''
+        assert cal.gain is None
+
+    def test_generic_microphone_uses_new_key(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'MMM0',
+            'microphone_channel': 'Ch 1',
+            'input_channel': 'Ch 2',
+            'gain': 10,
+            'speaker': 'SPK1',
+            'speaker_channel': 'Ch 0',
+            'stimulus': 'golay',
+        })
+        cal = CFTSGenericMicrophoneCalibration('GEN1', tmp_path)
+        assert cal.microphone == 'MMM0'
+        assert cal.microphone_channel == 'Ch 1'
+        assert cal.input_channel == 'Ch 2'
+        assert cal.gain == 10
+        assert cal.speaker == 'SPK1'
+        assert cal.speaker_channel == 'Ch 0'
+
+    def test_generic_microphone_falls_back_to_legacy_key(self, tmp_path):
+        # Recorded before the measurement_microphone -> microphone rename.
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'measurement_microphone': 'MMM0',
+            'stimulus': 'golay',
+        })
+        cal = CFTSGenericMicrophoneCalibration('GEN1', tmp_path)
+        assert cal.microphone == 'MMM0'
+        assert cal.microphone_channel == ''
+        assert cal.input_channel == ''
+        assert cal.gain is None
+        assert cal.speaker == ''
+        assert cal.speaker_channel == ''
+
+    def test_generic_microphone_new_key_wins_over_legacy(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'microphone': 'MMM0',
+            'measurement_microphone': 'STALE',
+            'stimulus': 'golay',
+        })
+        cal = CFTSGenericMicrophoneCalibration('GEN1', tmp_path)
+        assert cal.microphone == 'MMM0'
+
+    def test_input_amplifier_channel_and_total_gain(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'input_channel': 'Ch 3',
+            'total_gain': 1000.0,
+            'freq_lb': 10.0,
+            'freq_ub': 10000.0,
+            'filt_60Hz': 'on',
+        })
+        cal = CFTSInputAmplifierCalibration('AMP1', tmp_path)
+        assert cal.input_channel == 'Ch 3'
+        assert cal.total_gain == 1000.0
+
+    def test_input_amplifier_defaults_blank_for_old_data(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+        })
+        cal = CFTSInputAmplifierCalibration('AMP1', tmp_path)
+        assert cal.input_channel == ''
+        assert cal.total_gain is None
+
+    def test_inear_starship_channel(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'starship': 'MMM0',
+            'coupler': 'C1',
+            'starship_channel': 'B',
+        })
+        cal = CFTSInEarCalibration('MMM0', tmp_path)
+        assert cal.starship_channel == 'B'
+
+    def test_inear_starship_channel_defaults_blank_for_old_data(self, tmp_path):
+        _make_calibration(tmp_path, metadata={
+            'datetime': '2026-07-01T00:00:00',
+            'starship': 'MMM0',
+            'coupler': 'C1',
+        })
+        cal = CFTSInEarCalibration('MMM0', tmp_path)
+        assert cal.starship_channel == ''
 
 
 class TestListGroupPaths:

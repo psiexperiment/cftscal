@@ -2,7 +2,7 @@ import numpy as np
 from scipy import signal
 
 from atom.api import Str
-from enaml.core.api import Conditional, Looper
+from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.stdlib.message_box import warning
@@ -108,99 +108,103 @@ enamldef SpeakerView(Container):
                             sensor << settings.selected_input.sensor
                             show_label = False
 
-                    Looper:
-                        iterable << settings.available_outputs
+                    Container:
+                        attr ao << settings.selected_output
+                        attr ai << settings.selected_input
 
-                        Container:
-                            attr ao = loop_item
-                            attr ai << settings.selected_input
+                        share_layout = True
+                        padding = 0
 
-                            share_layout = True
-                            padding = 0
+                        # Refresh the selected output's speaker dropdown
+                        # when a new calibration lands, so a just-added
+                        # speaker appears without a plugin reload. ``ao``
+                        # is read live via the ``<<`` binding above, so
+                        # this always refreshes whichever output is
+                        # currently selected, not just the one selected
+                        # when this observer was registered.
+                        func _on_collection_updated(change):
+                            ao.generator.refresh_available()
 
-                            # Refresh this row's speaker dropdown when a
-                            # new calibration lands, so the just-added
-                                # speaker appears without a plugin reload.
-                            # Named handler for a clean call site; ``ao``
-                            # is resolved from enamldef scope at call time.
-                            func _on_collection_updated(change):
-                                ao.generator.refresh_available()
-
-                            initialized ::
-                                speaker_tree.collection.observe(
-                                    'updated', _on_collection_updated,
-                                )
-                            constraints = [
-                                vbox(
+                        initialized ::
+                            speaker_tree.collection.observe(
+                                'updated', _on_collection_updated,
+                            )
+                        constraints = [
+                            vbox(
+                                hbox(
+                                    speaker_label,
                                     hbox(
-                                        speaker_label,
-                                        hbox(speaker_select, speaker_add, speaker_remove, spacing=5),
+                                        output_channel, speaker_select,
+                                        speaker_add, speaker_remove,
                                         spacing=5,
                                     ),
-                                    speaker_target,
-                                    hbox(spacer(0), golay_start, chirp_start, spacing=5),
                                     spacing=5,
                                 ),
-                                speaker_add.width == 25,
-                                speaker_remove.width == 25,
-                                align('v_center', speaker_label, speaker_select,
-                                    speaker_add, speaker_remove),
-                                align('v_center', golay_start, chirp_start),
-                                align('width', speaker_label, speaker_target.visible_widgets()[0]),
-                            ]
+                                speaker_target,
+                                hbox(spacer(0), golay_start, chirp_start, spacing=5),
+                                spacing=5,
+                            ),
+                            speaker_add.width == 25,
+                            speaker_remove.width == 25,
+                            align('v_center', speaker_label, output_channel,
+                                speaker_select, speaker_add, speaker_remove),
+                            align('v_center', golay_start, chirp_start),
+                            align('width', speaker_label, speaker_target.visible_widgets()[0]),
+                        ]
 
-                            Label: speaker_label:
-                                text = ao.output_label
+                        Label: speaker_label:
+                            text = 'Speaker'
 
-                            ObjectCombo: speaker_select:
-                                items << ao.generator.available_generators
-                                selected := ao.generator.name
+                        ObjectCombo: output_channel:
+                            items = sorted(settings.available_outputs, key=lambda x: x.output_label)
+                            selected := settings.selected_output
+                            to_string = lambda o: o.output_label
 
-                            PushButton: speaker_add:
-                                text = '+'
-                                clicked ::
-                                    popup = AddItem(self, combo=speaker_select, label='Speaker')
-                                    popup.show()
+                        ObjectCombo: speaker_select:
+                            items << ao.generator.available_generators
+                            selected := ao.generator.name
 
-                            PushButton: speaker_remove:
-                                text = '-'
-                                enabled << bool(speaker_select.selected)
-                                clicked ::
-                                    _remove_selected(speaker_select)
+                        PushButton: speaker_add:
+                            text = '+'
+                            clicked ::
+                                popup = AddItem(self, combo=speaker_select, label='Speaker')
+                                popup.show()
 
-                            GroupPathPicker: speaker_target:
-                                plugin_settings = settings
-                                subfolder = 'speaker'
-                                collection << speaker_tree.collection
-                                path_target << ao
+                        PushButton: speaker_remove:
+                            text = '-'
+                            enabled << bool(speaker_select.selected)
+                            clicked ::
+                                _remove_selected(speaker_select)
 
-                            PushButton: golay_start:
-                                text = 'Golay'
-                                enabled << bool(ai.sensor.name) \
-                                    and bool(ao.generator.name)
-                                clicked ::
-                                    try:
-                                        settings.run_cal(ao, ai, 'golay')
-                                    except (ValueError, LookupError) as exc:
-                                        warning(self, 'Cannot calibrate', str(exc))
-                                    else:
-                                        speaker_tree.collection.update_groups()
+                        GroupPathPicker: speaker_target:
+                            plugin_settings = settings
+                            subfolder = 'speaker'
+                            collection << speaker_tree.collection
+                            path_target << ao
 
-                            PushButton: chirp_start:
-                                text = 'Chirp'
-                                enabled << bool(ai.sensor.name) \
-                                    and bool(ao.generator.name)
-                                clicked ::
-                                    try:
-                                        # NB: was `speaker` (undefined in
-                                        # this scope -- a pre-existing
-                                        # NameError bug) instead of `ao`,
-                                        # matching golay_start above.
-                                        settings.run_cal(ao, ai, 'chirp')
-                                    except (ValueError, LookupError) as exc:
-                                        warning(self, 'Cannot calibrate', str(exc))
-                                    else:
-                                        speaker_tree.collection.update_groups()
+                        PushButton: golay_start:
+                            text = 'Golay'
+                            enabled << bool(ai.sensor.name) \
+                                and bool(ao.generator.name)
+                            clicked ::
+                                try:
+                                    settings.run_cal(ao, ai, 'golay')
+                                except (ValueError, LookupError) as exc:
+                                    warning(self, 'Cannot calibrate', str(exc))
+                                else:
+                                    speaker_tree.collection.update_groups()
+
+                        PushButton: chirp_start:
+                            text = 'Chirp'
+                            enabled << bool(ai.sensor.name) \
+                                and bool(ao.generator.name)
+                            clicked ::
+                                try:
+                                    settings.run_cal(ao, ai, 'chirp')
+                                except (ValueError, LookupError) as exc:
+                                    warning(self, 'Cannot calibrate', str(exc))
+                                else:
+                                    speaker_tree.collection.update_groups()
 
         DockItem:
             name = 'speaker_sens_plot'
@@ -232,8 +236,17 @@ enamldef SpeakerView(Container):
                         'id': True,
                         'to_str': lambda x: str(x.datetime),
                     },
+                    'Output': {
+                        'to_str': lambda x: x.output_channel,
+                    },
                     'Microphone': {
                         'to_str': lambda x: x.microphone,
+                    },
+                    'Mic. Channel': {
+                        'to_str': lambda x: x.microphone_channel,
+                    },
+                    'Gain': {
+                        'to_str': lambda x: f'{x.gain:g} dB' if x.gain is not None else '?',
                     },
                     'Method': {
                         'to_str': lambda x: x.method,

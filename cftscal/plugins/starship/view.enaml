@@ -280,6 +280,21 @@ enamldef StarshipView(Container): starship_view:
                         'id': False,
                         'to_str': lambda x: getattr(x, 'microphone', '?'),
                     },
+                    'Mic. Channel': {
+                        'groupby': False,
+                        'id': False,
+                        'to_str': lambda x: getattr(x, 'microphone_channel', ''),
+                    },
+                    'Starship Channel': {
+                        'groupby': False,
+                        'id': False,
+                        'to_str': lambda x: getattr(x, 'starship_channel', ''),
+                    },
+                    'Gain': {
+                        'groupby': False,
+                        'id': False,
+                        'to_str': lambda x: f'{x.gain:g} dB' if getattr(x, 'gain', None) is not None else '?',
+                    },
                     'Coupler': {
                         'groupby': False,
                         'id': False,

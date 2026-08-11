@@ -12,12 +12,15 @@ from ..settings import (
 
 class MicrophoneComparisonSettings(CalibrationSettings):
 
-    generic_inputs = List(InputSettings).tag(persist=True)
-    generic_input = Typed(InputSettings).tag(persist=True)
-    measurement_inputs = List(InputSettings).tag(persist=True)
-    measurement_input = Typed(InputSettings).tag(persist=True)
-    speaker_outputs = List(OutputSettings).tag(persist=True)
-    speaker_output = Typed(OutputSettings).tag(persist=True)
+    generic_inputs = List(InputSettings) \
+        .tag(persist=True, selected='generic_input')
+    generic_input = Typed(InputSettings)
+    measurement_inputs = List(InputSettings) \
+        .tag(persist=True, selected='measurement_input')
+    measurement_input = Typed(InputSettings)
+    speaker_outputs = List(OutputSettings) \
+        .tag(persist=True, selected='speaker_output')
+    speaker_output = Typed(OutputSettings)
     settings_filename = set_default('microphone-generic.json')
 
     def __init__(self, measurement_inputs, generic_inputs, speaker_outputs):
@@ -85,7 +88,12 @@ class MicrophoneComparisonSettings(CalibrationSettings):
             ),
         }
         metadata = {
-            'measurement_microphone': self.measurement_input.sensor.name,
+            'input_channel': self.generic_input.input_label,
+            'gain': self.generic_input.sensor.gain,
+            'microphone': self.measurement_input.sensor.name,
+            'microphone_channel': self.measurement_input.input_label,
+            'speaker': self.speaker_output.generator.name,
+            'speaker_channel': self.speaker_output.output_label,
             'stimulus': which,
         }
         self._run_cal(pathname, f'cftscal.paradigms.mic_calibration_{which}',
