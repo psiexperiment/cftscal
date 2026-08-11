@@ -9,7 +9,9 @@ from cftscal import CAL_ROOT
 
 class InputAmplifierCalibrationSettings(CalibrationSettings):
 
-    available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
+    available_inputs = List(Typed(InputSettings, ())) \
+        .tag(persist=True, selected='selected_input')
+    selected_input = Typed(InputSettings, ())
     settings_filename = set_default('input-amplifier.json')
 
     def __init__(self, inputs):
@@ -22,6 +24,7 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             )
             settings.append(setting)
         self.available_inputs = settings
+        self.selected_input = self.available_inputs[0]
 
     def run_calibration(self, ai):
         pathname = self._make_path(
@@ -33,7 +36,7 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
             **ai.sensor.get_env_vars(include_cal=False, env_prefix=env_prefix),
         }
         metadata = {
-            'total_gain': ai.sensor.total_gain,
+            'total_gain': ai.sensor.gain,
             'freq_lb': ai.sensor.freq_lb,
             'freq_ub': ai.sensor.freq_ub,
             'filt_60Hz': ai.sensor.filt_60Hz,

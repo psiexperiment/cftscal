@@ -85,7 +85,7 @@ class TestInputAmplifier:
             'total_gain': 1000.0,
             'freq_lb': 10.0,
             'freq_ub': 10000.0,
-            'filt_60Hz': 'input',
+            'filt_60Hz': 'on',
         }
 
     def test_fractional_frequencies_and_output_filter(self):
@@ -95,7 +95,7 @@ class TestInputAmplifier:
         assert result['total_gain'] == 10.0
         assert result['freq_lb'] == 0.1
         assert result['freq_ub'] == 20000.5
-        assert result['filt_60Hz'] == 'output'
+        assert result['filt_60Hz'] == 'off'
 
     def test_unrecognized_format_raises(self):
         with pytest.raises(ValueError):
@@ -376,4 +376,4 @@ class TestMigrate:
         assert metadata['total_gain'] == 1000.0
         assert metadata['freq_lb'] == 10.0
         assert metadata['freq_ub'] == 10000.0
-        assert metadata['filt_60Hz'] == 'input'
+        assert metadata['filt_60Hz'] == 'on'

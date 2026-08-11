@@ -321,6 +321,37 @@ enamldef InputRecordingView(Container):
                             ),
                             align('left', *second),
                         ]
+
+                        # One row per active slot: channel-select
+                        # ObjectCombo + SensorView (type/instance/gain
+                        # dropdowns). With only one slot there's nothing
+                        # to align *to*; with several, each row currently
+                        # sizes independently, so the dropdowns don't
+                        # line up down the page -- collect each column
+                        # across every active row and align its width.
+                        slot_rows = [
+                            w.visible_widgets() for w in widgets
+                            if isinstance(w, HGroup) and len(w.visible_widgets()) == 2
+                            and isinstance(w.visible_widgets()[1], SensorView)
+                        ]
+                        if len(slot_rows) > 1:
+                            channel_combos = [row[0] for row in slot_rows]
+                            # Each SensorView here always has a
+                            # MultiTypeSensorReference sensor (sensor_type
+                            # always set) and show_label=False, so its own
+                            # visible_widgets() is always
+                            # [type_select, instance_select, gain_select,
+                            # gain_unit_label].
+                            sensor_rows = [row[1].visible_widgets() for row in slot_rows]
+                            type_combos = [r[0] for r in sensor_rows]
+                            instance_combos = [r[1] for r in sensor_rows]
+                            gain_combos = [r[2] for r in sensor_rows]
+                            constraints += [
+                                align('width', *channel_combos),
+                                align('width', *type_combos),
+                                align('width', *instance_combos),
+                                align('width', *gain_combos),
+                            ]
                         return constraints
 
                     HGroup:

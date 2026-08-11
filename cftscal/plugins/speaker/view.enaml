@@ -13,7 +13,7 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import speaker_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
+    AddItem, CalibratedObjects, GroupPathPicker, SensorView, SinglePlotManager,
     ObjectCollection,
 )
 
@@ -76,7 +76,7 @@ enamldef SpeakerView(Container):
                             # this level.
                             first.append(w.visible_widgets()[0])
                         constraints = [
-                            vbox(*widgets),
+                            vbox(*widgets, spacing=0),
                             align('right', *first),
                             align('left', *first),
                         ]
@@ -89,34 +89,23 @@ enamldef SpeakerView(Container):
                         constraints = [
                             hbox(
                                 mic_label,
-                                mic_out_select,
-                                hbox(mic_select, mic_gain, spacing=0),
-                                mic_gain_label,
-                                spacer(0),
+                                mic_channel,
+                                mic_sensor,
                                 spacing=5,
                             ),
-                            align('v_center', mic_label, mic_out_select,
-                                mic_select, mic_gain, mic_gain_label),
                         ]
 
                         Label: mic_label:
                             text = 'Microphone'
 
-                        ObjectCombo: mic_out_select:
+                        ObjectCombo: mic_channel:
                             items = sorted(settings.available_inputs, key=lambda x: x.input_label)
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 
-                        ObjectCombo: mic_select:
-                            items = sorted(ai.sensor.available_references)
-                            selected := ai.sensor.name
-
-                        ObjectCombo: mic_gain:
-                            items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := ai.sensor.gain
-
-                        Label: mic_gain_label:
-                            text = 'dB gain'
+                        SensorView: mic_sensor:
+                            sensor << settings.selected_input.sensor
+                            show_label = False
 
                     Looper:
                         iterable << settings.available_outputs
@@ -141,18 +130,20 @@ enamldef SpeakerView(Container):
                                     'updated', _on_collection_updated,
                                 )
                             constraints = [
-                                hbox(
-                                    speaker_label,
-                                    hbox(speaker_select, speaker_add, spacing=0),
+                                vbox(
+                                    hbox(
+                                        speaker_label,
+                                        hbox(speaker_select, speaker_add, spacing=0),
+                                        spacing=5,
+                                    ),
                                     speaker_target,
-                                    spacer(0),
-                                    hbox(golay_start, chirp_start, spacing=0),
+                                    hbox(spacer(0), golay_start, chirp_start, spacing=0),
                                     spacing=5,
                                 ),
                                 speaker_add.width == 25,
-                                align('v_center', speaker_label, speaker_select,
-                                        speaker_add, speaker_target,
-                                        golay_start, chirp_start),
+                                align('v_center', speaker_label, speaker_select, speaker_add),
+                                align('v_center', golay_start, chirp_start),
+                                align('width', speaker_label, speaker_target.visible_widgets()[0]),
                             ]
 
                             Label: speaker_label:
@@ -173,7 +164,6 @@ enamldef SpeakerView(Container):
                                 subfolder = 'speaker'
                                 collection << speaker_tree.collection
                                 path_target << ao
-                                show_label = False
 
                             PushButton: golay_start:
                                 text = 'Golay'

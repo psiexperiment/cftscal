@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from atom.api import set_default, Atom, Enum, Float, List, Property, Str, Typed
+from atom.api import set_default, Atom, Enum, Float, List, Str, Typed
 
 from psi import get_config_folder
 from psi.util import get_tagged_members, get_tagged_values
@@ -408,21 +408,30 @@ class SensorDevice(SensorSettings):
 
 class InputAmplifierReference(SensorReference):
 
-    gain_mult = Enum(10, 1000).tag(persist=True)
+    #: Total linear gain applied by the amplifier.  Previously modeled as
+    #: two orthogonal controls (a fine ``gain`` dial and a coarse
+    #: ``gain_mult`` x10/x1000 switch, multiplied together as
+    #: ``total_gain``) mirroring the amp's physical knobs -- but nothing
+    #: downstream ever consumed the two factors separately (get_env_vars
+    #: only ever sent their product), so the split just added a second
+    #: dropdown to the UI for no benefit. ``gain`` now holds the combined
+    #: value directly; the picker offers every value achievable via
+    #: either physical switch position (see InputAmplifierView's `gains`).
     freq_lb = Float(10).tag(persist=True)
     freq_ub = Float(10000).tag(persist=True)
-    filt_60Hz = Enum('input', 'output').tag(persist=True)
-    total_gain = Property()
-
-    def _get_total_gain(self):
-        return self.gain * self.gain_mult
+    #: Whether the amplifier's 60Hz notch filter is engaged. Historically
+    #: modeled as 'input'/'output' (mirroring the physical switch's "IN
+    #: circuit"/"OUT of circuit" labeling); renamed to the clearer 'on'/
+    #: 'off' -- see migrate_metadata.py's _parse_input_amplifier for the
+    #: legacy-value translation applied to old recordings' metadata.
+    filt_60Hz = Enum('on', 'off').tag(persist=True)
 
     def get_manager(self):
         return input_amplifier_manager
 
     def get_env_vars(self, env_prefix, include_cal=True):
         return {
-            f'{env_prefix}_GAIN': str(self.total_gain),
+            f'{env_prefix}_GAIN': str(self.gain),
             f'{env_prefix}_FREQ_LB': str(self.freq_lb),
             f'{env_prefix}_FREQ_UB': str(self.freq_ub),
             f'{env_prefix}_FILT_60Hz': self.filt_60Hz,

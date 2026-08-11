@@ -6,7 +6,9 @@ from ..settings import (CalibrationSettings, InputSettings,
 
 class StarshipCalibrationSettings(CalibrationSettings):
 
-    starship_connections = List(Typed(StarshipSettings, ())).tag(persist=True)
+    starship_connections = List(Typed(StarshipSettings, ())) \
+        .tag(persist=True, selected='selected_starship')
+    selected_starship = Typed(StarshipSettings, ())
     available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
     selected_input = Typed(InputSettings, ()).tag(persist=True)
     calibration_coupler = Str().tag(persist=True)
@@ -21,6 +23,7 @@ class StarshipCalibrationSettings(CalibrationSettings):
             )
             settings.append(setting)
         self.starship_connections = settings
+        self.selected_starship = self.starship_connections[0]
 
         settings = []
         for label, name in inputs.items():

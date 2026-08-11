@@ -101,6 +101,14 @@ _INPUT_AMPLIFIER_RE = re.compile(
 )
 
 
+#: Legacy folders encode the notch-filter switch position as
+#: 'input'/'output' (the physical switch's "IN circuit"/"OUT of circuit"
+#: labeling); InputAmplifierReference.filt_60Hz now uses the clearer
+#: 'on'/'off', so translate on the way in to keep migrated metadata
+#: consistent with everything recorded going forward.
+_FILT_60HZ_LEGACY_MAP = {'input': 'on', 'output': 'off'}
+
+
 def _parse_input_amplifier(folder):
     m = _INPUT_AMPLIFIER_RE.match(folder.name)
     if not m:
@@ -112,7 +120,7 @@ def _parse_input_amplifier(folder):
         'total_gain': float(m['total_gain']),
         'freq_lb': float(m['freq_lb']),
         'freq_ub': float(m['freq_ub']),
-        'filt_60Hz': m['filt_60Hz'],
+        'filt_60Hz': _FILT_60HZ_LEGACY_MAP[m['filt_60Hz']],
     }
 
 

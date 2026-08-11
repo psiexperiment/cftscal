@@ -2,11 +2,11 @@ import numpy as np
 
 import pyqtgraph as pg
 
-from enaml.core.api import Conditional, Looper
+from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton, HGroup
+    Container, DockArea, DockItem, Field, Label, ObjectCombo, PushButton
 )
 
 from psi.data.plots_manifest import PGCanvas
@@ -72,43 +72,39 @@ enamldef InputAmplifierView(Container): container:
                 condition << settings is not None
 
                 Container:
-                    layout_constraints => ():
-                        widgets = self.visible_widgets()
-                        first = []
-                        for w in widgets:
-                            first.append(w.visible_widgets()[0])
-                        constraints = [
-                            vbox(*widgets),
-                            align('right', *first),
-                        ]
-                        return constraints
+                    constraints = [
+                        vbox(
+                            hbox(input_label, input_select),
+                            amp_settings,
+                            amp_path,
+                            hbox(spacer(0), amp_cal_start),
+                        )
+                    ]
 
-                    Looper:
-                        iterable << container.settings.available_inputs
+                    Label: input_label:
+                        text = 'Input'
 
-                        HGroup:
-                            padding = 0
-                            spacing = 5
-                            align_widths = False
+                    ObjectCombo: input_select:
+                        items = settings.available_inputs
+                        selected := settings.selected_input
+                        to_string = lambda ai: ai.input_label
 
-                            InputAmplifierView:
-                                sensor << loop_item.sensor
-                                label = loop_item.input_label
-                                mode = 'add'
+                    InputAmplifierView: amp_settings:
+                        sensor << settings.selected_input.sensor
+                        mode = 'add'
 
-                            GroupPathPicker:
-                                plugin_settings = settings
-                                subfolder = 'input_amplifier'
-                                collection << amp_tree.collection
-                                path_target << loop_item
-                                show_label = False
+                    GroupPathPicker: amp_path:
+                        plugin_settings = settings
+                        subfolder = 'input_amplifier'
+                        collection << amp_tree.collection
+                        path_target << settings.selected_input
 
-                            PushButton: amp_cal_start:
-                                text = 'Calibrate'
-                                enabled << bool(loop_item.sensor.name)
-                                clicked ::
-                                    settings.run_calibration(loop_item)
-                                    amp_tree.collection.update_groups()
+                    PushButton: amp_cal_start:
+                        text = 'Calibrate'
+                        enabled << bool(settings.selected_input.sensor.name)
+                        clicked ::
+                            settings.run_calibration(settings.selected_input)
+                            amp_tree.collection.update_groups()
 
         DockItem:
             name = 'amp_gain_plot'

@@ -561,6 +561,14 @@ enamldef SensorView(HGroup):
     attr show_label = True
     attr gains = [-20, -10, 0, 10, 20, 30, 40, 50]
     attr gain_unit = 'db gain'
+    #: Set False to omit the built-in gain dropdown -- for callers that
+    #: want gain on its own row instead of sharing the sensor row (see
+    #: InputAmplifierView).
+    attr show_gain = True
+    #: Set True to let the device-select combo grow into unused row
+    #: width instead of hugging its own size hint -- opt-in so this
+    #: doesn't change the look of every other SensorView caller.
+    attr fill_row = False
     #: Optional ObjectCollection whose ``updated`` event triggers a
     #: dropdown refresh — same pattern as GroupPathPicker.  When a new
     #: calibration lands, sensor.refresh_available() re-merges the
@@ -610,6 +618,7 @@ enamldef SensorView(HGroup):
     ObjectCombo: select:
         items := sensor.available_references
         selected := sensor.name
+        hug_width << 'ignore' if fill_row else 'strong'
 
     Conditional:
         condition = mode != 'static'
@@ -626,46 +635,99 @@ enamldef SensorView(HGroup):
                 )
                 popup.show()
 
-    ObjectCombo:
-        items = gains
-        selected := sensor.gain
+    Conditional:
+        condition << show_gain
 
-    Label:
-        text = gain_unit
+        ObjectCombo:
+            items = gains
+            selected := sensor.gain
+
+        Label:
+            text = gain_unit
 
 
-enamldef InputAmplifierView(VGroup):
+enamldef InputAmplifierView(Container):
 
     alias sensor: sensor_view.sensor
     alias mode: sensor_view.mode
-    alias label: sensor_view.label
-    share_layout = True
+
     padding = 0
-    spacing = 5
 
-    HGroup:
+    # Each row's own layout leaves its label at natural (hug) width and
+    # its trailing combos free to grow (hug_width='ignore' below) -- but
+    # nothing ties the three labels to a common width on its own, since
+    # each row is an independent HGroup/constraint scope. Collect each
+    # row's first visible widget (the label -- SensorView resolves to
+    # its own "Sensor" label the same way a plain HGroup resolves to its
+    # first Label, so no special-casing needed) and force them equal
+    # width; vbox() already pins every row's left edge to this
+    # container's left edge, so equal width also means equal right edge,
+    # i.e. every row's controls start in the same column.
+    #
+    # (VGroup would give us the vertical stacking for free, but its
+    # layout_constraints is a plain Python method Enaml explicitly
+    # disallows overriding from .enaml syntax -- so this is a Container
+    # with the stacking spelled out instead, same as the speaker/
+    # starship/microphone settings panels.)
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        first = [w.visible_widgets()[0] for w in widgets]
+        return [
+            vbox(*widgets, spacing=5),
+            align('width', *first),
+        ]
+
+    SensorView: sensor_view:
+        show_gain = False
+        fill_row = True
+        hug_width = 'ignore'
+
+    HGroup: gain_row:
         share_layout = True
         align_widths = False
         padding = 0
         spacing = 5
+        hug_width = 'ignore'
 
-        SensorView: sensor_view:
-            gains = [5, 10, 20, 50, 100, 200]
-            gain_unit = 'x'
+        Label: amp_gain_label:
+            text = 'Gain'
 
-        ObjectCombo: amp_gain_mult:
-            items = [10, 1000]
-            selected := sensor.gain_mult
+        ObjectCombo: amp_gain:
+            # Every value reachable via either physical gain-multiplier
+            # switch position (x10 or x1000) on the fine [5, 10, 20, 50,
+            # 100, 200] dial -- see InputAmplifierReference's docstring.
+            items = [
+                50, 100, 200, 500, 1000, 2000,
+                5000, 10000, 20000, 50000, 100000, 200000,
+            ]
+            selected := sensor.gain
+            hug_width = 'ignore'
 
-    HGroup:
+    HGroup: filter_row:
         share_layout = True
         align_widths = False
         padding = 0
         spacing = 5
+        hug_width = 'ignore'
+
+        # Three combos in this row all have hug_width='ignore' (see
+        # below), and with no other constraint on how they split the
+        # row's surplus width, the solver dumps *all* of it onto
+        # whichever one it resolves first rather than sharing it --
+        # tested and confirmed: freq_lb alone ballooned to 586px while
+        # freq_ub/filt_60Hz sat at their 69px minimum. Forcing them
+        # equal width turns that into a well-defined 3-way split.
+        constraints = [
+            align('width', amp_freq_lb, amp_freq_ub, amp_filt_60Hz),
+        ]
+
+        Label: amp_filter_label:
+            text = 'Filter'
 
         ObjectCombo: amp_freq_lb:
             items = [0, 0.1, 0.3, 1, 3, 10, 30, 100, 300]
             selected := sensor.freq_lb
+            hug_width = 'ignore'
 
         Label: amp_freq_lb_label:
             text = 'Hz to'
@@ -675,13 +737,18 @@ enamldef InputAmplifierView(VGroup):
             selected ::
                 sensor.freq_ub = selected * 1e3
             selected << sensor.freq_ub * 1e-3
+            hug_width = 'ignore'
 
         Label: amp_freq_ub_label:
-            text = 'kHz, 60 Hz'
+            text = 'kHz'
+
+        Label: amp_filt_60Hz_label:
+            text = '60 Hz notch'
 
         ObjectCombo: amp_filt_60Hz:
-            items = ['input', 'output']
+            items = ['on', 'off']
             selected := sensor.filt_60Hz
+            hug_width = 'ignore'
 
 
 enamldef GeneratorView(HGroup):
