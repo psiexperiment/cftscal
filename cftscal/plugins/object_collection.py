@@ -33,16 +33,23 @@ class ObjectGroup(Atom):
     #: from the plot.
     _skip_autoselect = Bool(False)
 
-    def __init__(self, item, parent):
+    def __init__(self, item, parent, calibrations):
         self.item = item
         self.parent = parent
-        self.update_subitems()
+        self.update_subitems(calibrations)
 
     def notify(self, node, selected):
         self.parent.notify(node, selected)
 
-    def update_subitems(self):
-        objects = sorted(self.item.list_calibrations(), reverse=True)
+    def update_subitems(self, calibrations):
+        # Takes the object's calibrations pre-computed by the caller
+        # (ObjectCollection.update_groups(), from one combined disk walk)
+        # rather than calling self.item.list_calibrations() here, which
+        # would re-walk this loader's entire tree from scratch for this
+        # one object -- fine for a single group, but ruinous multiplied
+        # across every group in a large tree (see
+        # CalibrationManager.list_objects_and_calibrations).
+        objects = sorted(calibrations, reverse=True)
 
         existing_nodes = {node.item.filename: node for node in self.subitems}
         new_subitems = []
@@ -120,7 +127,14 @@ class ObjectCollection(Atom):
         self.update_groups()
 
     def update_groups(self):
-        objects = sorted(self.object_manager.list_objects())
+        # list_objects_and_calibrations() computes every object's
+        # calibrations from one combined disk walk per loader, instead of
+        # the one-walk-per-object cost of list_objects() + a
+        # group.update_subitems() loop -- see its docstring.
+        objects_and_cals = sorted(
+            self.object_manager.list_objects_and_calibrations(),
+            key=lambda oc: oc[0],
+        )
         # Key by (folder, name) so that the same object name living in two
         # different organizational folders shows up as two distinct groups.
         existing_groups = {
@@ -129,15 +143,15 @@ class ObjectCollection(Atom):
         }
         new_groups = []
 
-        for obj in objects:
+        for obj, calibrations in objects_and_cals:
             key = (obj.folder or '', obj.name)
             if key in existing_groups:
                 group = existing_groups[key]
                 group.item = obj
-                group.update_subitems()
+                group.update_subitems(calibrations)
                 new_groups.append(group)
             else:
-                new_groups.append(ObjectGroup(obj, self))
+                new_groups.append(ObjectGroup(obj, self, calibrations))
 
         self.groups = new_groups
         self.updated = True

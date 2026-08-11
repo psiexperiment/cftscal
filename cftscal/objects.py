@@ -214,6 +214,24 @@ class CalibrationLoader:
         '''
         raise NotImplementedError
 
+    def list_all_calibrations(self):
+        '''
+        Yield ``(folder, name, calibration)`` for every calibration known to
+        this loader.
+
+        The default implementation is ``list_objects()`` plus one
+        ``list_calibrations()`` call per object -- correct for any loader,
+        but wasteful for one that re-scans disk on every call (as
+        ``CFTSBaseLoader`` does): that combination re-walks the whole tree
+        once per object.  Callers that need *every* calibration (e.g.
+        ``CalibrationManager.get_property``) should use this instead of
+        looping ``list_objects()``/``list_calibrations()`` themselves --
+        ``CFTSBaseLoader`` overrides it to do a single disk walk.
+        '''
+        for folder, name in self.list_objects():
+            for cal in self.list_calibrations(name, folder=folder):
+                yield folder, name, cal
+
     @property
     def label(self):
         return self.__class__.__name__
@@ -292,6 +310,40 @@ class CalibrationManager:
             for (folder, name), loaders in keyed.items()
         ]
 
+    def list_objects_and_calibrations(self):
+        '''
+        Like ``list_objects()``, but paired with each object's own
+        calibrations, computed via one ``list_all_calibrations()`` walk per
+        loader.
+
+        ``list_objects()`` followed by a per-object
+        ``CalibratedObject.list_calibrations()`` loop (the ``ObjectGroup``
+        tree-population pattern) re-derives the object list from scratch on
+        every one of those per-object calls when the loader re-scans disk
+        each call (``CFTSBaseLoader`` does) -- one full-tree rescan per
+        object, same issue ``get_property`` had.  Use this instead when you
+        need every object's calibrations at once (e.g. populating the
+        calibration tree).
+
+        Returns
+        -------
+        list of (CalibratedObject, list of Calibration)
+        '''
+        keyed = {}
+        cals = {}
+        for loader in self.loaders:
+            seen = set()
+            for folder, name, cal in loader.list_all_calibrations():
+                key = (folder, name)
+                cals.setdefault(key, []).append(cal)
+                if key not in seen:
+                    seen.add(key)
+                    keyed.setdefault(key, []).append(loader)
+        return [
+            (self.object_class(name, loaders, folder=folder), cals[folder, name])
+            for (folder, name), loaders in keyed.items()
+        ]
+
     def list_names(self, loader_label=None):
         '''
         Return the fully-qualified paths of every known object.  Root-level
@@ -327,8 +379,8 @@ class CalibrationManager:
 
     def get_property(self, prop_name):
         values = set()
-        for obj in self.list_objects():
-            for cal in obj.list_calibrations():
+        for loader in self.loaders:
+            for folder, name, cal in loader.list_all_calibrations():
                 values.add(getattr(cal, prop_name))
         return values
 
@@ -359,6 +411,20 @@ class CFTSBaseLoader(CalibrationLoader):
         # Keep this returning a flat set of names for backwards compatibility
         # (some callers, e.g. the settings dropdowns, only need the names).
         return sorted({name for _, name in self._walk_objects()})
+
+    def list_all_calibrations(self):
+        # Override: one disk walk instead of the base class's
+        # list_objects() + one list_calibrations() (i.e. one more walk)
+        # per object.  _walk_objects() rglobs every metadata.json under
+        # base_path, so re-running it once per object is O(n_objects)
+        # full-tree rescans -- on a real calibration tree (hundreds of
+        # recordings) that's the difference between a sub-second call and
+        # a multi-minute one. See the inear plugin freeze this fixed:
+        # InEarSettings.refresh_available() -> get_available_ears() ->
+        # inear_manager.get_property('ear') was doing exactly that.
+        for (folder, name), cal_dirs in self._walk_objects().items():
+            for cal_dir in cal_dirs:
+                yield folder, name, self.cal_class(name, cal_dir)
 
     def _walk_objects(self):
         '''
