@@ -40,6 +40,8 @@ Click *Start* to run the calibration.
 
 | Column | Meaning |
 | --- | --- |
+| Name | Which physical microphone was calibrated (same value as Sensor ID — this column groups/organizes the list). |
+| Date | When the calibration was run. |
 | Input | Which input channel was used. |
 | Sensor ID | Which physical microphone was used. |
 | Gain | The preamp gain that was in effect. |

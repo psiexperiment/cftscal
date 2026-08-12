@@ -20,12 +20,13 @@ Each row corresponds to one physical starship connection on your system.
 | --- | --- |
 | **Starship** | Which calibrated starship is plugged into this connection. Click + to add a new one to the drop-down list. |
 | **dB gain** | The preamp gain, in dB, currently applied to the starship's microphone. |
-| **Ear** | A free-form label identifying the ear or session being checked (e.g., subject ID plus left/right). Click + to add a new one. |
+| **Coupler** | A free-form label identifying the coupler or test fixture the starship is checked in (e.g. `C1`) — some labs instead use this to track a subject/ear per session (e.g. subject ID plus left/right). Click + to add a new one. |
+| **Output** | Whether this check is of the coupler's primary or secondary output. |
 | **Target folder** | Organizes checks into folders, same as every other workspace. |
 
 ## Running a check
 
-Click **Run** next to a connection once both a Starship and an Ear have been selected.
+Click **Calibrate** next to a connection once both a Starship and a Coupler have been selected.
 
 ## Reviewing the results
 
@@ -35,7 +36,16 @@ Click **Run** next to a connection once both a Starship and an Ear have been sel
 
 Check **Show noise floor?** to overlay a dashed noise-floor trace on the sensitivity plot.
 
-**In-Ear Calibrations** (the list) groups checks by starship, then by ear.
+**In-Ear Calibrations** (the list) groups checks by folder, same as every other workspace — by default that's one folder per starship, but a lab can reorganize checks into different folders (e.g. by study) via the right-click context menu, independent of which starship was actually checked. Columns:
+
+| Column | Meaning |
+| --- | --- |
+| Starship | Which folder this check is filed under (organizes the list; see Device below if you've filed checks into folders that don't match the starship). |
+| Device | The starship label recorded at check time, independent of which folder the check is filed under. Usually matches Starship — compare the two if you've reorganized checks into folders. |
+| Coupler | Which coupler/fixture (or ear/subject label) was used. |
+| Starship Channel | Which physical connection the starship was plugged into (e.g. Connection A/B). |
+| Output | Whether the coupler's primary or secondary output was checked. |
+| Gain | The preamp gain, in dB, applied to the starship's microphone. |
 
 ## Sanity-checking a check
 

@@ -32,7 +32,9 @@ Every calibration workspace in cftscal (microphone, speaker, starship, input rec
 
 - A **Settings** panel (usually top-left) — pick an input/output channel, a target folder, a sensor/device label, and any other parameters, then click a button to run the calibration or recording.
 - A **plot** area showing the result of the currently selected calibration from the list below.
-- A **list/tree** of everything previously recorded for this workspace, organized by device and date. **Right-click an entry** for actions like exporting or deleting it.
+- A **list/tree** of everything previously recorded for this workspace, organized into folders (by default, one per device — see [Calibration Concepts](concepts.md) for why you might reorganize this). **Right-click an entry** for actions like exporting or deleting it.
+
+Actually running a calibration launches a separate window (`psi`, the underlying acquisition engine) — that window's own dock panels can be rearranged and saved as its default via its *Configuration > Layout > Set default* menu (and similarly for *Configuration > Preferences*), so you only need to arrange it once per calibration type.
 
 Once you're oriented, move on to the [Plugins](plugins/index.md):
 

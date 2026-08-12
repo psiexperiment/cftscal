@@ -19,7 +19,8 @@ Launch CFTSCal and select the Speaker Calibration workspace.
 | **Microphone → Input** | Which physical input the reference measurement microphone is wired to. |
 | **Microphone → Mic.** | Which calibrated measurement microphone to use as the reference (drawn from [Measurement Microphone Calibration](measurement-microphone.md)). |
 | **Microphone → Gain** | The preamp gain, in dB, currently applied to that channel. |
-| **Speaker** | A free-form label for identifying the speaker you calibrated (e.g., product ID, serial number, asset tag, etc.). Click + to add a new one to the drop-down list. |
+| **Speaker → Output Channel** | Which physical output you're calibrating, if your system has more than one. |
+| **Speaker → Speaker** | A free-form label for identifying the speaker connected to the selected output channel (e.g., product ID, serial number, asset tag, etc.). Click + to add a new one to the drop-down list. |
 | **Target folder** | Organizes calibrations into folders (e.g. by lab, by study). To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
 
 !!! warning "The microphone gain field doesn't control your hardware!"
@@ -27,7 +28,7 @@ Launch CFTSCal and select the Speaker Calibration workspace.
 
 ## Running the calibration
 
-To run the calibration, click **Golay** or **Chirp** next to the speaker you want to calibrate. Both buttons stay disabled until a reference microphone and a speaker have both been selected.
+To run the calibration, click **Golay** or **Chirp**. Both buttons stay disabled until a reference microphone and a speaker have both been selected for the currently-chosen output channel.
 
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. This averages out uncorrelated noise, so it's the more robust choice in a noisy environment — at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. It's much faster than Golay, but slightly more sensitive to background noise.
@@ -42,9 +43,13 @@ Either one measures the speaker's frequency response across a broad range in a s
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which physical speaker was calibrated. |
+| Name | Which physical speaker was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the device). |
 | Date | When the calibration was run. |
+| Device | The speaker label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
+| Output | Which output channel was calibrated. |
 | Microphone | Which reference measurement microphone was used. |
+| Mic. Channel | Which input channel the reference microphone was wired to. |
+| Gain | The reference microphone's preamp gain, in dB, that was in effect. |
 | Method | Whether Golay or Chirp was used. |
 | Max. Freq. | The highest frequency the calibration covers. |
 

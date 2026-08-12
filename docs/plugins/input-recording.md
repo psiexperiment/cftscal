@@ -23,6 +23,17 @@ To run the recording, click the *Record* button — this captures every active c
 
 Select one or more recordings in the *Recordings* list to plot them. The *Input Recording* plot shows the calibrated time-domain waveform; the region you select drives both the PSD plot and the *Analysis* table below.
 
+**Recordings** (the list) shows every recording ever made for this workspace, with the following columns:
+
+| Column | Meaning |
+| --- | --- |
+| Name | Which folder the recording is filed under (usually the generator label). |
+| Date | When the recording was made. |
+| Generator | Which stimulus/generator label was used. |
+| Channel | Which input channel(s) were recorded — comma-separated if more than one. |
+| Sensor | Which sensor was attached to each channel — comma-separated in the same order as Channel. |
+| Gain | The preamp gain, in dB, that was in effect for each channel — comma-separated in the same order as Channel. |
+
 Each recording gets its own color, matching its highlight in the *Recordings* list. If a recording has more than one channel, all of its channels share that color but are distinguished from each other by line style (solid, dash, dot). The *Analysis* table groups its rows by recording for the same reason — each recording's channels appear as consecutive rows sharing one color swatch, with a *Channel* column distinguishing the rows within a group — alongside *Duration*, peak-equivalent SPL, and RMS dB SPL for whatever's inside the currently selected region.
 
 ### Selecting a region
@@ -40,7 +51,7 @@ The *Filter* dropdown controls the filtering that gets applied to the signal bef
 
 | Mode | What it does |
 | --- | --- | 
-| **dBZ** | No filtering |
+| **Unfiltered** | No filtering — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
 | **dBA** | Standard A-weighting (IEC 61672-1) |
 | **1/3 Octave** | A steep band-pass filter centered on a frequency you choose (*Center freq.*), with an adjustable *order* (higher orders roll off more sharply outside the band). | 
 

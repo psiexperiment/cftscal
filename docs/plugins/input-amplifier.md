@@ -16,10 +16,11 @@ Launch CFTSCal and select the Input Amplifier Calibration workspace.
 
 | Field | What it means |
 | --- | --- |
+| **Input** | Which physical input the amplifier's output is wired to. |
 | **Sensor** | A label identifying the physical amplifier being calibrated, picked from previously-used amplifiers or added via +. |
-| **Gain** and **×10 / ×1000** | The amplifier's two gain stages, as currently set on the physical hardware (e.g. a coarse ×10/×1000 switch and a finer gain dial). These describe your hardware's current settings — cftscal doesn't set them, only records them. |
-| **Hz to … kHz** | The amplifier's configured high-pass and low-pass corner frequencies. |
-| **60 Hz** | Whether the amplifier's 60 Hz notch filter (if it has one) is applied on its input or output stage. |
+| **Gain** | The amplifier's total gain, as currently set on the physical hardware — a single combined value (e.g. accounting for both a coarse multiplier switch and a finer gain dial, if your amplifier has both). This describes your hardware's current setting — cftscal doesn't set it, only records it. |
+| **Filter → Hz to … kHz** | The amplifier's configured high-pass and low-pass corner frequencies. |
+| **Filter → 60 Hz notch** | Whether the amplifier's 60 Hz notch filter (if it has one) is on or off. |
 | **Target folder** | Organizes calibrations into folders. To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
 
 !!! warning "These fields don't control your hardware!"
@@ -37,17 +38,20 @@ The plot shows the measured calibration signal waveform.
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which physical amplifier was calibrated. |
+| Name | Which physical amplifier was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the amplifier). |
 | Date | When the calibration was run. |
+| Device | The amplifier label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
+| Input | Which input channel was used. |
+| Gain | The amplifier's configured gain, as a multiplication factor (e.g. `50000 x`) — what you entered in Settings, not measured. |
 | Meas. Gain | The measured gain, as a multiplication factor (e.g. `200.15 x`). |
 
 ## Sanity-checking a calibration
 
-- **Is the measured gain close to the nominal gain** (Gain × ×10/×1000)? A large discrepancy usually means the Gain/×10/×1000 dropdowns don't actually match the amplifier's physical switches, or the calibrator amplitude entered doesn't match the calibrator's real output.
+- **Is the measured gain (Meas. Gain) close to the configured gain (Gain)?** A large discrepancy usually means the Gain dropdown doesn't actually match the amplifier's physical switches/dial, or the calibrator amplitude entered doesn't match the calibrator's real output.
 - **Does it look like previous calibrations of the same amplifier?** A sudden jump suggests a bad connection or a hardware fault.
 
 ## Troubleshooting
 
 !!! tip "Common pitfalls"
     - **Wrong calibrator amplitude entered** produces a measured gain that's off by a fixed, predictable factor — double-check it against the calibrator's actual spec before every run.
-    - **Gain/×10/×1000 dropdowns not matching the amplifier's physical switches** won't make the calibration itself wrong (the measured gain is computed straight from the signal), but it will make the recorded nominal gain misleading when you compare it later.
+    - **Gain dropdown not matching the amplifier's physical switches** won't make the calibration itself wrong (the measured gain is computed straight from the signal), but it will make the recorded configured gain misleading when you compare it later.

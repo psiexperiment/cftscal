@@ -39,9 +39,15 @@ Click **Golay** or **Chirp** — both are always available once a generic microp
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which generic microphone was calibrated. |
+| Name | Which generic microphone was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the device). |
 | Date | When the calibration was run. |
-| Meas. Mic. | Which reference measurement microphone was used. |
+| Device | The device label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
+| Input | Which input channel the generic microphone was wired to. |
+| Gain | The generic microphone's preamp gain, in dB, that was in effect. |
+| Microphone | Which reference measurement microphone was used. |
+| Mic. Channel | Which input channel the reference microphone was wired to. |
+| Speaker | Which speaker played the stimulus. |
+| Speaker Channel | Which output channel the speaker was wired to. |
 | Max. Freq. | The highest frequency the calibration covers. |
 
 ## Sanity-checking a calibration

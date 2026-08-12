@@ -17,10 +17,11 @@ Launch CFTSCal and select the Starship Calibration workspace.
 
 | Field | What it means |
 | --- | --- |
-| **Input** | Which physical input the reference measurement microphone is wired to. |
-| **Sensor** | Which calibrated measurement microphone to use as the reference, and the preamp gain (dB) currently applied to that channel. |
+| **Cal. Mic. → Input** | Which physical input the reference measurement microphone is wired to. |
+| **Cal. Mic. → Sensor** | Which calibrated measurement microphone to use as the reference, and the preamp gain (dB) currently applied to that channel. |
 | **Coupler** | Which physical coupler you're calibrating into (`tube-2mm`, `tube-0mm`, or `3D-basic`). This is recorded in the calibration's metadata; cftscal doesn't otherwise act on it. |
-| **Starship** | Which starship you're calibrating. Click + to add a new one to the drop-down list. |
+| **Starship → Connection** | Which physical starship connection you're calibrating into, if your system has more than one (e.g. Connection A/B). |
+| **Starship → Starship** | Which starship is plugged into the selected connection. Click + to add a new one to the drop-down list. |
 | **dB gain** | The preamp gain, in dB, currently applied to the starship's own microphone. |
 | **Target folder** | Organizes calibrations into folders. To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
 
@@ -42,8 +43,13 @@ To run the calibration, click **Golay** or **Chirp** next to the starship you wa
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which starship was calibrated. |
+| Name | Which starship was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the device). |
+| Device | The starship label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
 | Microphone | Which reference measurement microphone was used. |
+| Mic. Channel | Which input channel the reference microphone was wired to. |
+| Starship Channel | Which physical connection the starship was plugged into (e.g. Connection A/B). |
+| Gain | The preamp gain, in dB, applied to the starship's own microphone. |
+| Mic. Gain | The preamp gain, in dB, applied to the reference microphone's channel. |
 | Coupler | Which coupler was selected at the time. |
 | Stimulus | Whether Golay or Chirp was used. |
 
