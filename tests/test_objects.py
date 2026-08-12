@@ -511,6 +511,54 @@ class TestMakePath:
             s._make_path('microphone')
 
 
+class TestCalibrationSettingsPlainListConfig:
+    '''
+    CalibrationSettings.get_config()/set_config() previously only knew
+    how to persist a tagged List member if it was either empty or a
+    List[PersistentSettings] (e.g. available_inputs) -- a non-empty
+    plain list (e.g. a List() of str, like
+    StarshipCalibrationSettings.available_couplers) hit an "Unknown
+    type" ValueError in get_config(), and even an empty-in-memory plain
+    list would silently fail to restore in set_config() (it branched on
+    whether the CURRENT in-memory list was empty, not on what shape was
+    actually persisted -- a plain-list member that starts empty on every
+    fresh __init__, like available_couplers, would never get restored at
+    all). Locks in the fix directly against CalibrationSettings, not
+    just indirectly via one plugin's settings class.
+    '''
+
+    def _make_settings(self):
+        from atom.api import List
+        from cftscal.plugins.settings import CalibrationSettings
+
+        class _Stub(CalibrationSettings):
+            labels = List().tag(persist=True)
+
+        return _Stub()
+
+    def test_get_config_persists_nonempty_plain_list(self):
+        s = self._make_settings()
+        s.labels = ['a', 'b', 'c']
+        assert s.get_config()['labels'] == ['a', 'b', 'c']
+
+    def test_get_config_persists_empty_plain_list(self):
+        s = self._make_settings()
+        assert s.get_config()['labels'] == []
+
+    def test_set_config_restores_plain_list_even_when_currently_empty(self):
+        s = self._make_settings()
+        assert s.labels == []  # starts empty, like a fresh __init__
+        s.set_config({'labels': ['x', 'y']})
+        assert s.labels == ['x', 'y']
+
+    def test_set_config_round_trip(self):
+        s = self._make_settings()
+        s.labels = ['a', 'b']
+        restored = self._make_settings()
+        restored.set_config(s.get_config())
+        assert restored.labels == ['a', 'b']
+
+
 class TestSensorHierarchy:
     '''
     SensorReference and SensorDevice are the two roles a sensor picker
@@ -565,15 +613,13 @@ class TestSensorHierarchy:
 
 class TestSensorReferencePersistence:
     '''
-    SensorReference.set_persistence() must re-merge freshly-discoverable
-    references after restoring the persisted selection -- the inherited
-    PersistentSettings.set_persistence() sets available_references to
-    exactly the persisted list, which would otherwise silently discard
-    anything discoverable now but not yet present in a config saved
-    before it existed (e.g. a newly-recorded calibration). That isn't a
-    one-time gap either: it would happen fresh on *every* load, since
-    set_persistence() runs every time settings load, not just once. See
-    SensorReference.set_persistence.
+    SensorReference.available_references is deliberately NOT persisted --
+    every name it holds is backed by a real calibration and always
+    resurfaces via get_available_references() regardless, so persisting
+    it would only ever let a stale name (from a calibration since
+    deleted/renamed/moved) linger in the dropdown forever. Only
+    name/gain (the actual selection) are meant to survive a reload. See
+    SensorReference.available_references/set_persistence.
     '''
 
     def _make_reference(self, monkeypatch, available):
@@ -583,7 +629,22 @@ class TestSensorReferencePersistence:
         )
         return SensorReference()
 
-    def test_set_persistence_restores_now_missing_entries(self, monkeypatch):
+    def test_available_references_excluded_from_get_persistence(self, monkeypatch):
+        ref = self._make_reference(monkeypatch, ['BK-4138', 'Demo', 'unity'])
+        assert ref.available_references  # sanity check: populated in memory
+        assert 'available_references' not in ref.get_persistence()
+
+    def test_set_persistence_ignores_a_persisted_available_references_key(self, monkeypatch):
+        # A stale value from an old, pre-fix config file on disk -- must
+        # be ignored entirely, not merged in.
+        ref = self._make_reference(monkeypatch, ['BK-4138', 'unity'])
+        ref.set_persistence({
+            'name': '', 'gain': 0.0,
+            'available_references': ['BK-4138', 'unity', 'Stale/NoLongerReal'],
+        })
+        assert 'Stale/NoLongerReal' not in ref.available_references
+
+    def test_set_persistence_refreshes_against_current_discovery(self, monkeypatch):
         ref = self._make_reference(monkeypatch, ['BK-4138', 'Demo', 'unity'])
         assert 'MMM5' not in ref.available_references
 
@@ -593,33 +654,26 @@ class TestSensorReferencePersistence:
             type(ref), 'get_available_references',
             lambda self: ['BK-4138', 'Demo', 'unity', 'MMM5'],
         )
-        # ...but the persisted config predates it.
-        ref.set_persistence({
-            'name': '', 'gain': 0.0,
-            'available_references': ['BK-4138', 'Demo', 'unity'],
-        })
+        ref.set_persistence({'name': '', 'gain': 0.0})
         assert 'MMM5' in ref.available_references
 
     def test_set_persistence_preserves_selected_name_and_gain(self, monkeypatch):
         ref = self._make_reference(monkeypatch, ['BK-4138', 'Demo', 'unity'])
-        ref.set_persistence({
-            'name': 'Demo', 'gain': 3.0,
-            'available_references': ['BK-4138', 'Demo', 'unity'],
-        })
+        ref.set_persistence({'name': 'Demo', 'gain': 3.0})
         assert ref.name == 'Demo'
         assert ref.gain == 3.0
 
-    def test_set_persistence_keeps_user_added_entries(self, monkeypatch):
-        # A '+' addition from a prior session, no longer discoverable on
-        # disk (e.g. renamed/moved) -- must not be dropped either; the
-        # merge is a union, not a replace-with-fresh.
+    def test_no_longer_discoverable_selection_is_not_pruned_from_name(self, monkeypatch):
+        # name/gain still round-trip even if that name has since dropped
+        # out of what's discoverable -- the combo will show it as
+        # unmatched, and resolve_object() raises LookupError if the user
+        # tries to launch a calibration against it (caught and shown as
+        # a warning dialog by every plugin's click handler), rather than
+        # this silently clearing a real user selection.
         ref = self._make_reference(monkeypatch, ['BK-4138', 'unity'])
-        ref.set_persistence({
-            'name': '', 'gain': 0.0,
-            'available_references': ['BK-4138', 'unity', 'Custom/Added'],
-        })
-        assert 'Custom/Added' in ref.available_references
-        assert 'BK-4138' in ref.available_references
+        ref.set_persistence({'name': 'Renamed/OrDeleted', 'gain': 0.0})
+        assert ref.name == 'Renamed/OrDeleted'
+        assert 'Renamed/OrDeleted' not in ref.available_references
 
 
 class TestMultiTypeSensorReference:

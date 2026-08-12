@@ -136,8 +136,22 @@ enamldef StarshipView(Container): starship_view:
                             text = 'Coupler'
 
                         ObjectCombo: coupler:
-                            items = ['tube-2mm', 'tube-0mm', '3D-basic']
+                            items := settings.available_couplers
                             selected := settings.calibration_coupler
+
+                        PushButton: coupler_add:
+                            text = '+'
+                            constraints = [width == 25]
+                            clicked ::
+                                popup = AddItem(self, combo=coupler, label='Coupler')
+                                popup.show()
+
+                        PushButton: coupler_remove:
+                            text = '-'
+                            constraints = [width == 25]
+                            enabled << bool(coupler.selected)
+                            clicked ::
+                                _remove_selected(coupler)
 
                     Container:
                         attr starship << settings.selected_starship

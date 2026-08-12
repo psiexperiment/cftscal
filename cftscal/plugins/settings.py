@@ -128,15 +128,18 @@ class CalibrationSettings(Atom):
         config = {}
         for k, v in get_tagged_values(self, 'persist').items():
             if isinstance(v, list):
-                if len(v) == 0:
-                    config[k] = []
-                elif isinstance(v[0], PersistentSettings):
+                if v and isinstance(v[0], PersistentSettings):
                     config[k] = {o.id: o.get_persistence() for o in v}
                     selected_member = self.members()[k].metadata.get('selected')
                     if selected_member is not None:
                         config[selected_member] = getattr(self, selected_member).id
                 else:
-                    raise ValueError('Unknown type')
+                    # Empty list, or a plain list of scalars (e.g. str,
+                    # like SensorDevice.available_devices/
+                    # StarshipCalibrationSettings.available_couplers) --
+                    # no .id-keyed structure or selected= companion
+                    # applies, so persist it directly.
+                    config[k] = list(v)
             elif isinstance(v, PersistentSettings):
                 config[k] = v.get_persistence()
             else:
@@ -148,18 +151,28 @@ class CalibrationSettings(Atom):
             if name not in config:
                 continue
             if isinstance(value, list):
-                if len(value) == 0:
-                    continue
-                elif isinstance(value[0], PersistentSettings):
+                # Which restore path applies is read off the shape of
+                # what was actually persisted (get_config() above always
+                # writes a List[PersistentSettings] as an {id: ...} dict,
+                # anything else -- including an empty list -- as a plain
+                # list), not off whether `value` (the CURRENT in-memory
+                # list) happens to be empty right now -- a plain list
+                # member like available_couplers starts empty on every
+                # fresh __init__, so branching on `value` would skip
+                # restoring it entirely on every single load.
+                persisted = config[name]
+                if isinstance(persisted, dict):
                     for obj in value:
-                        if obj.id in config[name]:
-                            obj.set_persistence(config[name][obj.id])
+                        if obj.id in persisted:
+                            obj.set_persistence(persisted[obj.id])
                     selected_member = self.members()[name].metadata.get('selected')
                     if selected_member in config:
                         selected_id = config[selected_member]
                         for obj in value:
                             if obj.id == selected_id:
                                 setattr(self, selected_member, obj)
+                else:
+                    setattr(self, name, persisted)
             elif isinstance(value, PersistentSettings):
                 value.set_persistence(config[name])
             else:
@@ -322,12 +335,9 @@ class SensorReference(SensorSettings):
 
     ``name`` is a fully-qualified calibration path (e.g. ``"MMM0"`` or
     ``"Bramhall/MMM"``) that ``get_manager().get_object(name)`` resolves
-    to a calibrated object.  ``available_references`` is the persistent
-    picker list; on init we union disk-discovered paths (via
-    ``get_available_references``) with anything the user has added via
-    the SensorView "+" button in prior sessions.  Pair with
-    :class:`SensorDevice` — pick one based on whether the plugin is
-    loading an existing calibration or labelling a new one.
+    to a calibrated object. Pair with :class:`SensorDevice` — pick one
+    based on whether the plugin is loading an existing calibration or
+    labelling a new one.
 
     Subclasses that only ever draw from one calibration type (e.g.
     :class:`MeasurementMicrophoneReference`) override ``get_manager()``.
@@ -336,8 +346,21 @@ class SensorReference(SensorSettings):
     selection, for plugins (input_recording) where a channel might be
     wired to any of several differently-typed calibrations.
     '''
-    #: Persistent list of calibration paths shown in the dropdown.
-    available_references = List().tag(persist=True)
+    #: NOT persisted, deliberately -- unlike SensorDevice.available_devices
+    #: (free-form labels with no other source of truth), every name here
+    #: is backed by a real calibration and always resurfaces on its own
+    #: via get_available_references() on the next refresh, regardless of
+    #: whether this list was ever saved to disk. Persisting it would only
+    #: ever have one effect: letting a stale name -- from a calibration
+    #: since deleted, renamed, or moved -- linger in the dropdown forever,
+    #: indistinguishable from a real option (worse for the SensorView
+    #: instances shown in "static" mode, which have no "+"/"-" to remove
+    #: it again). Only ``name``/``gain`` (the actual selection) need to
+    #: survive a reload; if a restored ``name`` is no longer among the
+    #: freshly-discovered options, resolve_object() raises LookupError at
+    #: launch time, which every plugin's click handler already turns into
+    #: a warning dialog.
+    available_references = List()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -353,23 +376,25 @@ class SensorReference(SensorSettings):
         return self.get_manager().get_object(self.name)
 
     def refresh_available(self):
-        '''Re-union disk-discovered references into the persistent list.
-        Called from ``__init__``, from ``set_persistence()`` (below), and
-        from widget observers after a new calibration is recorded.'''
+        '''Refresh the picker list from disk. Called from ``__init__``,
+        from ``set_persistence()`` (below), and from widget observers
+        after a new calibration is recorded -- _merge_picker_list's
+        union is with whatever's already in memory from one of those
+        earlier calls, not with anything persisted, so a name that's
+        stopped being discoverable naturally drops out on the next
+        refresh instead of lingering.'''
         _merge_picker_list(
             self, 'available_references', self.get_available_references(),
         )
 
     def set_persistence(self, config):
-        # PersistentSettings.set_persistence() (inherited) sets
-        # available_references to exactly the persisted list, discarding
-        # whatever refresh_available() had just merged in during
-        # __init__ -- so anything discoverable now but not yet present
-        # in a config saved before it existed (e.g. a newly-added
-        # calibration type) would otherwise vanish from the picker on
-        # every single load, not just be missing until the next
-        # calibration is recorded. Re-merge after the persisted name
-        # selection is restored so newly-available options aren't lost.
+        # available_references itself is never restored here (not
+        # persisted -- see the field's own comment) -- this override
+        # exists to restore the persisted `name`/`gain` selection via
+        # the inherited PersistentSettings.set_persistence(), then
+        # refresh the picker list against current disk state on the same
+        # load path __init__ already uses, in case anything's changed
+        # since this object was constructed.
         super().set_persistence(config)
         self.refresh_available()
 

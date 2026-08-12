@@ -12,6 +12,13 @@ class StarshipCalibrationSettings(CalibrationSettings):
     available_inputs = List(Typed(InputSettings, ())) \
         .tag(persist=True, selected='selected_input')
     selected_input = Typed(InputSettings, ())
+    #: Persistent, user-managed list of coupler labels -- purely
+    #: user-managed (no calibration-manager backing, same as
+    #: SensorDevice.available_devices), populated only via the "+"
+    #: button in the Settings panel. Starts empty on a fresh install;
+    #: add tube-2mm/tube-0mm/3D-basic (or any other coupler label) via
+    #: "+" before first use.
+    available_couplers = List().tag(persist=True)
     calibration_coupler = Str().tag(persist=True)
     settings_filename = set_default('starship.json')
 

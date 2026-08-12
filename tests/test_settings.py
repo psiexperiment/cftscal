@@ -391,6 +391,45 @@ class TestSelectedItemPersistenceRoundTrip:
         assert restored.speaker_outputs[0].generator.name == 'SPK0'
 
 
+class TestStarshipAvailableCouplers:
+    '''
+    available_couplers is a plain, purely user-managed persisted list
+    (same shape as SensorDevice.available_devices) -- unlike
+    SensorReference.available_references (never persisted, always
+    re-derived from real calibration data), there's no calibration
+    manager behind coupler labels at all, so the "+"-added entries are
+    the only source of truth and must survive a reload on their own.
+    '''
+
+    @pytest.fixture(autouse=True)
+    def _isolate_cal_root(self, tmp_path, monkeypatch):
+        monkeypatch.setattr('cftscal.objects.CAL_ROOT', tmp_path)
+
+    def test_starts_empty(self):
+        settings = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0'},
+        )
+        assert settings.available_couplers == []
+        assert settings.calibration_coupler == ''
+
+    def test_added_couplers_persist_across_reload(self):
+        settings = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0'},
+        )
+        settings.available_couplers = ['tube-2mm', 'tube-0mm', '3D-basic']
+        settings.calibration_coupler = 'tube-0mm'
+
+        restored = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0'},
+        )
+        restored.set_config(settings.get_config())
+
+        # get_config()/set_config() round-trip a plain list as a direct
+        # passthrough (no sorting) -- insertion order is preserved.
+        assert restored.available_couplers == ['tube-2mm', 'tube-0mm', '3D-basic']
+        assert restored.calibration_coupler == 'tube-0mm'
+
+
 class TestWorkspaceSettingsEnabledPlugins:
     '''
     WorkspaceSettings.enabled_plugins forces specific plugins to load in
