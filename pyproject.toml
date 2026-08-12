@@ -25,6 +25,12 @@ test = ["pytest"]
 [project.scripts]
 cfts-cal = "cftscal.main:main"
 
+[tool.setuptools.package-data]
+cftscal = [
+    "resources/layout/*/*.layout",
+    "resources/preferences/*/*.preferences",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

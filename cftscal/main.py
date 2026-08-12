@@ -21,6 +21,8 @@ import enaml
 from enaml.application import deferred_call
 from enaml.workbench.ui.api import UIWorkbench
 
+from .paradigms.default_state import seed_all_default_state
+
 UI_PLUGIN = 'enaml.workbench.ui'
 CORE_PLUGIN = 'enaml.workbench.core'
 
@@ -60,6 +62,8 @@ def main():
     parser = argparse.ArgumentParser('cfts-cal')
     parser.add_argument('obj', nargs='?')
     args = parser.parse_args()
+
+    seed_all_default_state()
 
     with enaml.imports():
         from .plugins.manifest import CalibrationManifest, TO_REGISTER
