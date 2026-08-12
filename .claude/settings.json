@@ -3,5 +3,8 @@
     "allow": [
       "Bash(pip show *)"
     ]
+  },
+  "attribution": {
+    "commit": ""
   }
 }
