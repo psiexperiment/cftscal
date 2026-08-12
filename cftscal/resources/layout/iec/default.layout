@@ -1,0 +1,148 @@
+dock_layout:
+  items:
+  - dock_bars: []
+    floating: false
+    geometry:
+    - -1
+    - -1
+    - -1
+    - -1
+    item:
+      items:
+      - items:
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: experiment_status
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: hardware_settings
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: hw_ao
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: validation
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: default.selector
+          type: item
+        orientation: vertical
+        sizes:
+        - 64
+        - 116
+        - 251
+        - 89
+        - 286
+        type: split
+      - index: 0
+        items:
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: epoch_container
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: epoch_psd_container
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: epoch_phase_container
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: calibration_result
+          type: item
+        maximized: false
+        tab_position: top
+        type: tab
+      orientation: horizontal
+      sizes:
+      - 490
+      - 892
+      type: split
+    linked: false
+    maximized: false
+    type: area
+  type: dock
+geometry:
+- 274
+- 71
+- 1417
+- 929
+toolbars:
+  hw_ao.QueuedEpochOutputManifest.toolbar:
+    dock_area: top
+    floating: false
+    orientation: horizontal
+    x: 70
+    y: 22
+  psi.base_controller.toolbar:
+    dock_area: top
+    floating: false
+    orientation: horizontal
+    x: 167
+    y: 22
+  tone_validate.toolbar:
+    dock_area: top
+    floating: false
+    orientation: horizontal
+    x: 0
+    y: 22

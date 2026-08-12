@@ -1,0 +1,97 @@
+dock_layout:
+  items:
+  - dock_bars:
+    - items:
+      - floating: false
+        geometry:
+        - -1
+        - -1
+        - -1
+        - -1
+        linked: false
+        maximized: false
+        name: experiment_status
+        type: item
+      position: left
+      type: dockbar
+    floating: false
+    geometry:
+    - -1
+    - -1
+    - -1
+    - -1
+    item:
+      items:
+      - floating: false
+        geometry:
+        - -1
+        - -1
+        - -1
+        - -1
+        linked: false
+        maximized: false
+        name: input_amplifier_filtered_view_container
+        type: item
+      - items:
+        - items:
+          - floating: false
+            geometry:
+            - -1
+            - -1
+            - -1
+            - -1
+            linked: false
+            maximized: false
+            name: hardware_settings
+            type: item
+          - floating: false
+            geometry:
+            - -1
+            - -1
+            - -1
+            - -1
+            linked: false
+            maximized: false
+            name: acquisition
+            type: item
+          orientation: vertical
+          sizes:
+          - 318
+          - 196
+          type: split
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: .EpochTimeContainer
+          type: item
+        orientation: horizontal
+        sizes:
+        - 342
+        - 673
+        type: split
+      orientation: vertical
+      sizes:
+      - 255
+      - 519
+      type: split
+    linked: false
+    maximized: false
+    type: area
+  type: dock
+geometry:
+- 706
+- 80
+- 1073
+- 877
+toolbars:
+  psi.base_controller.toolbar:
+    dock_area: top
+    floating: false
+    orientation: horizontal
+    x: 0
+    y: 21

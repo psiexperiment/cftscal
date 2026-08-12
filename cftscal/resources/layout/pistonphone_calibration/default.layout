@@ -1,0 +1,97 @@
+dock_layout:
+  items:
+  - dock_bars:
+    - items:
+      - floating: false
+        geometry:
+        - -1
+        - -1
+        - -1
+        - -1
+        linked: false
+        maximized: false
+        name: experiment_status
+        type: item
+      position: left
+      type: dockbar
+    floating: false
+    geometry:
+    - -1
+    - -1
+    - -1
+    - -1
+    item:
+      items:
+      - items:
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: hardware_settings
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: result
+          type: item
+        orientation: vertical
+        sizes:
+        - 150
+        - 335
+        type: split
+      - items:
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: signal_view_container
+          type: item
+        - floating: false
+          geometry:
+          - -1
+          - -1
+          - -1
+          - -1
+          linked: false
+          maximized: false
+          name: signal_fft_view_container
+          type: item
+        orientation: vertical
+        sizes:
+        - 216
+        - 269
+        type: split
+      orientation: horizontal
+      sizes:
+      - 385
+      - 740
+      type: split
+    linked: false
+    maximized: false
+    type: area
+  type: dock
+geometry:
+- 186
+- 165
+- 1186
+- 604
+toolbars:
+  psi.base_controller.toolbar:
+    dock_area: top
+    floating: false
+    orientation: horizontal
+    x: 0
+    y: 33

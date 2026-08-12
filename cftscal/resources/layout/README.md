@@ -23,8 +23,12 @@ want inside a running paradigm, use *Configuration > Layout > Set
 default*, then copy the resulting file from
 `<LAYOUT_ROOT>/<paradigm_name>/default.layout` into this directory.
 
-Layout files are pickled `enaml.layout.dock_layout.DockLayout` objects
-(psi's own format, see `psi/experiment/experiment_commands.py`) — not
-human-readable/diffable, and not guaranteed to load if generated with a
-substantially different Enaml/psi version than what's installed when
-loading it back.
+Layout files are YAML (psi's own format, see
+`psi/experiment/experiment_commands.py`'s `workspace_layout_to_dict`/
+`workspace_layout_from_dict`) — human-readable and diffable in git.
+Older `.layout` files may still be in the legacy pickled
+`enaml.layout.dock_layout.DockLayout` format; psi detects and loads
+either transparently via a magic-bytes check, but only ever *writes*
+the current YAML format going forward. Not guaranteed to load if
+generated with a substantially different Enaml/psi version than what's
+installed when loading it back.

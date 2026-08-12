@@ -1,0 +1,14 @@
+context:
+  meta: {}
+  parameters:
+    hardware_settings:
+      sample_duration:
+        expression: '10'
+        rove: false
+  selectors: {}
+signal_fft_view_vb:
+  y_max: -4.328218367420738
+  y_min: -203.5779926187897
+signal_view_vb:
+  y_max: 0.052923071790896635
+  y_min: -0.037660013576453245
