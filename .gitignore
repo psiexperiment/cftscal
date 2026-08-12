@@ -79,3 +79,7 @@ sandbox/
 
 # mkdocs build output
 site/
+
+# Claude Code: settings.json is shared/project config (tracked);
+# settings.local.json is per-user machine-specific overrides (not tracked)
+.claude/settings.local.json
