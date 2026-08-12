@@ -1152,46 +1152,23 @@ class CFTSInEarCalibration(CFTSFileCalibration):
 
 
 class CFTSInEarLoader(CFTSBaseLoader):
+    '''
+    Groups by folder, same as every other CFTS loader (see
+    CFTSBaseLoader._walk_objects) -- an earlier version of this class
+    overrode _walk_objects to group by the ``starship`` metadata field
+    instead, so a calibration's tree position always tracked its device
+    regardless of where it was filed. That made inear the only plugin
+    where a lab couldn't reorganize the tree independently of device
+    (every other plugin's target-folder picker can file a calibration
+    anywhere; inear's REPARENT_KEY-driven migration would still put it
+    back under its device folder). Reverted for consistency --
+    CFTSInEarCalibration.starship (surfaced as the tree's own "Device"
+    column) is what to trust for the actual device now, same as
+    starship/speaker/microphone_generic/input_amplifier's own Device
+    columns.
+    '''
     subfolder = 'inear'
     cal_class = CFTSInEarCalibration
-
-    def _walk_objects(self):
-        '''
-        Discover in-ear calibrations grouped by starship, reading identity
-        from ``metadata.json`` rather than parsing filename segments.
-
-        In-ear calibrations live at ``inear/<starship>/<cal>/metadata.json``
-        — the starship (device ID) is the master folder, matching the
-        object identity read from the metadata sidecar — same convention
-        as every other CFTS loader: ``cal_dir.parent`` is the object's own
-        directory, and whatever sits above *that* and below ``base_path``
-        is the organizational folder (lab/study/etc., from drag-drop or
-        the group_path picker). Using ``cal_dir.parent`` itself as the
-        organizational folder (as an earlier version of this did) treated
-        the starship-named object folder as if it were an org folder,
-        which put every object in a same-named folder one level too deep
-        (e.g. ``MMM5/MMM5`` in the tree view) once calibrations moved
-        under their starship folder instead of an ear/coupler folder.
-        '''
-        objects = {}
-        if not self.base_path.exists():
-            return objects
-        for meta_file in self.base_path.rglob('metadata.json'):
-            cal_dir = meta_file.parent
-            try:
-                metadata = json.loads(meta_file.read_text())
-            except (OSError, json.JSONDecodeError):
-                continue
-            starship = metadata.get('starship')
-            if not starship:
-                continue
-            try:
-                rel = cal_dir.parent.parent.relative_to(self.base_path)
-            except ValueError:
-                continue
-            folder = '' if str(rel) == '.' else rel.as_posix()
-            objects.setdefault((folder, starship), []).append(cal_dir)
-        return objects
 
 
 ################################################################################

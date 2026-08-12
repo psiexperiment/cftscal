@@ -358,13 +358,12 @@ enamldef InEarView(Container):
                             'to_str': lambda x: getattr(x, 'name', ''),
                         },
                         'Device': {
-                            # Explicit device ID from metadata. For inear
-                            # specifically this always matches 'Starship'
-                            # above (the tree groups by this same field,
-                            # not the folder -- see
-                            # CFTSInEarLoader._walk_objects), but shown
-                            # explicitly for consistency with every other
-                            # plugin's Device column.
+                            # Explicit device ID from metadata, independent
+                            # of which folder this calibration happens to
+                            # be filed under -- 'Starship' above is now
+                            # folder-derived, same as every other plugin's
+                            # groupby column (see CFTSInEarLoader). Compare
+                            # the two to spot a mismatch.
                             'groupby': False,
                             'id': False,
                             'to_str': lambda x: getattr(x, 'starship', ''),
