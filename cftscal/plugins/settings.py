@@ -194,7 +194,14 @@ class CalibrationSettings(Atom):
             '{date_time}', now.strftime('%Y%m%d-%H%M%S')
         ))
 
-        args = ['psi', experiment, str(filename)]
+        # 'psi-main' rather than 'psi': when frozen (PyInstaller), 'psi'
+        # isn't on PATH, but psi-main.exe is bundled as a sibling of
+        # cftscal-main.exe, and Windows' CreateProcess searches the
+        # calling exe's own directory (and auto-appends .exe) before
+        # PATH -- so the bare name resolves there with no path/extension
+        # handling needed here. Unfrozen, it resolves via PATH to the
+        # psi-main console-script entry point (same target as `psi`).
+        args = ['psi-main', experiment, str(filename)]
         if settings.hw_configuration == 'Sound Card':
             env.update({
                 'PSI_SOUND_DEVICE_NAME': settings.selected_device,
@@ -207,7 +214,17 @@ class CalibrationSettings(Atom):
         print(' '.join(args))
 
         try:
-            subprocess.check_output(args, env=env)
+            # Explicit stdin/stderr instead of the default (inherit parent's
+            # handles): a frozen console app's stdio handles aren't always
+            # real, duplicable Win32 handles depending on how it was
+            # launched, and subprocess tries to DuplicateHandle() them for
+            # the child before it even looks up `psi-main` -- failing
+            # with `OSError: [WinError 50] The request is not supported`
+            # regardless of whether `psi_exe` itself is valid.
+            subprocess.check_output(
+                args, env=env, stdin=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
         finally:
             # Runs on both clean exit and subprocess failure.  Any raised
             # CalledProcessError still propagates after this cleanup.
