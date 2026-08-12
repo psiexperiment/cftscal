@@ -34,7 +34,7 @@ Every calibration workspace in cftscal (microphone, speaker, starship, input rec
 - A **plot** area showing the result of the currently selected calibration from the list below.
 - A **list/tree** of everything previously recorded for this workspace, organized into folders (by default, one per device — see [Calibration Concepts](concepts.md) for why you might reorganize this). **Right-click an entry** for actions like exporting or deleting it.
 
-Actually running a calibration launches a separate window (`psi`, the underlying acquisition engine) — that window's own dock panels can be rearranged and saved as its default via its *Configuration > Layout > Set default* menu (and similarly for *Configuration > Preferences*), so you only need to arrange it once per calibration type.
+Actually running a calibration launches a separate window (`psi`, the underlying acquisition engine). cftscal ships a sensible starting dock-panel layout and preference set for most calibration types, so this window is usually already arranged reasonably the first time you see it. If you want to change it, rearrange the panels and use that window's own *Configuration > Layout > Set default* menu (and similarly for *Configuration > Preferences*) — your own saved arrangement always takes precedence from then on and is never overwritten by cftscal.
 
 Once you're oriented, move on to the [Plugins](plugins/index.md):
 

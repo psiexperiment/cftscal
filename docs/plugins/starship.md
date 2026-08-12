@@ -6,7 +6,7 @@ A *starship* is CFTS's probe assembly: an integrated probe-tube microphone plus 
 
 - A calibrated measurement microphone (see [Measurement Microphone Calibration](measurement-microphone.md)) and its preamp.
 - The starship you're calibrating.
-- A calibration coupler matching one of the options below.
+- A calibration coupler.
 - An analog to digital converter and a digital to analog converter.
 
 ## Opening the workspace
@@ -19,7 +19,7 @@ Launch CFTSCal and select the Starship Calibration workspace.
 | --- | --- |
 | **Cal. Mic. → Input** | Which physical input the reference measurement microphone is wired to. |
 | **Cal. Mic. → Sensor** | Which calibrated measurement microphone to use as the reference, and the preamp gain (dB) currently applied to that channel. |
-| **Coupler** | Which physical coupler you're calibrating into (`tube-2mm`, `tube-0mm`, or `3D-basic`). This is recorded in the calibration's metadata; cftscal doesn't otherwise act on it. |
+| **Coupler** | Which physical coupler you're calibrating into. Recorded in the calibration's metadata; cftscal doesn't otherwise act on it. A free-form, user-managed list — starts empty, so click + to add your coupler labels (e.g. `tube-2mm`, `tube-0mm`, `3D-basic`) before first use. |
 | **Starship → Connection** | Which physical starship connection you're calibrating into, if your system has more than one (e.g. Connection A/B). |
 | **Starship → Starship** | Which starship is plugged into the selected connection. Click + to add a new one to the drop-down list. |
 | **dB gain** | The preamp gain, in dB, currently applied to the starship's own microphone. |
