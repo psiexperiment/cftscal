@@ -221,10 +221,22 @@ class CalibrationSettings(Atom):
             # the child before it even looks up `psi-main` -- failing
             # with `OSError: [WinError 50] The request is not supported`
             # regardless of whether `psi_exe` itself is valid.
-            subprocess.check_output(
-                args, env=env, stdin=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            try:
+                subprocess.check_output(
+                    args, env=env, stdin=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
+            except subprocess.CalledProcessError as e:
+                # check_output's own exception message is just the exit
+                # code and argv -- it discards e.output (psi-main's actual
+                # stdout/stderr, captured above). Fold it back in so the
+                # real failure reason reaches whatever displays this
+                # exception (enaml's unhandled-exception traceback/dialog)
+                # instead of a bare "returned non-zero exit status 1".
+                output = e.output.decode(errors='replace') if e.output else '(no output captured)'
+                raise RuntimeError(
+                    f'psi-main failed (exit {e.returncode}):\n{output}'
+                ) from e
         finally:
             # Runs on both clean exit and subprocess failure.  Any raised
             # CalledProcessError still propagates after this cleanup.
