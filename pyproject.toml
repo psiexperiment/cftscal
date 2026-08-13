@@ -29,6 +29,8 @@ cfts-cal = "cftscal.main:main"
 cftscal = [
     "resources/layout/*/*.layout",
     "resources/preferences/*/*.preferences",
+    "icons/*.ico",
+    "icons/*.png",
 ]
 
 [tool.pytest.ini_options]
