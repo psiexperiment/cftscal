@@ -18,15 +18,16 @@ def make_main_icon():
 
     # Linear chirp: frequency rises left-to-right, evoking the sweep
     # signals used to calibrate acoustic hardware.
-    t = np.linspace(0, 1, 1000)
-    f0, f1 = 2, 8
+    t = np.linspace(0, 1, 100)
+    f0, f1 = 1, 6
     phase = 2 * np.pi * (f0 * t + (f1 - f0) / 2 * t**2)
     y = np.sin(phase)
 
     spline_effect = [
-        pe.Stroke(linewidth=10, foreground="white"),
-        pe.Stroke(linewidth=5, foreground="cornflowerblue"),
+        pe.Stroke(linewidth=5, foreground="white"),
+    #    pe.Stroke(linewidth=5, foreground="cornflowerblue"),
     ]
+    ax.fill_between(t, y, -1.5, color='cornflowerblue')
     ax.plot(t, y, color='none', solid_capstyle='round', path_effects=spline_effect)
 
     ax.axis(xmin=-0.05, xmax=1.05, ymin=-1.5, ymax=1.5)
