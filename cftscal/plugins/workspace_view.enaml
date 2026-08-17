@@ -10,11 +10,18 @@ from enaml.widgets.api import (
 
 from psi.core.enaml.api import ListDictTable
 
+from .branding import load_app_icon
+
 
 enamldef WorkspaceSettingsView(Window): win:
 
     initial_size = (400, 400)
     title = 'Workspace Settings'
+    #: Standalone Window (not parented to the main workbench window), so
+    #: it doesn't inherit branding from the `enaml.workbench.ui.branding`
+    #: extension point (manifest.enaml's Branding) the way the main
+    #: window does -- set it directly here too, same icon.
+    icon = load_app_icon()
 
     attr settings
     #: List of {'id': ..., 'title': ...} dicts, one per entry in

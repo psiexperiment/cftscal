@@ -1,5 +1,4 @@
 import importlib
-import importlib.resources
 import logging
 log = logging.getLogger(__name__)
 
@@ -12,23 +11,10 @@ from enaml.workbench.ui.api import (Branding, ActionItem, MenuItem, ItemGroup,
                                     Workspace)
 from .calibration_window import CalibrationWindow
 
+from .branding import load_app_icon
 from .workspace import WorkspaceSettings
 from .workspace_view import WorkspaceSettingsView
 from enaml.widgets.api import Window
-
-
-def load_app_icon():
-    """Load cftscal/icons/main-icon.png as an Enaml `Icon` for window branding.
-
-    Uses `importlib.resources` rather than a `__file__`-relative path so
-    this keeps working if cftscal is ever installed as a zipped wheel.
-    """
-    from enaml.icon import Icon, IconImage
-    from enaml.image import Image
-
-    data = importlib.resources.files('cftscal').joinpath(
-        'icons', 'main-icon.png').read_bytes()
-    return Icon(images=[IconImage(image=Image(data=data, format='png'))])
 
 
 # Single source of truth for all calibration plugins.  Used both at startup
