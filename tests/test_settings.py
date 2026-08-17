@@ -591,7 +591,12 @@ class TestRunCalMetadataMerge:
         return settings
 
     def _run(self, settings, tmp_path, monkeypatch, psi_side_effect):
-        def fake_check_output(args, env=None):
+        def fake_check_output(args, env=None, **kwargs):
+            # **kwargs swallows stdin/stderr (and anything else
+            # _run_cal's real subprocess.check_output call passes) --
+            # this stub only cares about args/env, so it shouldn't need
+            # updating every time _run_cal's call is tweaked, the way it
+            # broke last time stdin=subprocess.DEVNULL was added.
             psi_side_effect(Path(args[2]))
             return b''
 
