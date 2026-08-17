@@ -15,6 +15,7 @@ from cftscal.objects import (
     generic_microphone_manager, input_amplifier_manager, input_manager,
     inear_manager, measurement_microphone_manager, output_manager,
     speaker_manager, starship_manager, unity_manager, CalibrationManager,
+    NominalInputCalibration, UnityInputCalibration,
 )
 
 from cftscal.plugins.workspace import WorkspaceSettings
@@ -357,6 +358,20 @@ class SensorSettings(PersistentSettings):
             )
         super().__init__(*args, **kwargs)
 
+    def is_configured(self):
+        '''Whether this sensor holds enough information to record/launch
+        against. Default is "an instance has been picked"; overridden by
+        :class:`MultiTypeSensorReference` for its Unity/Nominal sensor
+        types, which are configured without ever picking a ``name``.'''
+        return bool(self.name)
+
+    def display_name(self):
+        '''Human-readable label for this selection -- e.g. for the
+        calibration tree's "Sensor" column. Default is just ``name``;
+        overridden by :class:`MultiTypeSensorReference` for its
+        Unity/Nominal sensor types, which have no meaningful ``name``.'''
+        return self.name
+
 
 class SensorReference(SensorSettings):
     '''
@@ -403,6 +418,17 @@ class SensorReference(SensorSettings):
 
     def resolve_object(self):
         return self.get_manager().get_object(self.name)
+
+    def get_calibration(self):
+        '''Resolve this selection to an actual ``Calibration`` object.
+
+        Default routes through the manager: ``resolve_object()`` plus
+        the object's pinned "current" calibration. Overridden by
+        :class:`MultiTypeSensorReference` for its Unity/Nominal sensor
+        types, which have no on-disk object to pin a "current"
+        calibration in (see ``CalibratedObject._object_dir``) and are
+        resolved directly instead.'''
+        return self.resolve_object().get_current_calibration()
 
     def refresh_available(self):
         '''Refresh the picker list from disk. Called from ``__init__``,
@@ -506,6 +532,21 @@ class MultiTypeSensorReference(SensorReference):
     would -- each of measurement_microphone_manager/
     generic_microphone_manager/starship_manager/unity_manager already
     produces correct ``folder/name`` paths entirely on its own.
+
+    Two of the sensor types are special-cased throughout this class
+    rather than routing through ``TYPE_MANAGERS``:
+
+    - ``'Unity'`` has exactly one possible instance (``'unity'``) --
+      picking the type already fully determines the calibration, so
+      there's nothing left to choose from an instance picker.
+    - ``'Nominal'`` has no backing manager/instance at all -- the user
+      instead types a nominal sensitivity (``sensitivity``, in mV/Pa)
+      directly, e.g. read off a device's spec sheet when no measured
+      calibration exists for it.
+
+    ``SensorView`` (``cftscal/plugins/widgets.enaml``) hides the
+    instance picker for both, showing an mV/Pa entry field instead for
+    ``'Nominal'``.
     '''
     TYPE_MANAGERS = {
         'Meas. Mic.': measurement_microphone_manager,
@@ -514,10 +555,49 @@ class MultiTypeSensorReference(SensorReference):
         'Unity': unity_manager,
     }
 
-    sensor_type = Enum(*TYPE_MANAGERS.keys()).tag(persist=True)
+    #: Selectable types, in dropdown order. 'Nominal' is appended here
+    #: rather than folded into TYPE_MANAGERS since it has no manager to
+    #: draw from -- get_manager() is never reached for it, every method
+    #: that would otherwise call it special-cases 'Nominal' first.
+    SENSOR_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
+
+    sensor_type = Enum(*SENSOR_TYPES).tag(persist=True)
+
+    #: Nominal sensitivity in mV/Pa, used only when sensor_type ==
+    #: 'Nominal' -- see the class docstring.
+    sensitivity = Float(1.0).tag(persist=True)
 
     def get_manager(self):
         return self.TYPE_MANAGERS[self.sensor_type]
+
+    def get_available_references(self):
+        # Neither has an instance list to populate a picker with --
+        # 'Unity' always resolves to its one instance without asking,
+        # 'Nominal' has no instance at all (see class docstring).
+        if self.sensor_type in ('Unity', 'Nominal'):
+            return []
+        return super().get_available_references()
+
+    def get_calibration(self):
+        if self.sensor_type == 'Unity':
+            return UnityInputCalibration()
+        if self.sensor_type == 'Nominal':
+            return NominalInputCalibration(self.sensitivity)
+        return super().get_calibration()
+
+    def is_configured(self):
+        if self.sensor_type == 'Unity':
+            return True
+        if self.sensor_type == 'Nominal':
+            return self.sensitivity > 0
+        return super().is_configured()
+
+    def display_name(self):
+        if self.sensor_type == 'Unity':
+            return 'unity'
+        if self.sensor_type == 'Nominal':
+            return f'Nominal ({self.sensitivity:g} mV/Pa)'
+        return super().display_name()
 
     def switch_type(self, new_type):
         '''Explicit, UI-triggered type change -- clears the now-invalid
@@ -578,8 +658,7 @@ class InputSettings(PersistentSettings):
             # calibrate-a-new-device channels) already passes
             # include_cal=False, since there's no existing calibration
             # to resolve yet.
-            obj = self.sensor.resolve_object()
-            cal = obj.get_current_calibration()
+            cal = self.sensor.get_calibration()
             env[f'{env_prefix}_{self.input_name.upper()}'] = cal.to_string()
         return env
 

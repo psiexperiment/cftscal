@@ -610,6 +610,84 @@ class TestSensorHierarchy:
         assert d.name == 'SN001'
         assert d.available_devices == []  # not polluted
 
+    def test_default_is_configured_and_display_name_use_bare_name(self):
+        # SensorSettings' own defaults -- SensorDevice doesn't override
+        # either, so this exercises them directly (SensorSettings itself
+        # can't be instantiated -- see test_reference_and_device_are_distinct).
+        from cftscal.plugins.settings import SensorDevice
+        d = SensorDevice()
+        assert d.is_configured() is False
+        assert d.display_name() == ''
+        d.name = 'SN001'
+        assert d.is_configured() is True
+        assert d.display_name() == 'SN001'
+
+
+class TestSensorReferenceGetCalibration:
+    '''
+    SensorReference.get_calibration() is what InputSettings.get_env_vars()
+    now calls (it used to call resolve_object() + get_current_calibration()
+    directly) -- the default implementation must still do exactly that.
+    MultiTypeSensorReference overrides it for 'Unity'/'Nominal' (see
+    TestMultiTypeSensorReference); every other SensorReference subclass
+    relies on this default.
+    '''
+
+    def test_routes_through_resolve_object_and_pinned_calibration(self, monkeypatch):
+        from cftscal.plugins.settings import SensorReference
+
+        class _FakeCalibration:
+            def to_string(self):
+                return 'resolved-cal'
+
+        class _FakeObject:
+            def get_current_calibration(self):
+                return _FakeCalibration()
+
+        ref = SensorReference()
+        # Atom instances don't allow ad hoc instance attributes for
+        # non-member names -- patch the class method instead.
+        monkeypatch.setattr(SensorReference, 'resolve_object', lambda self: _FakeObject())
+        assert ref.get_calibration().to_string() == 'resolved-cal'
+
+
+class TestNominalInputCalibration:
+    '''
+    NominalInputCalibration lets a channel be labelled with a
+    user-entered sensitivity (mV/Pa) instead of a measured one -- see
+    MultiTypeSensorReference's 'Nominal' sensor_type
+    (cftscal/plugins/settings.py). Unlike every other Calibration here,
+    it's never discovered by a CalibrationLoader/CalibrationManager --
+    it only ever round-trips through to_string()/from_string().
+    '''
+
+    def test_load_builds_flat_calibration_from_sensitivity(self):
+        from cftscal.objects import NominalInputCalibration
+        from psiaudio.calibration import FlatCalibration
+
+        cal = NominalInputCalibration(12.3)
+        loaded = cal.load()
+        expected = FlatCalibration.from_mv_pa(12.3)
+        assert loaded.sensitivity == expected.sensitivity
+
+    def test_to_string_from_string_round_trip(self):
+        from cftscal.objects import NominalInputCalibration
+        cal = NominalInputCalibration(45.6)
+        restored = NominalInputCalibration.from_string(cal.to_string())
+        assert restored.sensitivity == 45.6
+
+    def test_round_trips_through_manager_from_string_dispatch(self):
+        # The generic CalibrationManager.from_string() dispatch (used to
+        # decode the CFTS_INPUT_<channel> env var on the psi side) picks
+        # the class purely off the qualname prefix in to_string()'s
+        # output -- confirms NominalInputCalibration is wired into that
+        # the same way UnityInputCalibration already is.
+        from cftscal.objects import NominalInputCalibration, input_manager
+        cal = NominalInputCalibration(7.0)
+        restored = input_manager.from_string(cal.to_string())
+        assert isinstance(restored, NominalInputCalibration)
+        assert restored.sensitivity == 7.0
+
 
 class TestSensorReferencePersistence:
     '''
@@ -730,6 +808,118 @@ class TestMultiTypeSensorReference:
         ref.name = 'SS1'
         assert ref.resolve_object() == 'a-starship-object'
         assert calls == ['SS1']
+
+    def test_sensor_types_lists_unity_and_nominal_alongside_the_managers(self):
+        # SENSOR_TYPES (not TYPE_MANAGERS.keys(), which 'Nominal' is
+        # deliberately excluded from) is what SensorView populates its
+        # type dropdown from -- see widgets.enaml.
+        ref = self._make_reference()
+        assert ref.SENSOR_TYPES == [
+            'Meas. Mic.', 'Generic Mic.', 'Starship', 'Unity', 'Nominal',
+        ]
+
+    def test_available_references_empty_for_unity(self):
+        # Unity has exactly one possible instance -- picking the type
+        # already fully determines the calibration, so there's nothing
+        # for an instance picker to list (SensorView hides it entirely).
+        ref = self._make_reference()
+        ref.switch_type('Unity')
+        assert ref.available_references == []
+
+    def test_available_references_empty_for_nominal(self):
+        # Nominal has no instance at all -- its "value" is the
+        # sensitivity field, not a picked calibration.
+        ref = self._make_reference()
+        ref.switch_type('Nominal')
+        assert ref.available_references == []
+
+    def test_get_calibration_unity_bypasses_pin_requirement(self):
+        # Regression test: unity_manager.get_object('unity') has no
+        # on-disk directory (UnityInputCalibrationLoader isn't a
+        # CFTSBaseLoader), so CalibratedObject.get_current_calibration()
+        # can never find a pinned "current" calibration for it and
+        # always raises LookupError -- confirmed directly below.
+        # get_calibration() must not go through that path for 'Unity'.
+        from cftscal.objects import unity_manager, UnityInputCalibration
+        with pytest.raises(LookupError):
+            unity_manager.get_object('unity').get_current_calibration()
+
+        ref = self._make_reference()
+        ref.switch_type('Unity')
+        cal = ref.get_calibration()
+        assert isinstance(cal, UnityInputCalibration)
+
+    def test_get_calibration_nominal_uses_sensitivity(self):
+        from cftscal.objects import NominalInputCalibration
+        ref = self._make_reference()
+        ref.switch_type('Nominal')
+        ref.sensitivity = 12.3
+        cal = ref.get_calibration()
+        assert isinstance(cal, NominalInputCalibration)
+        assert cal.sensitivity == 12.3
+
+    def test_get_calibration_other_types_still_route_through_manager(self, monkeypatch):
+        # Unity/Nominal are special-cased in get_calibration() before
+        # TYPE_MANAGERS is ever consulted -- every other type must still
+        # fall through to the inherited resolve_object() +
+        # get_current_calibration() path (SensorReference.get_calibration).
+        from cftscal.objects import starship_manager
+
+        class _FakeCalibration:
+            def to_string(self):
+                return 'fake-starship-cal'
+
+        class _FakeStarshipObject:
+            def get_current_calibration(self):
+                return _FakeCalibration()
+
+        calls = []
+        monkeypatch.setattr(
+            starship_manager, 'get_object',
+            lambda name: calls.append(name) or _FakeStarshipObject(),
+        )
+        ref = self._make_reference()
+        ref.switch_type('Starship')
+        ref.name = 'SS1'
+        cal = ref.get_calibration()
+        assert calls == ['SS1']
+        assert cal.to_string() == 'fake-starship-cal'
+
+    def test_is_configured_default_requires_name(self):
+        ref = self._make_reference()
+        assert ref.is_configured() is False
+        ref.name = 'BK-4138'
+        assert ref.is_configured() is True
+
+    def test_is_configured_true_for_unity_even_without_a_name(self):
+        ref = self._make_reference()
+        ref.switch_type('Unity')
+        assert ref.name == ''
+        assert ref.is_configured() is True
+
+    def test_is_configured_nominal_requires_positive_sensitivity(self):
+        ref = self._make_reference()
+        ref.switch_type('Nominal')
+        ref.sensitivity = 0
+        assert ref.is_configured() is False
+        ref.sensitivity = 12.3
+        assert ref.is_configured() is True
+
+    def test_display_name_default_is_name(self):
+        ref = self._make_reference()
+        ref.name = 'BK-4138'
+        assert ref.display_name() == 'BK-4138'
+
+    def test_display_name_unity(self):
+        ref = self._make_reference()
+        ref.switch_type('Unity')
+        assert ref.display_name() == 'unity'
+
+    def test_display_name_nominal_includes_sensitivity(self):
+        ref = self._make_reference()
+        ref.switch_type('Nominal')
+        ref.sensitivity = 12.3
+        assert ref.display_name() == 'Nominal (12.3 mV/Pa)'
 
 
 class TestTargetGroupPath:

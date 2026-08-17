@@ -568,6 +568,33 @@ class UnityInputCalibrationLoader(CalibrationLoader):
         return [UnityInputCalibration()]
 
 
+class NominalInputCalibration(Calibration):
+    '''
+    A calibration built from a user-entered nominal sensitivity rather
+    than a measured one -- for a device with no measured calibration on
+    file, based on e.g. its spec sheet value. Not backed by a
+    ``CalibrationLoader``/``CalibrationManager`` like the other
+    calibration types since there's nothing on disk to discover or pin
+    as "current"; ``MultiTypeSensorReference.get_calibration()``
+    (``cftscal/plugins/settings.py``) constructs one directly from
+    whatever the user typed into the "mV/Pa" field.
+    '''
+
+    def __init__(self, sensitivity):
+        self.sensitivity = sensitivity
+
+    def load(self):
+        return FlatCalibration.from_mv_pa(self.sensitivity)
+
+    def to_string(self):
+        return f'{self.qualname}::{self.sensitivity}'
+
+    @classmethod
+    def from_string(cls, string):
+        _, sensitivity = string.split('::')
+        return cls(float(sensitivity))
+
+
 ################################################################################
 # Starship calibration management
 ################################################################################

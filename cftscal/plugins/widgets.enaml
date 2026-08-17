@@ -656,7 +656,7 @@ enamldef SensorView(HGroup):
         condition << hasattr(sensor, 'sensor_type')
 
         ObjectCombo: type_select:
-            items << list(sensor.TYPE_MANAGERS.keys())
+            items << list(sensor.SENSOR_TYPES)
             selected << sensor.sensor_type
             selected ::
                 sensor.switch_type(selected)
@@ -667,32 +667,53 @@ enamldef SensorView(HGroup):
         Label:
             text = label
 
-    ObjectCombo: select:
-        items := sensor.available_references
-        selected := sensor.name
-        hug_width << 'ignore' if fill_row else 'strong'
-
+    #: The instance picker is skipped for 'Unity' (its one possible
+    #: instance is already implied by picking the type -- nothing left
+    #: to choose) and for 'Nominal' (replaced by the sensitivity field
+    #: below; see MultiTypeSensorReference's class docstring). Every
+    #: other sensor -- including a single-type SensorReference, which
+    #: has no `sensor_type` at all -- always shows it.
     Conditional:
-        condition = mode != 'static'
+        condition << getattr(sensor, 'sensor_type', None) not in ('Unity', 'Nominal')
 
-        PushButton: add:
-            text = '+'
-            constraints = [width == 25]
-            clicked ::
-                # Reference identifiers are calibration paths (e.g.
-                # "Bramhall/MMM"), so widen the regex to accept slashes.
-                popup = AddItem(
-                    self, combo=select, label=label,
-                    regex=r'^[\w\d/_\- ]+$',
-                )
-                popup.show()
+        ObjectCombo: select:
+            items := sensor.available_references
+            selected := sensor.name
+            hug_width << 'ignore' if fill_row else 'strong'
 
-        PushButton: remove:
-            text = '-'
-            constraints = [width == 25]
-            enabled << bool(select.selected)
-            clicked ::
-                _remove_selected(select)
+        Conditional:
+            condition = mode != 'static'
+
+            PushButton: add:
+                text = '+'
+                constraints = [width == 25]
+                clicked ::
+                    # Reference identifiers are calibration paths (e.g.
+                    # "Bramhall/MMM"), so widen the regex to accept slashes.
+                    popup = AddItem(
+                        self, combo=select, label=label,
+                        regex=r'^[\w\d/_\- ]+$',
+                    )
+                    popup.show()
+
+            PushButton: remove:
+                text = '-'
+                constraints = [width == 25]
+                enabled << bool(select.selected)
+                clicked ::
+                    _remove_selected(select)
+
+    #: 'Nominal' has no existing calibration to pick -- the user enters
+    #: a nominal sensitivity directly instead. Positioned right before
+    #: the gain field, in place of the instance picker it replaces.
+    Conditional:
+        condition << getattr(sensor, 'sensor_type', None) == 'Nominal'
+
+        FloatField:
+            value := sensor.sensitivity
+
+        Label:
+            text = 'mV/Pa'
 
     Conditional:
         condition << show_gain

@@ -58,6 +58,7 @@ class InputRecordingSettings(CalibrationSettings):
             )
             setting.sensor.observe('name', self._bump_readiness_tick)
             setting.sensor.observe('sensor_type', self._bump_readiness_tick)
+            setting.sensor.observe('sensitivity', self._bump_readiness_tick)
             settings.append(setting)
         self.available_inputs = settings
         self.generator = GeneratorSettings()
@@ -123,7 +124,7 @@ class InputRecordingSettings(CalibrationSettings):
         names = [c.input_name for c in active]
         if len(set(names)) != len(names):
             return False
-        return all(c.sensor.name for c in active)
+        return all(c.sensor.is_configured() for c in active)
 
     def run_input_recording(self):
         active = self.active_channels()
@@ -145,7 +146,7 @@ class InputRecordingSettings(CalibrationSettings):
             raise ValueError(
                 'The same input channel is assigned to more than one slot.'
             )
-        missing = [c.input_label for c in active if not c.sensor.name]
+        missing = [c.input_label for c in active if not c.sensor.is_configured()]
         if missing:
             raise ValueError(f'Select a sensor for: {", ".join(missing)}')
 
@@ -158,7 +159,7 @@ class InputRecordingSettings(CalibrationSettings):
             env.update(channel.get_env_vars())
             sensors[channel.input_name] = {
                 'label': channel.input_label,
-                'sensor': channel.sensor.name,
+                'sensor': channel.sensor.display_name(),
                 'gain': channel.sensor.gain,
             }
         metadata = {

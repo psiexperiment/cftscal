@@ -165,6 +165,52 @@ class TestInputRecordingSettings:
             'sensors': {'ai2': {'label': 'Ch 2', 'sensor': 'MMM0', 'gain': 20.0}},
         }
 
+    def test_run_input_recording_happy_path_unity(self, monkeypatch):
+        # Regression test for the Unity pin bug: no manager/get_object
+        # monkeypatching here at all -- if get_env_vars() still routed
+        # 'Unity' through resolve_object()/get_current_calibration(),
+        # this would raise LookupError (unity_manager's object has no
+        # on-disk directory to pin a "current" calibration in).
+        settings = self._make_settings()
+        settings.n_active_inputs = 1
+        settings.assign_slot(0, settings.available_inputs[2])
+        settings.available_inputs[2].sensor.switch_type('Unity')
+
+        captured = {}
+
+        def _fake_run_cal(self, pathname, experiment, env=None, metadata=None):
+            captured['env'] = env
+            captured['metadata'] = metadata
+
+        monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
+        settings.run_input_recording()
+
+        assert captured['env']['CFTS_INPUT_AI2'] == 'cftscal.objects.UnityInputCalibration'
+        assert captured['metadata']['sensors']['ai2']['sensor'] == 'unity'
+
+    def test_run_input_recording_happy_path_nominal(self, monkeypatch):
+        settings = self._make_settings()
+        settings.n_active_inputs = 1
+        settings.assign_slot(0, settings.available_inputs[2])
+        settings.available_inputs[2].sensor.switch_type('Nominal')
+        settings.available_inputs[2].sensor.sensitivity = 12.3
+
+        captured = {}
+
+        def _fake_run_cal(self, pathname, experiment, env=None, metadata=None):
+            captured['env'] = env
+            captured['metadata'] = metadata
+
+        monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
+        settings.run_input_recording()
+
+        assert captured['env']['CFTS_INPUT_AI2'] == (
+            'cftscal.objects.NominalInputCalibration::12.3'
+        )
+        assert captured['metadata']['sensors']['ai2']['sensor'] == (
+            'Nominal (12.3 mV/Pa)'
+        )
+
     def test_slot_channels_persists_and_round_trips(self):
         # slot_channels is a plain Dict (not a List[PersistentSettings])
         # tagged persist=True -- CalibrationSettings.get_config() only
@@ -261,6 +307,36 @@ class TestInputRecordingReadyToRecord:
         settings = self._make_settings()
         before = settings._readiness_tick
         settings.available_inputs[2].sensor.name = 'MMM0'
+        assert settings._readiness_tick > before
+
+    def test_true_with_unity_sensor_type_and_no_name(self):
+        # Unity is "configured" the instant it's picked -- there's no
+        # instance name to also fill in (see MultiTypeSensorReference.
+        # is_configured()).
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        settings.available_inputs[0].sensor.switch_type('Unity')
+        assert settings.available_inputs[0].sensor.name == ''
+        assert settings.ready_to_record() is True
+
+    def test_false_with_nominal_sensor_type_and_zero_sensitivity(self):
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        settings.available_inputs[0].sensor.switch_type('Nominal')
+        settings.available_inputs[0].sensor.sensitivity = 0
+        assert settings.ready_to_record() is False
+
+    def test_true_with_nominal_sensor_type_and_positive_sensitivity(self):
+        settings = self._make_settings()
+        settings.generator.name = 'chirp'
+        settings.available_inputs[0].sensor.switch_type('Nominal')
+        settings.available_inputs[0].sensor.sensitivity = 12.3
+        assert settings.ready_to_record() is True
+
+    def test_tick_bumps_on_sensitivity_change(self):
+        settings = self._make_settings()
+        before = settings._readiness_tick
+        settings.available_inputs[0].sensor.sensitivity = 5.0
         assert settings._readiness_tick > before
 
 
