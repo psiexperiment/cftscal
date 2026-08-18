@@ -255,6 +255,6 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                         text << '{:.4f}'.format(results.get('rms peak (V)', ''))
 
                     Label:
-                        text = 'Mic. sens. (mV/Pa)'
+                        text = 'Mic. sens. (mV/Pa) calc. from overall RMS'
                     Label:
-                        text << '{:.4f}'.format(results.get('mic sens peak (mV/Pa)', ''))
+                        text << '{:.4f}'.format(results.get('mic sens overall (mV/Pa)', ''))
