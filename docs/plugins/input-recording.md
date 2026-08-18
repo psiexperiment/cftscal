@@ -10,10 +10,18 @@ Run CFTSCal and select the **Input Recording** workspace.
 | --- | --- |
 | **Number of inputs** | How many channels to record at once, from 1 up to the total number your hardware exposes. |
 | **Input** *(one row per active channel)* | A dropdown listing every available physical input — this doubles as the row's label, so there's no separate "Input 0"/"Input 1" text. Pick any channel here; the same physical channel can't be assigned to two active rows at once. |
-| **Sensor** *(per row)* | A label identifying the connected microphone, drawn from those created under the Measurement Microphone workspace. This value is used to load the correct measurement microphone calibration. This calibration is used convert the recorded microphone voltage to Pascals. A pass-through option, *unity*, is also available if you just want to record the raw voltage without converting it to Pascals. |
+| **Sensor** *(per row)* | A dropdown picking what kind of sensor is attached, plus (for most types) a second dropdown picking which specific one. |
 | **Gain** *(per row)* | The preamp gain, in dB, currently applied to that row's channel. |
 | **Target folder** | Organizes recordings into folders, same as every other workspace. Shared across all active channels, since they're saved together as a single recording. |
 | **Generator** | A free-form label that can be used to record the details of the test stimulus. Click *+* to add a new one. |
+
+### Sensor types
+
+| Type | What it means |
+| --- | --- |
+| **Meas. Mic.**, **Generic Mic.**, **Input Amp.**, **Starship** | Loads a real, on-file calibration — pick the specific one from the second dropdown. This calibration converts the recorded voltage to Pascals. |
+| **Unity** | A pass-through: records the raw voltage without converting it to Pascals. Since there's nothing to pick, the second dropdown is hidden. |
+| **Nominal** | For a device with no measured calibration on file — e.g. going off a spec sheet value. Replaces the second dropdown with an **mV/Pa** field where you type the sensitivity directly; the recording is calibrated to Pascals using that value. |
 
 ## Running the recording
 
