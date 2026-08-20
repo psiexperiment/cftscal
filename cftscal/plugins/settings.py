@@ -524,14 +524,20 @@ class MultiTypeSensorReference(SensorReference):
     fixed manager -- used by input_recording, where a channel might be
     wired to a measurement mic, generic mic, or starship probe mic (a
     starship's probe mic is a perfectly normal frequency-dependent
-    calibration too).
+    calibration too). Also used by the CFTS launcher's Input Channels
+    settings to configure a starship's or speaker's OWN calibration -- both
+    are built from the same kind of frequency-dependent sensitivity curve
+    (see e.g. CFTSStarshipCalibration/CFTSSpeakerCalibration), so a
+    'Starship'/'Speaker'-typed input channel's calibration doubles as that
+    device's output calibration; there's no separate representation needed.
 
     Picking ``sensor_type`` narrows ``available_references``/
     ``resolve_object()`` to that type's own manager, so names/paths never
     need cross-type disambiguation the way a single flat merged list
     would -- each of measurement_microphone_manager/
-    generic_microphone_manager/starship_manager/unity_manager already
-    produces correct ``folder/name`` paths entirely on its own.
+    generic_microphone_manager/starship_manager/speaker_manager/
+    unity_manager already produces correct ``folder/name`` paths entirely
+    on its own.
 
     Two of the sensor types are special-cased throughout this class
     rather than routing through ``TYPE_MANAGERS``:
@@ -552,6 +558,7 @@ class MultiTypeSensorReference(SensorReference):
         'Meas. Mic.': measurement_microphone_manager,
         'Generic Mic.': generic_microphone_manager,
         'Starship': starship_manager,
+        'Speaker': speaker_manager,
         'Unity': unity_manager,
     }
 

@@ -198,6 +198,7 @@ def show_connections():
         'Speaker': list_speaker_connections,
         'Measurement Microphone': list_measurement_microphone_connections,
         'Generic Microphone': list_generic_microphone_connections,
+        'Input': list_inputs,
     }
 
     for name, fn in fn_list.items():
