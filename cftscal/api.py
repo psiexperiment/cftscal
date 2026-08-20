@@ -4,6 +4,7 @@ from .util import (
     list_inputs,
     list_input_amplifier_connections,
     list_measurement_microphone_connections,
+    list_outputs,
     list_speaker_connections,
     list_starship_connections
 )

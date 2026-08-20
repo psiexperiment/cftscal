@@ -524,20 +524,17 @@ class MultiTypeSensorReference(SensorReference):
     fixed manager -- used by input_recording, where a channel might be
     wired to a measurement mic, generic mic, or starship probe mic (a
     starship's probe mic is a perfectly normal frequency-dependent
-    calibration too). Also used by the CFTS launcher's Input Channels
-    settings to configure a starship's or speaker's OWN calibration -- both
-    are built from the same kind of frequency-dependent sensitivity curve
-    (see e.g. CFTSStarshipCalibration/CFTSSpeakerCalibration), so a
-    'Starship'/'Speaker'-typed input channel's calibration doubles as that
-    device's output calibration; there's no separate representation needed.
+    calibration too).
 
     Picking ``sensor_type`` narrows ``available_references``/
     ``resolve_object()`` to that type's own manager, so names/paths never
     need cross-type disambiguation the way a single flat merged list
     would -- each of measurement_microphone_manager/
-    generic_microphone_manager/starship_manager/speaker_manager/
-    unity_manager already produces correct ``folder/name`` paths entirely
-    on its own.
+    generic_microphone_manager/starship_manager/unity_manager already
+    produces correct ``folder/name`` paths entirely on its own.
+
+    See also :class:`OutputCalibrationReference` below, the analogous
+    picker for OUTPUT devices (starships/speakers).
 
     Two of the sensor types are special-cased throughout this class
     rather than routing through ``TYPE_MANAGERS``:
@@ -558,7 +555,6 @@ class MultiTypeSensorReference(SensorReference):
         'Meas. Mic.': measurement_microphone_manager,
         'Generic Mic.': generic_microphone_manager,
         'Starship': starship_manager,
-        'Speaker': speaker_manager,
         'Unity': unity_manager,
     }
 
@@ -620,6 +616,31 @@ class MultiTypeSensorReference(SensorReference):
         self.name = ''
         self.available_references = []
         self.refresh_available()
+
+
+class OutputCalibrationReference(MultiTypeSensorReference):
+    '''
+    Picks the calibration for an OUTPUT device (a starship or speaker),
+    analogous to :class:`MultiTypeSensorReference` but for outputs rather
+    than input channels. No 'Unity'/'Nominal' types and no meaningful use
+    of the inherited ``gain`` field -- an output driver doesn't have the
+    separate "preamp gain" concept an input channel's sensor does, so
+    ``gain`` is simply left unused (``SensorView`` callers should pass
+    ``show_gain=False``).
+
+    Used by the CFTS launcher's Settings > Outputs list to configure a
+    starship's or speaker's own calibration directly, rather than via an
+    unrelated input channel -- both device types are built from the same
+    kind of frequency-dependent sensitivity curve (see
+    CFTSStarshipCalibration/CFTSSpeakerCalibration).
+    '''
+    TYPE_MANAGERS = {
+        'Starship': starship_manager,
+        'Speaker': speaker_manager,
+    }
+    SENSOR_TYPES = list(TYPE_MANAGERS.keys())
+
+    sensor_type = Enum(*SENSOR_TYPES).tag(persist=True)
 
 
 class InputSettings(PersistentSettings):
