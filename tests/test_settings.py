@@ -123,7 +123,7 @@ class TestInputRecordingSettings:
             settings.run_input_recording()
 
     def test_run_input_recording_happy_path(self, monkeypatch):
-        # The sensor's default sensor_type ('Meas. Mic.') resolves
+        # The sensor's default device_type ('Meas. Mic.') resolves
         # through measurement_microphone_manager, not input_manager --
         # see MultiTypeSensorReference.
         monkeypatch.setattr(
@@ -309,7 +309,7 @@ class TestInputRecordingReadyToRecord:
         settings.available_inputs[2].sensor.name = 'MMM0'
         assert settings._readiness_tick > before
 
-    def test_true_with_unity_sensor_type_and_no_name(self):
+    def test_true_with_unity_device_type_and_no_name(self):
         # Unity is "configured" the instant it's picked -- there's no
         # instance name to also fill in (see MultiTypeSensorReference.
         # is_configured()).
@@ -319,14 +319,14 @@ class TestInputRecordingReadyToRecord:
         assert settings.available_inputs[0].sensor.name == ''
         assert settings.ready_to_record() is True
 
-    def test_false_with_nominal_sensor_type_and_zero_sensitivity(self):
+    def test_false_with_nominal_device_type_and_zero_sensitivity(self):
         settings = self._make_settings()
         settings.generator.name = 'chirp'
         settings.available_inputs[0].sensor.switch_type('Nominal')
         settings.available_inputs[0].sensor.sensitivity = 0
         assert settings.ready_to_record() is False
 
-    def test_true_with_nominal_sensor_type_and_positive_sensitivity(self):
+    def test_true_with_nominal_device_type_and_positive_sensitivity(self):
         settings = self._make_settings()
         settings.generator.name = 'chirp'
         settings.available_inputs[0].sensor.switch_type('Nominal')

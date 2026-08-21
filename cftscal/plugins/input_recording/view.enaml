@@ -337,12 +337,12 @@ enamldef InputRecordingView(Container):
                         if len(slot_rows) > 1:
                             channel_combos = [row[0] for row in slot_rows]
                             # Each SensorView here always has a
-                            # MultiTypeSensorReference sensor (sensor_type
+                            # MultiTypeSensorReference sensor (device_type
                             # always set) and show_label=False, so its own
                             # visible_widgets() always starts with
                             # type_select and ends with [gain_select,
                             # gain_unit_label] -- but what's in between
-                            # varies by sensor_type: an instance combo
+                            # varies by device_type: an instance combo
                             # for Meas./Generic Mic./Starship (4 widgets
                             # total), nothing for Unity (3), or a
                             # sensitivity field + "mV/Pa" label for

@@ -57,7 +57,7 @@ class InputRecordingSettings(CalibrationSettings):
                 sensor=MultiTypeSensorReference(),
             )
             setting.sensor.observe('name', self._bump_readiness_tick)
-            setting.sensor.observe('sensor_type', self._bump_readiness_tick)
+            setting.sensor.observe('device_type', self._bump_readiness_tick)
             setting.sensor.observe('sensitivity', self._bump_readiness_tick)
             settings.append(setting)
         self.available_inputs = settings

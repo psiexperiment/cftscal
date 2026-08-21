@@ -386,7 +386,7 @@ class SensorReference(SensorSettings):
     Subclasses that only ever draw from one calibration type (e.g.
     :class:`MeasurementMicrophoneReference`) override ``get_manager()``.
     :class:`MultiTypeSensorReference` (below) instead switches which
-    manager ``get_manager()`` returns based on a ``sensor_type``
+    manager ``get_manager()`` returns based on a ``device_type``
     selection, for plugins (input_recording) where a channel might be
     wired to any of several differently-typed calibrations.
     '''
@@ -526,7 +526,7 @@ class MultiTypeSensorReference(SensorReference):
     starship's probe mic is a perfectly normal frequency-dependent
     calibration too).
 
-    Picking ``sensor_type`` narrows ``available_references``/
+    Picking ``device_type`` narrows ``available_references``/
     ``resolve_object()`` to that type's own manager, so names/paths never
     need cross-type disambiguation the way a single flat merged list
     would -- each of measurement_microphone_manager/
@@ -536,7 +536,7 @@ class MultiTypeSensorReference(SensorReference):
     See also :class:`OutputCalibrationReference` below, the analogous
     picker for OUTPUT devices (starships/speakers).
 
-    Two of the sensor types are special-cased throughout this class
+    Two of the device types are special-cased throughout this class
     rather than routing through ``TYPE_MANAGERS``:
 
     - ``'Unity'`` has exactly one possible instance (``'unity'``) --
@@ -562,57 +562,61 @@ class MultiTypeSensorReference(SensorReference):
     #: rather than folded into TYPE_MANAGERS since it has no manager to
     #: draw from -- get_manager() is never reached for it, every method
     #: that would otherwise call it special-cases 'Nominal' first.
-    SENSOR_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
+    DEVICE_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
 
-    sensor_type = Enum(*SENSOR_TYPES).tag(persist=True)
+    #: Which kind of device this reference resolves a calibration for --
+    #: named generically (not "sensor_type") since the same mechanism is
+    #: reused by :class:`OutputCalibrationReference` for OUTPUT devices
+    #: (starship/speaker), which aren't sensors at all.
+    device_type = Enum(*DEVICE_TYPES).tag(persist=True)
 
-    #: Nominal sensitivity in mV/Pa, used only when sensor_type ==
+    #: Nominal sensitivity in mV/Pa, used only when device_type ==
     #: 'Nominal' -- see the class docstring.
     sensitivity = Float(1.0).tag(persist=True)
 
     def get_manager(self):
-        return self.TYPE_MANAGERS[self.sensor_type]
+        return self.TYPE_MANAGERS[self.device_type]
 
     def get_available_references(self):
         # Neither has an instance list to populate a picker with --
         # 'Unity' always resolves to its one instance without asking,
         # 'Nominal' has no instance at all (see class docstring).
-        if self.sensor_type in ('Unity', 'Nominal'):
+        if self.device_type in ('Unity', 'Nominal'):
             return []
         return super().get_available_references()
 
     def get_calibration(self):
-        if self.sensor_type == 'Unity':
+        if self.device_type == 'Unity':
             return UnityInputCalibration()
-        if self.sensor_type == 'Nominal':
+        if self.device_type == 'Nominal':
             return NominalInputCalibration(self.sensitivity)
         return super().get_calibration()
 
     def is_configured(self):
-        if self.sensor_type == 'Unity':
+        if self.device_type == 'Unity':
             return True
-        if self.sensor_type == 'Nominal':
+        if self.device_type == 'Nominal':
             return self.sensitivity > 0
         return super().is_configured()
 
     def display_name(self):
-        if self.sensor_type == 'Unity':
+        if self.device_type == 'Unity':
             return 'unity'
-        if self.sensor_type == 'Nominal':
+        if self.device_type == 'Nominal':
             return f'Nominal ({self.sensitivity:g} mV/Pa)'
         return super().display_name()
 
     def switch_type(self, new_type):
         '''Explicit, UI-triggered type change -- clears the now-invalid
         name/option list for the old type. Deliberately not wired up as
-        an ``_observe_sensor_type`` handler: ``set_persistence()``
-        restores ``sensor_type`` via plain ``setattr`` alongside ``name``,
+        an ``_observe_device_type`` handler: ``set_persistence()``
+        restores ``device_type`` via plain ``setattr`` alongside ``name``,
         and their relative order isn't guaranteed, so an observer-based
         clear could run *after* ``name`` was already correctly restored
         and wipe it back out. Keeping the clear-on-switch behavior in an
         explicit method callers opt into (the widget, on user action)
         avoids that hazard entirely.'''
-        self.sensor_type = new_type
+        self.device_type = new_type
         self.name = ''
         self.available_references = []
         self.refresh_available()
@@ -638,9 +642,9 @@ class OutputCalibrationReference(MultiTypeSensorReference):
         'Starship': starship_manager,
         'Speaker': speaker_manager,
     }
-    SENSOR_TYPES = list(TYPE_MANAGERS.keys())
+    DEVICE_TYPES = list(TYPE_MANAGERS.keys())
 
-    sensor_type = Enum(*SENSOR_TYPES).tag(persist=True)
+    device_type = Enum(*DEVICE_TYPES).tag(persist=True)
 
 
 class InputSettings(PersistentSettings):

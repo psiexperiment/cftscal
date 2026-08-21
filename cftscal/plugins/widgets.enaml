@@ -648,16 +648,16 @@ enamldef SensorView(HGroup):
             collection.observe('updated', _on_collection_updated)
 
     #: Type-then-instance picker -- only for a sensor that can draw from
-    #: more than one calibration type (MultiTypeSensorReference, used by
-    #: input_recording). Every other caller's sensor (a plain
+    #: more than one calibration type (MultiTypeSensorReference/
+    #: OutputCalibrationReference). Every other caller's sensor (a plain
     #: SensorReference/SensorDevice subclass locked to one manager) has
-    #: no `sensor_type`, so this renders as nothing for them.
+    #: no `device_type`, so this renders as nothing for them.
     Conditional:
-        condition << hasattr(sensor, 'sensor_type')
+        condition << hasattr(sensor, 'device_type')
 
         ObjectCombo: type_select:
-            items << list(sensor.SENSOR_TYPES)
-            selected << sensor.sensor_type
+            items << list(sensor.DEVICE_TYPES)
+            selected << sensor.device_type
             selected ::
                 sensor.switch_type(selected)
 
@@ -672,9 +672,9 @@ enamldef SensorView(HGroup):
     #: to choose) and for 'Nominal' (replaced by the sensitivity field
     #: below; see MultiTypeSensorReference's class docstring). Every
     #: other sensor -- including a single-type SensorReference, which
-    #: has no `sensor_type` at all -- always shows it.
+    #: has no `device_type` at all -- always shows it.
     Conditional:
-        condition << getattr(sensor, 'sensor_type', None) not in ('Unity', 'Nominal')
+        condition << getattr(sensor, 'device_type', None) not in ('Unity', 'Nominal')
 
         ObjectCombo: select:
             items := sensor.available_references
@@ -707,7 +707,7 @@ enamldef SensorView(HGroup):
     #: a nominal sensitivity directly instead. Positioned right before
     #: the gain field, in place of the instance picker it replaces.
     Conditional:
-        condition << getattr(sensor, 'sensor_type', None) == 'Nominal'
+        condition << getattr(sensor, 'device_type', None) == 'Nominal'
 
         FloatField:
             value := sensor.sensitivity

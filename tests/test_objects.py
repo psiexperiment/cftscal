@@ -655,7 +655,7 @@ class TestNominalInputCalibration:
     '''
     NominalInputCalibration lets a channel be labelled with a
     user-entered sensitivity (mV/Pa) instead of a measured one -- see
-    MultiTypeSensorReference's 'Nominal' sensor_type
+    MultiTypeSensorReference's 'Nominal' device_type
     (cftscal/plugins/settings.py). Unlike every other Calibration here,
     it's never discovered by a CalibrationLoader/CalibrationManager --
     it only ever round-trips through to_string()/from_string().
@@ -770,7 +770,7 @@ class TestMultiTypeSensorReference:
 
     def test_defaults_to_measurement_mic(self):
         ref = self._make_reference()
-        assert ref.sensor_type == 'Meas. Mic.'
+        assert ref.device_type == 'Meas. Mic.'
 
     def test_available_references_matches_default_type_manager(self):
         from cftscal.objects import measurement_microphone_manager
@@ -783,7 +783,7 @@ class TestMultiTypeSensorReference:
         from cftscal.objects import starship_manager
         ref = self._make_reference()
         ref.switch_type('Starship')
-        assert ref.sensor_type == 'Starship'
+        assert ref.device_type == 'Starship'
         assert set(ref.available_references) == set(starship_manager.list_names())
 
     def test_switch_type_clears_name(self):
@@ -809,12 +809,12 @@ class TestMultiTypeSensorReference:
         assert ref.resolve_object() == 'a-starship-object'
         assert calls == ['SS1']
 
-    def test_sensor_types_lists_unity_and_nominal_alongside_the_managers(self):
-        # SENSOR_TYPES (not TYPE_MANAGERS.keys(), which 'Nominal' is
+    def test_device_types_lists_unity_and_nominal_alongside_the_managers(self):
+        # DEVICE_TYPES (not TYPE_MANAGERS.keys(), which 'Nominal' is
         # deliberately excluded from) is what SensorView populates its
         # type dropdown from -- see widgets.enaml.
         ref = self._make_reference()
-        assert ref.SENSOR_TYPES == [
+        assert ref.DEVICE_TYPES == [
             'Meas. Mic.', 'Generic Mic.', 'Starship', 'Unity', 'Nominal',
         ]
 
