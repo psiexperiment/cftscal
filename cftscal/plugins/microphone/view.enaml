@@ -12,8 +12,8 @@ from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import measurement_microphone_manager
 from cftscal.plugins.widgets import (
-    AddItem, CalibratedObjects, GroupPathPicker, ObjectCollection,
-    SinglePlotManager, _remove_selected,
+    CalibratedObjects, GroupPathPicker, ObjectCollection, SensorView,
+    SinglePlotManager,
 )
 
 
@@ -133,53 +133,18 @@ enamldef MicrophoneView(Container):
                         # channel's saved target folder.
                         path_target << settings.selected_input
 
-                    HGroup:
-                        share_layout = True
-                        align_widths = False
-                        padding = 0
-                        spacing = 5
-
-                        Label:
-                            text = 'Sensor ID'
-
-                        ObjectCombo: sensor_id_select:
-                            # Free-form device identifier (serial number,
-                            # asset tag, etc.) — persistent per input
-                            # channel.  SensorDevice doesn't auto-populate
-                            # from disk, so this list is purely
-                            # user-managed.  Written to metadata.json for
-                            # tracking which physical microphone recorded
-                            # each calibration.
-                            items := settings.selected_input.sensor.available_devices
-                            selected := settings.selected_input.sensor.name
-
-                        PushButton:
-                            text = '+'
-                            constraints = [width == 25]
-                            clicked ::
-                                popup = AddItem(
-                                    self, combo=sensor_id_select,
-                                    label='Sensor ID',
-                                    regex=r'^[\w\d/_\- ]+$',
-                                )
-                                popup.show()
-
-                        PushButton:
-                            text = '-'
-                            constraints = [width == 25]
-                            enabled << bool(sensor_id_select.selected)
-                            clicked ::
-                                _remove_selected(sensor_id_select)
-
-                        Label:
-                            text = 'Gain'
-
-                        ObjectCombo:
-                            items = [-20, -10, 0, 10, 20, 30, 40, 50]
-                            selected := settings.selected_input.sensor.gain
-
-                        Label:
-                            text = 'dB'
+                    SensorView:
+                        # The measurement mic is the device being
+                        # calibrated -- a SensorDevice.  Device mode gives
+                        # the free-form device-ID (serial/asset-tag) picker
+                        # with +/- management plus the gain dropdown,
+                        # replacing the inline combo this panel used to
+                        # hand-roll.  The ID is written to metadata.json to
+                        # track which physical microphone recorded each
+                        # calibration.
+                        mode = 'device'
+                        label = 'Sensor ID'
+                        sensor << settings.selected_input.sensor
 
                     PushButton: start:
                         text = 'Calibrate'

@@ -68,148 +68,169 @@ enamldef MicrophoneComparisonView(Container): view:
                 condition << settings is not None
 
                 Container:
-                    layout_constraints => ():
-                        widgets = self.visible_widgets()
-                        first = []
-                        second = []
-                        for w in widgets:
-                            # w.children would include Conditional/Looper
-                            # markers themselves, not just their generated
-                            # content -- visible_widgets() resolves those
-                            # to the actual constrainable widgets, same as
-                            # self.visible_widgets() above already does at
-                            # this level.
-                            row = w.visible_widgets()
-                            first.append(row[0])
-                            for c in row[1:]:
-                                if isinstance(c, Label):
-                                    second.append(c)
-                                    break
+                    share_layout = True
 
+                    layout_constraints => ():
                         constraints = [
-                            vbox(*widgets, spacing=5),
-                            align('right', *first),
-                            align('left', *second),
-                            align('right', *second),
+                            vbox(
+                                header, test_row, ref_row, speaker_row,
+                                target_row,
+                                hbox(spacer(0), golay_start, chirp_start,
+                                     spacing=5),
+                                spacing=5,
+                            ),
                         ]
+                        labels = [
+                            header.visible_widgets()[0],
+                            test_row.visible_widgets()[0],
+                            ref_row.visible_widgets()[0],
+                            speaker_row.visible_widgets()[0],
+                            target_row.visible_widgets()[0],
+                        ]
+                        constraints.append(align('width', *labels))
+                        combos = [
+                            header.visible_widgets()[1],
+                            test_row.visible_widgets()[1],
+                            ref_row.visible_widgets()[1],
+                            speaker_row.visible_widgets()[1],
+                        ]
+                        constraints.append(align('width', *combos))
+                        # The gain combo + gain label live INSIDE each
+                        # row's SensorView (its last two visible widgets),
+                        # not as direct children of the row -- the row's
+                        # own last child is the SensorView itself.  Reach
+                        # into each SensorView to align the gain column
+                        # across the two mic rows.  align('left', ...) on
+                        # the gain combos makes the reference row's combo
+                        # stretch to absorb the width the test row spends
+                        # on its +/- device buttons, so both gain combos
+                        # start at the same x.
+                        test_sensor = test_row.visible_widgets()[-1]
+                        ref_sensor = ref_row.visible_widgets()[-1]
+                        gains = [
+                            test_sensor.visible_widgets()[-2],
+                            ref_sensor.visible_widgets()[-2],
+                        ]
+                        constraints.append(align('left', *gains))
+                        constraints.append(align('width', *gains))
+                        gain_labels = [
+                            test_sensor.visible_widgets()[-1],
+                            ref_sensor.visible_widgets()[-1],
+                        ]
+                        constraints.append(align('left', *gain_labels))
+                        constraints.append(align('width', *gain_labels))
                         return constraints
 
-                    Container:
+                    HGroup: header:
+                        # Blank/heading labels align above the respective
+                        # elements in the rows below via the width
+                        # constraints in layout_constraints.
                         share_layout = True
+                        align_widths = False
                         padding = 0
+                        spacing = 5
 
-                        layout_constraints => ():
-                            constraints = [vbox(*visible_widgets(), spacing=5)]
-                            # Ensure that the element in the same column has
-                            # the same width across rows
-                            to_align = visible_widgets()
-                            for col in zip(*[c.visible_widgets() for c in to_align]):
-                                constraints.append(align('right', *col))
-                            return constraints
+                        Label:
+                            text = ''
 
-                        HGroup:
-                            # Blank labels are used to ensure that headings
-                            # align with respective elements in the subsequent
-                            # HGroups.
-                            share_layout = True
-                            align_widths = False
-                            padding = 0
-                            spacing = 5
+                        Label:
+                            text = 'Channel'
 
-                            Label:
-                                text = ''
+                        Label:
+                            text = 'Device'
 
-                            Label:
-                                text = 'Input'
+                    HGroup: test_row:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
 
-                            Label:
-                                text = 'Device / Ref.'
+                        Label:
+                            text = 'Test'
 
-                            Label:
-                                text = 'Target folder'
+                        ObjectCombo:
+                            items = settings.generic_inputs
+                            selected := settings.generic_input
+                            to_string = lambda m: m.input_label
 
-                        HGroup:
-                            share_layout = True
-                            align_widths = False
-                            padding = 0
-                            spacing = 5
+                        # The generic input's sensor is a SensorDevice
+                        # (the physical mic being calibrated).  Render it
+                        # with SensorView in device mode so it gets the
+                        # +/- device-ID management and gain picker -- the
+                        # same widget the reference row uses below, just
+                        # bound to available_devices.
+                        SensorView:
+                            mode = 'device'
+                            label = 'Device'
+                            show_label = False
+                            sensor << settings.generic_input.sensor
 
-                            Label:
-                                text = 'Test'
+                    HGroup: ref_row:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
 
-                            ObjectCombo:
-                                items = settings.generic_inputs
-                                selected := settings.generic_input
-                                to_string = lambda m: m.input_label
+                        Label:
+                            text = 'Ref.'
 
-                            # Inline device-ID picker.  The generic input's
-                            # sensor is a SensorDevice — its available_devices
-                            # is a user-managed list of physical device
-                            # identifiers, not calibration paths.
-                            ObjectCombo: generic_device_select:
-                                items := settings.generic_input.sensor.available_devices
-                                selected := settings.generic_input.sensor.name
+                        ObjectCombo:
+                            items = settings.measurement_inputs
+                            selected := settings.measurement_input
+                            to_string = lambda m: m.input_label
 
-                            GroupPathPicker:
-                                plugin_settings = settings
-                                subfolder = 'microphone_generic'
-                                collection << device_tree.collection
-                                path_target << settings.generic_input
-                                show_label = False
+                        SensorView:
+                            mode = 'static'
+                            label = 'Reference Microphone'
+                            show_label = False
+                            sensor << settings.measurement_input.sensor
+                            collection << device_tree.collection
 
-                        HGroup:
-                            share_layout = True
-                            align_widths = False
-                            padding = 0
-                            spacing = 5
+                    HGroup: speaker_row:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
+                        trailing_spacer = spacer(0)
 
-                            Label:
-                                text = 'Ref.'
+                        Label:
+                            text = 'Speaker'
 
-                            ObjectCombo:
-                                items = settings.measurement_inputs
-                                selected := settings.measurement_input
-                                to_string = lambda m: m.input_label
+                        ObjectCombo:
+                            items = settings.speaker_outputs
+                            selected := settings.speaker_output
+                            to_string = lambda s: s.output_label
 
-                            SensorView:
-                                mode = 'static'
-                                label = 'Reference Microphone'
-                                show_label = False
-                                sensor << settings.measurement_input.sensor
-                                collection << device_tree.collection
+                    # Target folder on its own row, bound to the
+                    # currently-selected generic (test) input so switching
+                    # test channels swaps in that channel's saved target
+                    # folder.
+                    GroupPathPicker: target_row:
+                        plugin_settings = settings
+                        subfolder = 'microphone_generic'
+                        collection << device_tree.collection
+                        path_target << settings.generic_input
+                        show_label = True
 
-                        HGroup:
-                            padding = 0
-                            spacing = 5
-                            align_widths = False
+                    PushButton: golay_start:
+                        text = 'Golay'
+                        clicked ::
+                            try:
+                                settings.run_calibration('golay')
+                            except (ValueError, LookupError) as exc:
+                                warning(self, 'Cannot calibrate', str(exc))
+                            else:
+                                device_tree.collection.update_groups()
 
-                            Label:
-                                text = 'Speaker'
-
-                            ObjectCombo:
-                                items = settings.speaker_outputs
-                                selected := settings.speaker_output
-                                to_string = lambda s: s.output_label
-
-                            PushButton: golay_start:
-                                text = 'Golay'
-                                clicked ::
-                                    try:
-                                        settings.run_calibration('golay')
-                                    except (ValueError, LookupError) as exc:
-                                        warning(self, 'Cannot calibrate', str(exc))
-                                    else:
-                                        device_tree.collection.update_groups()
-
-                            PushButton: chirp_start:
-                                text = 'Chirp'
-                                clicked ::
-                                    try:
-                                        settings.run_calibration('chirp')
-                                    except (ValueError, LookupError) as exc:
-                                        warning(self, 'Cannot calibrate', str(exc))
-                                    else:
-                                        device_tree.collection.update_groups()
+                    PushButton: chirp_start:
+                        text = 'Chirp'
+                        clicked ::
+                            try:
+                                settings.run_calibration('chirp')
+                            except (ValueError, LookupError) as exc:
+                                warning(self, 'Cannot calibrate', str(exc))
+                            else:
+                                device_tree.collection.update_groups()
 
         DockItem:
             name = 'device_sens_plot'
@@ -229,6 +250,7 @@ enamldef MicrophoneComparisonView(Container): view:
             stretch = 0
 
             CalibratedObjects: device_tree:
+                enable_current = True
                 mapping = {
                     'Name': {
                         'groupby': True,

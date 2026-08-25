@@ -667,14 +667,53 @@ enamldef SensorView(HGroup):
         Label:
             text = label
 
+    #: Device-role picker (SensorDevice) -- binds to the user-managed
+    #: ``available_devices`` list instead of ``available_references``. A
+    #: SensorDevice has no ``device_type``/``available_references`` at
+    #: all, so it can't share the reference branch below; the two are
+    #: kept mutually exclusive via the ``hasattr(sensor,
+    #: 'available_devices')`` guard on each. ``mode != 'static'`` adds the
+    #: +/- buttons for managing the free-form device-ID list.
+    Conditional:
+        condition << hasattr(sensor, 'available_devices')
+
+        ObjectCombo: device_select:
+            items := sensor.available_devices
+            selected := sensor.name
+            hug_width << 'ignore' if fill_row else 'strong'
+
+        Conditional:
+            condition = mode != 'static'
+
+            PushButton: device_add:
+                text = '+'
+                constraints = [width == 25]
+                clicked ::
+                    # Device identifiers are free-form serials/asset tags
+                    # (may contain spaces or slashes) -- same widened
+                    # regex as the reference picker below.
+                    popup = AddItem(
+                        self, combo=device_select, label=label,
+                        regex=r'^[\w\d/_\- ]+$',
+                    )
+                    popup.show()
+
+            PushButton: device_remove:
+                text = '-'
+                constraints = [width == 25]
+                enabled << bool(device_select.selected)
+                clicked ::
+                    _remove_selected(device_select)
+
     #: The instance picker is skipped for 'Unity' (its one possible
     #: instance is already implied by picking the type -- nothing left
     #: to choose) and for 'Nominal' (replaced by the sensitivity field
-    #: below; see MultiTypeSensorReference's class docstring). Every
-    #: other sensor -- including a single-type SensorReference, which
-    #: has no `device_type` at all -- always shows it.
+    #: below; see MultiTypeSensorReference's class docstring). Also
+    #: skipped for a SensorDevice, which the device branch above handles.
+    #: Every other sensor -- including a single-type SensorReference,
+    #: which has no `device_type` at all -- always shows it.
     Conditional:
-        condition << getattr(sensor, 'device_type', None) not in ('Unity', 'Nominal')
+        condition << not hasattr(sensor, 'available_devices') and getattr(sensor, 'device_type', None) not in ('Unity', 'Nominal')
 
         ObjectCombo: select:
             items := sensor.available_references
