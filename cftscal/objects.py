@@ -1283,6 +1283,9 @@ def show_objects(show_calibrations):
     print('* Inear')
     printer(inear_manager)
 
+    print('* Speaker')
+    printer(speaker_manager)
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
