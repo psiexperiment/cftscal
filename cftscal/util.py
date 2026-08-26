@@ -29,7 +29,11 @@ def io_manifest():
     if settings.hw_configuration == 'Sound Card':
         import os
         os.environ.update({
-            'PSI_SOUND_DEVICE_NAME': settings.selected_device,
+            # Identify the device by its fully-qualified "<name>, <host API>"
+            # string, not by index (the index is unstable across processes and
+            # even between launch and run). sounddevice resolves this to the
+            # one intended device even when the bare name is ambiguous.
+            'PSI_SOUND_DEVICE_NAME': settings.selected_device_query,
             'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
         })
         manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'

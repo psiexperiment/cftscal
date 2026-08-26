@@ -741,3 +741,164 @@ class _StubCalibration:
 class _StubCalObject:
     def get_current_calibration(self):
         return _StubCalibration()
+
+
+import types
+
+
+class _FakeSD:
+    '''
+    Stand-in for the ``sounddevice`` module used by
+    :mod:`cftscal.plugins.workspace`, so device-selection tests can run
+    against a fixed, deterministic device list on any machine (no real
+    audio hardware required).
+
+    ``devices`` is the list returned by ``query_devices()`` (position ==
+    PortAudio index); each entry's ``hostapi`` keys into ``hostapis``.
+    '''
+
+    def __init__(self, devices, hostapis, default_input=0):
+        self._devices = devices
+        self._hostapis = hostapis
+        self.default = types.SimpleNamespace(device=(default_input, 0))
+
+    def query_devices(self, device=None):
+        if device is None:
+            return [dict(d) for d in self._devices]
+        return dict(self._devices[device])
+
+    def query_hostapis(self, index):
+        return self._hostapis[index]
+
+    def check_input_settings(self, device=None, samplerate=None):
+        # Accept every standard rate -- these tests don't exercise
+        # rate filtering.
+        pass
+
+
+# Two of these share the bare name 'RME Babyface' and differ only by host
+# API -- the exact ambiguity the name+host-API identity is meant to resolve.
+_DEVICES = [
+    {'name': 'Speakers', 'hostapi': 0,
+     'max_input_channels': 0, 'max_output_channels': 2},
+    {'name': 'RME Babyface', 'hostapi': 0,
+     'max_input_channels': 2, 'max_output_channels': 2},
+    {'name': 'RME Babyface', 'hostapi': 1,
+     'max_input_channels': 8, 'max_output_channels': 8},
+]
+_HOSTAPIS = [{'name': 'MME'}, {'name': 'ASIO'}]
+
+
+class TestWorkspaceSettingsDeviceSelection:
+    '''
+    The audio device is selected/persisted/handed off by its durable
+    identity -- name + host API -- never by the unstable PortAudio index.
+    ``selected_device_query`` is the fully-qualified ``"<name>, <host API>"``
+    string handed to the psi subprocess (via PSI_SOUND_DEVICE_NAME), which
+    sounddevice matches exactly. See WorkspaceSettings in
+    cftscal/plugins/workspace.py.
+    '''
+
+    def _make_settings(self, tmp_path, monkeypatch, devices=None,
+                       hostapis=None, default_input=0):
+        fake = _FakeSD(devices if devices is not None else _DEVICES,
+                       hostapis if hostapis is not None else _HOSTAPIS,
+                       default_input=default_input)
+        monkeypatch.setattr('cftscal.plugins.workspace.sd', fake)
+        monkeypatch.setattr(
+            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
+        )
+        return WorkspaceSettings()
+
+    def test_fresh_install_seeds_identity_from_default_device(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch, default_input=0)
+        assert settings.selected_device_name == 'Speakers'
+        assert settings.selected_device_hostapi == 'MME'
+        assert settings.selected_device_query == 'Speakers, MME'
+
+    def test_selecting_device_populates_identity_and_query(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[2]
+        assert settings.selected_device_name == 'RME Babyface'
+        assert settings.selected_device_hostapi == 'ASIO'
+        assert settings.selected_device_query == 'RME Babyface, ASIO'
+
+    def test_query_disambiguates_same_name_by_host_api(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[1]
+        assert settings.selected_device_query == 'RME Babyface, MME'
+        settings.selected_device = settings.available_devices[2]
+        assert settings.selected_device_query == 'RME Babyface, ASIO'
+
+    def test_query_matches_sounddevices_full_string_format(
+            self, tmp_path, monkeypatch):
+        # The ", " separator and ordering must match what sounddevice builds
+        # internally (device name + ', ' + host API name) so the query is an
+        # exact match, not just a substring.
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[2]
+        d = _DEVICES[2]
+        expected = d['name'] + ', ' + _HOSTAPIS[d['hostapi']]['name']
+        assert settings.selected_device_query == expected
+
+    def test_round_trip_persists_identity_not_index(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[2]
+        settings.save_config()
+
+        saved = json.loads(
+            (tmp_path / 'cfts' / 'workspace.json').read_text())
+        assert saved['selected_device_name'] == 'RME Babyface'
+        assert saved['selected_device_hostapi'] == 'ASIO'
+        # Persisted by identity only -- no positional index leaks into config.
+        assert 'selected_device' not in saved
+
+    def test_reresolves_device_after_device_list_reorder(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[2]  # ASIO RME
+        settings.save_config()
+
+        # Next launch: the ASIO device now sits at a different position.
+        reordered = [_DEVICES[2], _DEVICES[0], _DEVICES[1]]
+        restored = self._make_settings(
+            tmp_path, monkeypatch, devices=reordered)
+        # Re-found by identity regardless of its new position in the list.
+        assert restored.selected_device is restored.available_devices[0]
+        assert restored.selected_device_hostapi == 'ASIO'
+        assert restored.selected_device_query == 'RME Babyface, ASIO'
+
+    def test_absent_device_preserves_identity_for_handoff(
+            self, tmp_path, monkeypatch):
+        settings = self._make_settings(tmp_path, monkeypatch)
+        settings.selected_device = settings.available_devices[2]
+        settings.save_config()
+
+        # Device unplugged: only the two others remain.
+        remaining = [_DEVICES[0], _DEVICES[1]]
+        restored = self._make_settings(
+            tmp_path, monkeypatch, devices=remaining)
+        # No live device matches, but the durable identity (and thus the query
+        # we hand off) survives so the run still targets the right device if it
+        # reappears.
+        assert restored.selected_device is None
+        assert restored.selected_device_query == 'RME Babyface, ASIO'
+        assert restored.selected_device_info == ''
+
+    def test_loads_legacy_name_only_config(self, tmp_path, monkeypatch):
+        # Configs written before host API was tracked used a bare
+        # 'selected_device' name key.
+        config_file = tmp_path / 'cfts' / 'workspace.json'
+        config_file.parent.mkdir(parents=True)
+        config_file.write_text(json.dumps({
+            'selected_device': 'RME Babyface',
+        }))
+        settings = self._make_settings(tmp_path, monkeypatch)
+        # Resolves by name to the first match and fills in its host API.
+        assert settings.selected_device_name == 'RME Babyface'
+        assert settings.selected_device is settings.available_devices[1]
+        assert settings.selected_device_hostapi == 'MME'

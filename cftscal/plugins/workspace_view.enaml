@@ -62,8 +62,12 @@ enamldef WorkspaceSettingsView(Window): win:
                 Label:
                     text = 'Audio device'
                 ObjectCombo:
-                    items << [d['name'] for d in settings.available_devices]
+                    # Items are the device dicts themselves; the label
+                    # (name + host API) is rendered via to_string, which keeps
+                    # same-named drivers (e.g. ASIO vs WASAPI) distinct.
+                    items << settings.available_devices
                     selected := settings.selected_device
+                    to_string = lambda d: settings.device_label(d)
 
                 Label:
                     pass
