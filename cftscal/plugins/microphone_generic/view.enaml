@@ -87,6 +87,7 @@ enamldef MicrophoneComparisonView(Container): view:
                             speaker_row.visible_widgets()[0],
                             target_row.visible_widgets()[0],
                         ]
+                        constraints.append(align('left', *labels))
                         constraints.append(align('width', *labels))
                         combos = [
                             header.visible_widgets()[1],
@@ -94,17 +95,9 @@ enamldef MicrophoneComparisonView(Container): view:
                             ref_row.visible_widgets()[1],
                             speaker_row.visible_widgets()[1],
                         ]
+                        constraints.append(align('left', *combos))
                         constraints.append(align('width', *combos))
-                        # The gain combo + gain label live INSIDE each
-                        # row's SensorView (its last two visible widgets),
-                        # not as direct children of the row -- the row's
-                        # own last child is the SensorView itself.  Reach
-                        # into each SensorView to align the gain column
-                        # across the two mic rows.  align('left', ...) on
-                        # the gain combos makes the reference row's combo
-                        # stretch to absorb the width the test row spends
-                        # on its +/- device buttons, so both gain combos
-                        # start at the same x.
+
                         test_sensor = test_row.visible_widgets()[-1]
                         ref_sensor = ref_row.visible_widgets()[-1]
                         gains = [
