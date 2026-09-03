@@ -1,11 +1,10 @@
 import numpy as np
 
-from enaml.core.api import Conditional, Looper
+from enaml.core.api import Conditional
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
-from enaml.stdlib.fields import FloatField
 from enaml.stdlib.message_box import warning
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo, PushButton
+    Container, DockArea, DockItem, Label, ObjectCombo, PushButton
 )
 
 from psi.data.plots_manifest import PGCanvas
@@ -13,7 +12,7 @@ from psi.data.plots_manifest import PGCanvas
 from cftscal.objects import generic_microphone_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, SinglePlotManager,
-    ObjectCollection, SensorView,
+    ObjectCollection, SensorView, _remove_selected,
 )
 
 

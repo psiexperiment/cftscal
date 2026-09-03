@@ -67,7 +67,7 @@ enamldef SpeakerView(Container):
                 Container:
                     layout_constraints => ():
                         widgets = self.visible_widgets()
-                        first = []
+                        first, second = [], []
                         for w in widgets:
                             # w.children would include Conditional/Looper
                             # markers themselves, not just their generated
@@ -76,10 +76,14 @@ enamldef SpeakerView(Container):
                             # self.visible_widgets() above already does at
                             # this level.
                             first.append(w.visible_widgets()[0])
+                            second.append(w.visible_widgets()[1])
+
                         constraints = [
                             vbox(*widgets, spacing=5),
                             align('right', *first),
                             align('left', *first),
+                            align('right', *second[:2]),
+                            align('left', *second[:2]),
                         ]
                         return constraints
 
@@ -147,7 +151,7 @@ enamldef SpeakerView(Container):
                             speaker_add.width == 25,
                             speaker_remove.width == 25,
                             align('v_center', speaker_label, output_channel,
-                                speaker_select, speaker_add, speaker_remove),
+                                  speaker_select, speaker_add, speaker_remove),
                             align('v_center', golay_start, chirp_start),
                             align('width', speaker_label, speaker_target.visible_widgets()[0]),
                         ]
@@ -161,7 +165,7 @@ enamldef SpeakerView(Container):
                             to_string = lambda o: o.output_label
 
                         ObjectCombo: speaker_select:
-                            items << ao.generator.available_generators
+                            items := ao.generator.available_generators
                             selected := ao.generator.name
 
                         PushButton: speaker_add:
