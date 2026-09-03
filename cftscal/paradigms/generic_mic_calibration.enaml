@@ -231,7 +231,7 @@ def validate_sens(event, sens):
     data = event.workbench.get_plugin('psi.data')
     core = event.workbench.get_plugin('enaml.workbench.core')
 
-    ao = controller.get_output('system_speaker').channel
+    ao = controller.get_output('system_output').channel
     generic_ai = controller.get_input('generic_microphone').channel
     generic_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
 

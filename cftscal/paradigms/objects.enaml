@@ -222,6 +222,7 @@ enamldef Output(ExperimentManifest): manifest:
 
 enamldef Speaker(Output): manifest:
 
+    id = 'system_output'
     env_prefix = 'CFTS_SPEAKER'
 
 

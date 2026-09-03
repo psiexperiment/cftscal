@@ -245,7 +245,8 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
     if len(frequencies) == 0:
         log.debug('No frequencies available to calibrate. Please review target SPL.')
         return
-    result = tone_sens(ao_channel.engine, frequencies, gains=gains,
+    result = tone_sens([ao_channel.engine, ai_channel.engine],
+                       frequencies, gains=gains,
                        ao_channel_name=ao_channel.name,
                        ai_channel_names=[ai_channel.name]).reset_index()
 
