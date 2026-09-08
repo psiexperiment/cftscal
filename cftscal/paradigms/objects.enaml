@@ -346,6 +346,9 @@ def initialize_starship(name, side, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
+    if 'CFTS_{side.upper()}_STARSHIP' not in os.environ:
+        return
+
     starship = os.environ[f'CFTS_{side.upper()}_STARSHIP']
     item_starship = context.get_item(f'{name}')
     item_starship.set_value(starship)
