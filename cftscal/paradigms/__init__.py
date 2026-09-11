@@ -36,6 +36,11 @@ def _input_plot_sources(channels, colors=('k', 'r', 'b', 'g', 'm', 'c')):
 all_inputs_mixin = {
     'manifest': PATH + 'record.AllInputs',
     'required': True,
+    # Defaults are right here: InputRecordingSettings.
+    # run_input_recording() sets CFTS_INPUT_CHANNELS plus a gain and a
+    # calibration for every channel it launches with (it refuses to
+    # launch at all until every active channel has a sensor), so all
+    # three are required.
 }
 
 
@@ -45,6 +50,17 @@ input_amplifier_mixin = {
 }
 
 
+# Every objects.* manifest below reads its configuration from
+# environment variables and, by default, raises an error naming the
+# variables it expected if any are missing (see
+# `cftscal/paradigms/objects.enaml`). A calibration paradigm is usually
+# the thing that *creates* one of those calibrations, so it has none to
+# load yet -- hence the `required_vars` overrides here. Each one must
+# match what the corresponding plugin actually puts in the environment
+# (the `include_cal` arguments to `get_env_vars` in
+# `cftscal/plugins/*/settings.py`).
+
+
 selectable_starship_mixin = {
     'manifest': PATH + 'objects.Starship',
     'required': True,
@@ -52,10 +68,29 @@ selectable_starship_mixin = {
 }
 
 
+# Used by the probe-tube calibration paradigms, which create the
+# starship's probe-tube microphone calibration (see
+# `StarshipCalibrationSettings.run_cal_*`, which passes
+# `include_cal=False`).
+uncalibrated_starship_mixin = {
+    **selectable_starship_mixin,
+    'attrs': {
+        **selectable_starship_mixin['attrs'],
+        'required_vars': ['name', 'gain'],
+    },
+}
+
+
 selectable_input_mixin = {
     'manifest': PATH + 'objects.Input',
     'required': True,
-    'attrs': {'id': 'selected_input', 'title': 'Input'},
+    # The IR sensor is just a photodetector. There's no calibration to
+    # load for it (see `IRSensorSettings.run_recording`).
+    'attrs': {
+        'id': 'selected_input',
+        'title': 'Input',
+        'required_vars': ['name', 'gain'],
+    },
 }
 
 
@@ -70,17 +105,43 @@ selectable_microphone_mixin = {
 }
 
 
+# Used by the pistonphone paradigm, which creates the measurement
+# microphone's calibration (see `MicrophoneCalibrationSettings.
+# run_calibration`, which passes `include_cal=False`).
+uncalibrated_microphone_mixin = {
+    **selectable_microphone_mixin,
+    'attrs': {
+        **selectable_microphone_mixin['attrs'],
+        'required_vars': ['name', 'gain'],
+    },
+}
+
+
 selectable_output_mixin = {
     'manifest': PATH + 'objects.Output',
     'required': True,
-    'attrs': {'id': 'selected_output', 'title': 'Output'},
+    # As with `selectable_input_mixin`, the IR sensor's output (the IR
+    # LED) has no calibration.
+    'attrs': {
+        'id': 'selected_output',
+        'title': 'Output',
+        'required_vars': ['name'],
+    },
 }
 
 
 selectable_speaker_mixin = {
     'manifest': PATH + 'objects.Speaker',
     'required': True,
-    'attrs': {'id': 'system', 'title': 'Speaker'},
+    # The speaker is only used as a sound source that the microphones can
+    # both record, so its calibration is never loaded for these paradigms
+    # (see `SpeakerCalibrationSettings.run_cal` and
+    # `MicrophoneComparisonSettings.run_calibration`).
+    'attrs': {
+        'id': 'system',
+        'title': 'Speaker',
+        'required_vars': ['name'],
+    },
 }
 
 
@@ -90,7 +151,7 @@ ParadigmDescription(
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTChirpMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_starship_mixin,
+        uncalibrated_starship_mixin,
         selectable_microphone_mixin,
     ],
 )
@@ -102,7 +163,7 @@ ParadigmDescription(
         {'manifest': PATH + 'pt_calibration.BasePTCalibrationManifest',},
         {'manifest': PATH + 'pt_calibration.PTGolayMixin',},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin',},
-        selectable_starship_mixin,
+        uncalibrated_starship_mixin,
         selectable_microphone_mixin,
     ],
 )
@@ -131,6 +192,9 @@ ParadigmDescription(
                 'title': 'Generic Microphone',
                 'microphone_type': 'generic_microphone',
                 'env_prefix': 'CFTS_GENERIC_MICROPHONE',
+                # This is the microphone being calibrated, so there is
+                # no calibration to load for it yet.
+                'required_vars': ['name', 'gain'],
             },
         },
     ],
@@ -161,6 +225,9 @@ ParadigmDescription(
                 'title': 'Generic Microphone',
                 'microphone_type': 'generic_microphone',
                 'env_prefix': 'CFTS_GENERIC_MICROPHONE',
+                # This is the microphone being calibrated, so there is
+                # no calibration to load for it yet.
+                'required_vars': ['name', 'gain'],
             },
         },
     ],
@@ -202,7 +269,7 @@ ParadigmDescription(
          'required': True,
          'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)', 'axis_scale': 'octave'}
          },
-        selectable_microphone_mixin,
+        uncalibrated_microphone_mixin,
     ]
 )
 

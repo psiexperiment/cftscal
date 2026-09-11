@@ -1,5 +1,4 @@
 import functools
-import os
 
 from enaml.core.api import Looper
 from enaml.workbench.api import Extension
@@ -12,25 +11,76 @@ from psi.data.sinks.api import BinaryStore
 
 from cftscal.objects import input_manager
 
+from cftscal.paradigms.calibration_status import (
+    CalibrationParameter, report_calibration
+)
+
+from cftscal.paradigms.env_vars import (
+    INPUT_VARS, MissingEnvironmentVariables, check_required_vars,
+    read_named_vars
+)
+
 from . import active_input_channels
 
 
 EXPERIMENT = 'basic'
 
 
-def initialize_all_inputs(env_prefix, event):
+#: Settings `initialize_all_inputs` reads from the environment. Unlike
+#: the objects in `cftscal/paradigms/objects.enaml`, which configure one
+#: channel selected by an environment variable, this manifest configures
+#: every channel named in `<env_prefix>_CHANNELS` ('channels' here) and
+#: reads the standard input variables (INPUT_VARS) for each of them.
+ALL_INPUTS_VARS = ['channels'] + list(INPUT_VARS)
+
+
+def initialize_all_inputs(manifest_id, env_prefix, required_vars, event):
     '''
     Per-channel gain + calibration only -- channel *selection* is static
     (baked into AllInputs' Looper from CFTS_INPUT_CHANNELS), so unlike
-    objects.enaml's initialize_input() there's no context item to update.
+    objects.enaml's initialize_input() there's no channel or gain context
+    item to update; the only item written here is the one reporting which
+    calibration each channel ended up with.
+
+    Every active channel must provide everything listed in
+    `required_vars` (by default, both gain and calibration).
+    InputRecordingSettings.run_input_recording() always sets both for
+    every channel it launches with, so anything missing here means an
+    environment variable was misspelled or a channel was added to
+    CFTS_INPUT_CHANNELS without its settings.
     '''
+    context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
-    for name in active_input_channels(env_prefix):
+    check_required_vars(manifest_id, required_vars, ALL_INPUTS_VARS)
+
+    channel_names = active_input_channels(env_prefix)
+    if not channel_names and 'channels' in required_vars:
+        raise MissingEnvironmentVariables(
+            manifest_id, [(f'{env_prefix}_CHANNELS', 'channels')])
+
+    # Report every channel's missing variables at once. Fixing them one
+    # experiment launch at a time would be tedious with several channels
+    # active.
+    missing = []
+    for name in channel_names:
+        calibration = None
+        try:
+            env = read_named_vars(f'{manifest_id} channel {name}', name,
+                                  env_prefix, INPUT_VARS, required_vars)
+        except MissingEnvironmentVariables as exc:
+            missing.extend(exc.missing)
+            report_calibration(context, f'{name}_calibration', None)
+            continue
         channel = controller.get_channel(f'hw_ai::{name}')
-        if (gain := os.environ.get(f'{env_prefix}_{name.upper()}_GAIN')) is not None:
+        if (gain := env['gain']) is not None:
             channel.gain = float(gain)
-        if (cal_str := os.environ.get(f'{env_prefix}_{name.upper()}')) is not None:
-            channel.calibration = input_manager.from_string(cal_str).load()
+        if (cal_str := env['calibration']) is not None:
+            calibration = input_manager.from_string(cal_str)
+            channel.calibration = calibration.load()
+        report_calibration(context, f'{name}_calibration', calibration)
+
+    if missing:
+        raise MissingEnvironmentVariables(manifest_id, missing)
 
 
 enamldef AllInputs(ExperimentManifest): manifest:
@@ -42,11 +92,42 @@ enamldef AllInputs(ExperimentManifest): manifest:
     always unique here -- cftscal's own UI rejects assigning the same
     real channel to more than one slot (see active_input_channels()'s
     docstring for why).
+
+    Environment variables are used to configure the channels. Here,
+    <env_prefix> is set as an attribute on the manifest (defaults to
+    CFTS_INPUT) and <name> is the uppercased name of each channel as
+    identified in the IO manifest.
+
+    <env_prefix>_CHANNELS
+        Comma-separated list of channels to record from ('channels' in
+        `required_vars`).
+
+    <env_prefix>_<name>_GAIN
+        Indicates the current gain setting on that channel's amplifier
+        ('gain' in `required_vars`).
+
+    <env_prefix>_<name>
+        A calibration string (provided by cftscal) that will load the
+        correct calibration when passed to `input_manager.from_string`
+        ('calibration' in `required_vars`).
+
+    Set `required_vars` to the subset of ['channels', 'gain',
+    'calibration'] the experiment actually needs. The gain and
+    calibration entries apply to *every* channel; there is no way to
+    require them for only some. Missing entries are still applied when
+    present in the environment, but no longer raise an error when
+    absent.
+
+    Each channel also gets a read-only `<name>_calibration` context item
+    naming the calibration it is using, since that is the one setting
+    with no widget of its own (see
+    `cftscal/paradigms/calibration_status.py`).
     '''
 
     id = 'all_inputs'
     attr env_prefix = 'CFTS_INPUT'
     attr channel_names = active_input_channels(env_prefix)
+    attr required_vars = list(ALL_INPUTS_VARS)
 
     Extension:
         id = manifest.id + '.commands'
@@ -54,7 +135,9 @@ enamldef AllInputs(ExperimentManifest): manifest:
 
         Command:
             id = manifest.id + '.initialize_all_inputs'
-            handler = functools.partial(initialize_all_inputs, manifest.env_prefix)
+            handler = functools.partial(initialize_all_inputs, manifest.id,
+                                        manifest.env_prefix,
+                                        manifest.required_vars)
 
     Extension:
         id = manifest.id + '.actions'
@@ -63,6 +146,21 @@ enamldef AllInputs(ExperimentManifest): manifest:
         ExperimentAction:
             event = 'plugins_started'
             command = manifest.id + '.initialize_all_inputs'
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        # One per channel: unlike the objects in objects.enaml, this
+        # manifest configures every channel named in
+        # <env_prefix>_CHANNELS rather than a single selected one.
+        Looper:
+            iterable << manifest.channel_names
+
+            CalibrationParameter:
+                name = f'{loop_item}_calibration'
+                label = f'{loop_item} calibration'
+                group_name = 'hardware_settings'
 
     Extension:
         id = manifest.id + '.io'
