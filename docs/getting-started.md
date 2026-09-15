@@ -44,3 +44,5 @@ Once you're oriented, move on to the [Plugins](plugins/index.md):
 - [Starship Calibration](plugins/starship.md) and [Starship Check](plugins/starship-check.md) — calibrate a starship, then periodically verify it's still behaving once it's in use.
 - [Input Amplifier Calibration](plugins/input-amplifier.md) — verify a standalone signal preamp's actual gain.
 - [IR Sensor Calibration](plugins/ir-sensor.md) — a diagnostic recording tool for IR emitter/detector pairs.
+
+If you'd rather know what's happening underneath, the [Reference](reference/index.md) section has the equations ([Calibration Math](reference/calibration-math.md)), the spectrum-estimation details ([Signal Analysis](reference/signal-analysis.md)), and the rig-design arithmetic ([Hardware Design](reference/hardware-design.md)).

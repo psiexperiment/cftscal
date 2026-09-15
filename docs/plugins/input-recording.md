@@ -21,7 +21,7 @@ Run CFTSCal and select the **Input Recording** workspace.
 | --- | --- |
 | **Meas. Mic.**, **Generic Mic.**, **Input Amp.**, **Starship** | Loads a real, on-file calibration — pick the specific one from the second dropdown. This calibration converts the recorded voltage to Pascals. |
 | **Unity** | A pass-through: records the raw voltage without converting it to Pascals. Since there's nothing to pick, the second dropdown is hidden. |
-| **Nominal** | For a device with no measured calibration on file — e.g. going off a spec sheet value. Replaces the second dropdown with an **mV/Pa** field where you type the sensitivity directly; the recording is calibrated to Pascals using that value. |
+| **Nominal** | For a device with no measured calibration on file — e.g. going off a spec sheet value. Replaces the second dropdown with an **mV/Pa** field where you type the sensitivity directly; the recording is calibrated to Pascals using that value. Note the direction of the ratio: millivolts *generated per Pascal*, the convention used on most datasheets. If your datasheet gives Pa/V instead, take the reciprocal — see [Which way round is "sensitivity"?](../concepts.md#which-way-round-is-sensitivity) |
 
 ## Running the recording
 
@@ -62,6 +62,31 @@ The *Filter* dropdown controls the filtering that gets applied to the signal bef
 | **Unfiltered** | No filtering — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
 | **dBA** | Standard A-weighting (IEC 61672-1) |
 | **1/3 Octave** | A steep band-pass filter centered on a frequency you choose (*Center freq.*), with an adjustable *order* (higher orders roll off more sharply outside the band). | 
+
+## Interpreting the levels
+
+A single number describing a broadband signal's level always depends on how wide a band you're talking about, so it's worth knowing which quantity you're looking at:
+
+- **Spectrum level** is the level in a 1 Hz-wide band — i.e. the level *per hertz*. This is what the PSD plot shows, at each frequency.
+- **Band level** is the total level integrated over a band of width \(\Delta f\). This is what the Analysis table's RMS dB SPL reports, over whatever bandwidth the filter leaves in place.
+
+They're related by:
+
+$$ BL = SL + 10 \times log_{10}(\Delta f) $$
+
+**Worked example.** A flat noise with a spectrum level of 56 dB spanning 4–64 kHz has a band level of \(56 + 10 \times log_{10}(60000) = 103.8\) dB SPL. Note the \(10 \times log_{10}\) — this is a power ratio, unlike the \(20 \times log_{10}\) used for amplitude ratios elsewhere.
+
+!!! warning "An unfiltered level often measures your noise floor"
+    Because band level grows with bandwidth, a *low* noise floor spread across a *wide* bandwidth can dominate the reported total. For a 4 kHz-wide signal band at a 65 dB spectrum level (a 101 dB SPL band level) sitting on a flat noise floor that extends out to 50 kHz:
+
+    | Noise floor (spectrum level) | Reported total |
+    | --- | --- |
+    | 30 dB | 101.0 dB SPL |
+    | 40 dB | 101.2 dB SPL |
+    | 50 dB | 102.4 dB SPL |
+    | 60 dB | 107.7 dB SPL |
+
+    A noise floor 5 dB *below* the signal's spectrum level still adds 6.7 dB to the total, purely because it's 11 dB wider in bandwidth. This is why the region selection and the filter matter: restricting the analysis to the region and band you actually care about is what makes the reported level a measurement of your stimulus rather than of your noise floor. [Total level is easy to get wrong](../reference/signal-analysis.md#total-level-is-easy-to-get-wrong) has the full worked numbers.
 
 ## Exporting a calibrated WAV
 

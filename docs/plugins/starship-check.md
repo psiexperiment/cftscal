@@ -2,6 +2,12 @@
 
 Unlike Starship Calibration, this isn't computing a fresh calibration — it's a quick verification that an *already-calibrated* starship still behaves as expected once it's actually inserted into an ear (or an ear-simulating coupler). It plays a chirp through the starship and records the response with the starship's own probe-tube microphone, letting you catch drift or a bad seal before you trust the data from a session.
 
+## Why a bench calibration isn't enough
+
+Inserting the probe into an ear changes the acoustics of the system. The ear canal presents a different acoustic load — largely a compliance, set by the enclosed volume — which shifts the resonances of the system, so the transfer function measured in a coupler on the bench is not the transfer function you have in the ear. The probe tube's own resonances move too, since they depend on the length of the acoustic cavity (see [Acoustic tube resonance](../reference/hardware-design.md#acoustic-tube-resonance)).
+
+The practical rule is that **an in-ear measurement has to be repeated every time the probe is repositioned while it's in the ear** — it isn't a one-time measurement you can carry across a session. Running a check after each repositioning is what makes that rule cheap to follow. [Calibration Math](../reference/calibration-math.md#step-4-in-ear-speaker-calibration) has the equations.
+
 ## What you'll need
 
 - A previously calibrated starship (see [Starship Calibration](starship.md)).

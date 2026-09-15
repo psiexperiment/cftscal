@@ -35,9 +35,24 @@ To run the calibration, click **Golay** or **Chirp** next to the starship you wa
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. More robust to background noise, at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. Much faster, but somewhat more sensitive to noise.
 
+Both runs expose a **Smoothing window** parameter (default 10) — the width, in frequency bins, of a Hamming-weighted moving average applied to the computed sensitivity *curve*. Set it to `0` to see the raw, unsmoothed measurement, which is worth doing before you conclude that a notch in the curve is or isn't real. See [Speaker Calibration](speaker.md#run-parameters) for the other run parameters, which are the same.
+
+## How the calibration is computed
+
+Two things are being established at once: the sensitivity of the starship's own probe-tube microphone (against the reference microphone), and the transfer function of its speaker drivers (measured with that probe-tube microphone).
+
+Given a probe-tube microphone of known sensitivity \(S_{PT}(f)\) — a function of frequency \(f\) in Hz, meaning it takes a different value at each frequency — the sound pressure in the coupler is \(O(f) = V_{PT}(f) / S_{PT}(f)\), and the speaker transfer function follows:
+
+$$ S_{s}(f) = \frac{V_{DAC}(f) \times S_{PT}(f)}{V_{PT}(f)} $$
+
+[Calibration Math](../reference/calibration-math.md#step-4-in-ear-speaker-calibration) works through this in both linear and dB form.
+
+!!! warning "A coupler calibration is not an in-ear calibration"
+    This workspace calibrates the starship against a coupler on the bench. Inserting the probe into an ear *changes the acoustics of the system*: the ear canal presents a different acoustic load (largely a compliance, set by the enclosed volume), which shifts the system's resonances. So this calibration does not describe what the starship is doing once it's in an ear. An in-ear calibration has to be redone every time the probe is repositioned while it's in the ear; [Starship Check](starship-check.md) is the workspace for verifying the starship in the ear it's actually sitting in.
+
 ## Reviewing the results
 
-*Starship Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently selected in the list below.
+*Starship Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently selected in the list below. As with the speaker workspace, the plotted value is the dB SPL produced at a 1 V<sub>rms</sub> drive, so you can read the voltage needed for a target level straight off the curve — see [Reading cftscal's reported numbers](../reference/calibration-math.md#reading-cftscals-reported-numbers).
 
 **Starship Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
 
@@ -56,7 +71,7 @@ To run the calibration, click **Golay** or **Chirp** next to the starship you wa
 ## Sanity-checking a calibration
 
 - **Does the response look like previous calibrations of the same starship?** A sudden change usually means the probe tube shifted, got clogged with debris, or the coupler seal broke.
-- **Is the curve reasonably smooth, without unexpected notches?** That usually points to a leak or obstruction rather than a real change in the starship.
+- **Is the curve reasonably smooth, without unexpected notches?** That usually points to a leak or obstruction rather than a real change in the starship. Bear in mind that a probe tube has genuine acoustic resonances inside the measurement range — a 20 mm tube resonates at roughly 4 kHz with further modes above that (see [Acoustic tube resonance](../reference/hardware-design.md#acoustic-tube-resonance)) — so some structure is expected. What matters is whether it looks like *last time's* structure. A calibration measures and compensates for those resonances correctly, but only as long as the geometry doesn't change afterwards.
 - **Was the correct coupler selected?** Calibrating with the wrong coupler produces a response that won't match how the starship is actually used.
 
 ## Troubleshooting

@@ -31,6 +31,25 @@ Click **Golay** or **Chirp** — both are always available once a generic microp
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. More robust to background noise, at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. Much faster, but somewhat more sensitive to noise.
 
+Both runs expose a **Smoothing window** parameter (default 10) — the width, in frequency bins, of a Hamming-weighted moving average applied to the computed sensitivity *curve*, which trades fine frequency detail for a less noisy curve. Set it to `0` to see the raw measurement. See [Speaker Calibration](speaker.md#run-parameters) for the other run parameters, which are the same.
+
+## How the calibration is computed
+
+Both microphones record the same stimulus at the same time. The reference microphone's known sensitivity \(S_{cal}\) tells you the sound pressure that was actually present, so whatever the generic microphone did differently must be a property of the generic microphone:
+
+$$ S_{exp}(f) = \frac{V_{exp}(f)}{O(f)} = \frac{V_{exp}(f) \times S_{cal}}{V_{cal}(f)} $$
+
+Writing a quantity as a function of \(f\) (frequency, in Hz) just means it takes a different value at each frequency — which is exactly the point for a generic microphone, whose sensitivity is a curve rather than the single number \(S_{cal}\).
+
+Or, in the dB form cftscal actually uses:
+
+$$ S_{exp_{dB}}(f) = 20 \times log_{10}(V_{exp}) + 20 \times log_{10}(S_{cal}) - 20 \times log_{10}(V_{cal}) $$
+
+Unlike a measurement microphone, the result is a *curve* rather than a single number, because a non-precision microphone's sensitivity varies substantially with frequency — that's the whole reason this workspace exists. See [Calibration Math](../reference/calibration-math.md#step-3-experiment-microphone-sensitivity) for the derivation.
+
+!!! warning "The arithmetic can't distinguish the microphone from its position"
+    The equation above attributes *every* difference between the two recordings to the generic microphone. If the two microphones aren't at the same distance and angle from the speaker, that positioning difference is silently folded into \(S_{exp}\) as though it were the microphone's own frequency response.
+
 ## Reviewing the results
 
 *Generic Microphone Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently selected in the list below.
