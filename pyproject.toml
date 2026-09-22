@@ -13,6 +13,7 @@ maintainers = [
 dependencies = [
     "cftsdata",
     "psiexperiment",
+    "psiapp",
     "enaml >=0.13.0",
     "pyyaml",
     "tqdm",

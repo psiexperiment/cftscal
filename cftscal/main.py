@@ -1,7 +1,12 @@
 from psi.application import configure_logging
 #configure_logging('DEBUG')
 
+# psiapp.util rather than psiapp.api: the latter pulls in .enaml modules and
+# so needs the enaml import hook active, which this needs no part of.
+from psiapp.util import set_app_id
+
 import importlib
+import logging
 
 # NOTE: do NOT set pg.setConfigOptions(useOpenGL=True) here. It was
 # previously enabled to make cftscal's result plots smoother, on the
@@ -25,6 +30,8 @@ from .paradigms.default_state import seed_all_default_state
 
 UI_PLUGIN = 'enaml.workbench.ui'
 CORE_PLUGIN = 'enaml.workbench.core'
+
+log = logging.getLogger(__name__)
 
 
 class CalibrationWorkbench(UIWorkbench):
@@ -63,6 +70,11 @@ def main():
     parser.add_argument('obj', nargs='?')
     args = parser.parse_args()
 
+    # Before the Qt application is created in `workbench.run`, and distinct
+    # from the `psi.psi` that the calibration subprocesses claim, so cftscal
+    # and the experiments it launches get their own taskbar buttons.
+    set_app_id('psi.cftscal')
+
     seed_all_default_state()
 
     with enaml.imports():
@@ -78,8 +90,13 @@ def main():
                 if instance.available:
                     workbench.register(getattr(module, class_name)(rank=rank))
                 else:
-                    print(f'{module_name} is not available')
-            except ModuleNotFoundError as e:
-                print(f'Could not load {module_name}.{class_name} plugin')
+                    # A plugin whose hardware is not attached is simply not
+                    # shown. This is the normal case on most machines, so it
+                    # is logged rather than printed -- printing it to the
+                    # console made it look like an error had occurred.
+                    log.debug('%s is not available', module_name)
+            except ModuleNotFoundError:
+                log.debug('Could not load %s.%s plugin', module_name,
+                          class_name)
 
     workbench.run(args.obj)
