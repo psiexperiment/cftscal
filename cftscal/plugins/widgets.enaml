@@ -13,15 +13,18 @@ from enaml.core.api import Conditional
 from enaml.layout.api import (
     align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout, TabLayout
 )
-from enaml.stdlib.fields import FloatField, RegexField
+from enaml.stdlib.fields import FloatField
 from enaml.stdlib.message_box import question
 from enaml.qt import QtCore
 from enaml.widgets.api import (
     Action, ActionGroup, Container, Label, Field, Form, HGroup, MainWindow, Menu, MenuBar,
-    ObjectCombo, PopupView, PushButton, DockArea, DockItem, VGroup
+    ObjectCombo, PushButton, DockArea, DockItem, VGroup
 )
 
 from psi.data.plots import make_color
+# AddItem lives in psiapp so that psiapp's own widgets can use it without
+# importing cftscal. Re-exported here for the plugin views.
+from psiapp.widgets import AddItem
 from psiaudio import util
 
 from . import settings
@@ -114,84 +117,6 @@ def _remove_selected(combo):
     items.remove(combo.selected)
     combo.items = items
     combo.selected = items[0] if items else ''
-
-
-enamldef AddItem(PopupView): popup:
-
-    attr combo
-    window_type = 'popup'
-    arrow_size = 20
-    arrow_edge = 'top'
-    alias label: label.text
-    alias regex: field.regex
-
-    #: Live (per-keystroke) mirror of the field's raw editor text, kept
-    #: only for driving OK's enabled state -- distinct from field.text
-    #: itself, which (deliberately, see below) only updates on Enter.
-    #: field.field_text() gives the same live value but as a plain
-    #: method call, which Enaml's binding tracer can't see through to
-    #: react to, so it can't drive `enabled <<` on its own; mirroring it
-    #: into this attr via a direct Qt signal connection (below) gives
-    #: something bindable.
-    attr _live_text = ''
-
-    func _add_item():
-        # field.text only updates via submit_triggers (Enter) -- when
-        # this runs from the OK button click instead, it's still
-        # whatever it was before (typically empty), which added a blank
-        # entry. field.field_text() reads the live widget content
-        # directly regardless of how _add_item() was triggered.
-        text = field.field_text()
-        items = combo.items[:]
-        items.append(text)
-        combo.items = items
-        combo.selected = text
-        popup.close()
-
-    Container:
-        constraints = [
-            vbox(
-                hbox(label, field),
-                hbox(spacer(0), pb_ok, pb_cancel, spacing=0)
-            ),
-            align('v_center', label, field),
-            align('v_center', pb_ok, pb_cancel),
-            align('width', pb_ok, pb_cancel),
-        ]
-
-        Label: label:
-            pass
-        RegexField: field:
-            regex = f'^[\w\d-]+$'
-            # Only submit on Enter -- not on focus loss, since clicking
-            # Cancel (or anything else) shouldn't add the typed text.
-            # The client-side validator (above) blocks the submit from
-            # ever updating `text` with input that fails the regex, so
-            # this fires exactly when the field both validates and Enter
-            # is pressed.
-            submit_triggers = ['return_pressed']
-            text ::
-                popup._add_item()
-            activated ::
-                # Mirror every keystroke into popup._live_text so OK can
-                # react immediately (see its attr docstring above) --
-                # hooked directly on the Qt widget since submit_triggers
-                # excludes 'auto_sync' (adding it would make `text ::`
-                # above fire mid-typing too, prematurely submitting and
-                # closing the popup on any pause over sync_time).
-                self.proxy.widget.textEdited.connect(
-                    lambda text: setattr(popup, '_live_text', text)
-                )
-        PushButton: pb_ok:
-            text = 'OK'
-            enabled << bool(popup._live_text)
-            clicked ::
-                popup._add_item()
-
-        PushButton: pb_cancel:
-            text = 'Cancel'
-            clicked ::
-                popup.close()
 
 
 class BasePlotManager(Atom):
