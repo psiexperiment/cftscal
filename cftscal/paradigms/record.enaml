@@ -12,7 +12,7 @@ from psi.data.sinks.api import BinaryStore
 from cftscal.objects import input_manager
 
 from cftscal.paradigms.calibration_status import (
-    CalibrationParameter, report_calibration
+    CalibrationParameter, relabel_item, report_calibration
 )
 
 from cftscal.paradigms.env_vars import (
@@ -40,7 +40,9 @@ def initialize_all_inputs(manifest_id, env_prefix, required_vars, event):
     (baked into AllInputs' Looper from CFTS_INPUT_CHANNELS), so unlike
     objects.enaml's initialize_input() there's no channel or gain context
     item to update; the only item written here is the one reporting which
-    calibration each channel ended up with.
+    calibration each channel ended up with, which is also relabeled with
+    the channel's label from the IO manifest (e.g., "Input 1") in place of
+    its name.
 
     Every active channel must provide everything listed in
     `required_vars` (by default, both gain and calibration).
@@ -63,6 +65,14 @@ def initialize_all_inputs(manifest_id, env_prefix, required_vars, event):
     # active.
     missing = []
     for name in channel_names:
+        # Show the channel's label from the IO manifest (e.g., "Input 1")
+        # rather than its name (e.g., "input_1"). The label isn't known
+        # until the controller has loaded the IO manifest, so the item is
+        # declared with the name and relabeled here.
+        channel = controller.get_channel(f'hw_ai::{name}')
+        relabel_item(context, f'{name}_calibration',
+                     f'{channel.label} calibration')
+
         calibration = None
         try:
             env = read_named_vars(f'{manifest_id} channel {name}', name,
@@ -71,7 +81,6 @@ def initialize_all_inputs(manifest_id, env_prefix, required_vars, event):
             missing.extend(exc.missing)
             report_calibration(context, f'{name}_calibration', None)
             continue
-        channel = controller.get_channel(f'hw_ai::{name}')
         if (gain := env['gain']) is not None:
             channel.gain = float(gain)
         if (cal_str := env['calibration']) is not None:
@@ -121,7 +130,9 @@ enamldef AllInputs(ExperimentManifest): manifest:
     Each channel also gets a read-only `<name>_calibration` context item
     naming the calibration it is using, since that is the one setting
     with no widget of its own (see
-    `cftscal/paradigms/calibration_status.py`).
+    `cftscal/paradigms/calibration_status.py`). It is labeled with the
+    channel's label (e.g., "Input 1 calibration") once
+    `initialize_all_inputs` runs.
     '''
 
     id = 'all_inputs'

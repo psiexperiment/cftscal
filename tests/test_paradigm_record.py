@@ -15,7 +15,7 @@ from cftscal.paradigms.calibration_status import (
 )
 from cftscal.paradigms.env_vars import MissingEnvironmentVariables
 
-from .fakes import FakeManager, set_env
+from .fakes import FakeChannel, FakeManager, set_env
 from .test_paradigm_objects import find_command_handler, find_context_items
 
 with enaml.imports():
@@ -72,6 +72,35 @@ class TestInitializeAllInputs:
             # expects a number.
             assert channel.gain == 40.0
             assert channel.calibration == 'calibration for some/cal'
+
+    def test_items_use_channel_label(self, event, manager):
+        # Labeled as the IO manifest labels the hardware ("Input 1"), not
+        # with the channel's name ("input_1").
+        event.controller.channels['hw_ai::input_1'] = FakeChannel('Input 1')
+        event.controller.channels['hw_ai::input_2'] = FakeChannel('Mic B')
+        set_channels('input_1', 'input_2', gain='40', calibration='some/cal')
+
+        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+                                     ['channels', 'gain', 'calibration'],
+                                     event)
+
+        items = event.context.items
+        assert items['input_1_calibration'].label == 'Input 1 calibration'
+        assert items['input_2_calibration'].label == 'Mic B calibration'
+
+    def test_channel_with_missing_settings_is_labeled(self, event):
+        # Still labeled when its settings are missing: its item stays on
+        # screen reporting NOT LOADED, and should say which input it is.
+        event.controller.channels['hw_ai::input_1'] = FakeChannel('Input 1')
+        set_channels('input_1')
+
+        with pytest.raises(MissingEnvironmentVariables):
+            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+                                         ['channels', 'gain', 'calibration'],
+                                         event)
+
+        item = event.context.items['input_1_calibration']
+        assert item.label == 'Input 1 calibration'
 
     def test_unity_calibration(self, event):
         # Goes through the real input manager (no `manager` fixture) with

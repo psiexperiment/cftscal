@@ -43,9 +43,10 @@ class FakeContext:
 
 class FakeChannel:
 
-    def __init__(self):
+    def __init__(self, label=''):
         self.calibration = None
         self.gain = None
+        self.label = label
 
 
 class FakeController:
@@ -54,7 +55,10 @@ class FakeController:
         self.channels = {}
 
     def get_channel(self, name):
-        return self.channels.setdefault(name, FakeChannel())
+        # Labeled the way psi labels a channel whose IO manifest gives it no
+        # label of its own: 'hw_ai::input_1' -> 'Input 1'.
+        label = name.split('::')[-1].replace('_', ' ').capitalize()
+        return self.channels.setdefault(name, FakeChannel(label))
 
 
 class FakeWorkbench:

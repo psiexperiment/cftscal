@@ -7,7 +7,7 @@ import pytest
 from cftscal.paradigms import calibration_status as cs
 from cftscal.paradigms.calibration_status import (
     CalibrationParameter, NOT_CONFIGURED, NOT_LOADED, describe_calibration,
-    report_calibration
+    relabel_item, report_calibration
 )
 
 from cftscal.objects import NominalInputCalibration, UnityInputCalibration
@@ -117,6 +117,31 @@ class TestReportCalibration:
         context = FakeContext()
         report_calibration(context, 'mic_calibration', None)
         assert context.items['mic_calibration'].value == NOT_LOADED
+
+
+class TestRelabelItem:
+
+    def test_label_and_compact_label(self):
+        # The compact label copies the label the first time it is read and
+        # keeps that copy, so it has to be changed along with it.
+        context = FakeContext()
+        relabel_item(context, 'input_1_calibration', 'Input 1 calibration')
+        item = context.items['input_1_calibration']
+        assert item.label == 'Input 1 calibration'
+        assert item.compact_label == 'Input 1 calibration'
+
+    def test_real_context_item(self):
+        item = CalibrationParameter(name='input_1_calibration',
+                                    label='input_1 calibration')
+        assert item.compact_label == 'input_1 calibration'
+
+        class Context:
+            def get_item(self, name):
+                return item
+
+        relabel_item(Context(), 'input_1_calibration', 'Input 1 calibration')
+        assert item.label == 'Input 1 calibration'
+        assert item.compact_label == 'Input 1 calibration'
 
 
 class FakeApplication:

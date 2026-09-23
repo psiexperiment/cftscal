@@ -137,6 +137,33 @@ def gui_call(fn, *args):
         deferred_call(fn, *args)
 
 
+def relabel_item(context, item_name, label):
+    '''
+    Change the label a context item is shown with.
+
+    For items whose best label is only known once the experiment is running
+    -- e.g., one named after a hardware channel, whose label comes from the
+    IO manifest. The item's compact label (used where space is short, such
+    as column headings) changes with it.
+
+    Parameters
+    ----------
+    context : psi context plugin
+        Plugin holding the context items.
+    item_name : str
+        Name of the context item to relabel.
+    label : str
+        New label.
+    '''
+    item = context.get_item(item_name)
+
+    def update():
+        item.label = label
+        item.compact_label = label
+
+    gui_call(update)
+
+
 def report_calibration(context, item_name, calibration):
     '''
     Show which calibration was loaded for one piece of hardware.
