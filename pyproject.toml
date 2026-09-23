@@ -3,7 +3,8 @@ name = "cftscal"
 description = "Paradigms for running calibrations required for CFTS"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE.txt"}
+license = "MIT"
+license-files = ["LICENSE.txt"]
 authors = [
     {name = "Brad Buran", email="buran@ohsu.edu"},
 ]
@@ -26,6 +27,10 @@ test = ["pytest"]
 [project.scripts]
 cfts-cal = "cftscal.main:main"
 
+[tool.setuptools.packages.find]
+include = ["cftscal*"]
+namespaces = false
+
 [tool.setuptools.package-data]
 cftscal = [
     "resources/layout/*/*.layout",
@@ -38,7 +43,7 @@ cftscal = [
 testpaths = ["tests"]
 
 [build-system]
-requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
+requires = ["setuptools>=77.0.0", "wheel", "setuptools_scm[toml]>=3.4.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
