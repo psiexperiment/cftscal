@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from psi.application import get_default_io, load_io_manifest
+from psi.application import get_default_io, initialize_io_manifest
 from psi.controller.api import Channel, HardwareAIChannel, HardwareAOChannel
 
 
@@ -41,7 +41,13 @@ def io_manifest():
         manifest = settings.hw_configuration
     global IO_MANIFEST
     if IO_MANIFEST is None:
-        IO_MANIFEST = load_io_manifest(manifest)()
+        # initialize_io_manifest rather than load_io_manifest(...)(): the
+        # manifest is Enaml, so the hardware is not touched until it is
+        # instantiated. Doing the instantiation ourselves put the interesting
+        # failure outside psi's error handling, and a missing sound card
+        # surfaced as a bare ValueError from sounddevice that named neither
+        # the manifest nor the setting that chose the device.
+        IO_MANIFEST = initialize_io_manifest(manifest)
     return IO_MANIFEST
 
 
