@@ -10,14 +10,15 @@ from cftscal.paradigms.calibration_status import (
     report_calibration
 )
 
+from cftscal.objects import NominalInputCalibration, UnityInputCalibration
+
 from .fakes import FakeCalibration, FakeContext
 
 
 class UndatedCalibration:
     '''
-    A calibration that cannot report when it was measured -- the base
-    class leaves `datetime` unimplemented, and calibrations predating the
-    metadata sidecar raise when it is read.
+    A calibration that cannot report when it was measured -- those
+    predating the metadata sidecar raise when it is read.
     '''
 
     def __init__(self, name):
@@ -41,6 +42,15 @@ class TestDescribeCalibration:
         # Not being able to date a calibration is not worth failing an
         # experiment over.
         assert describe_calibration(UndatedCalibration('mic_1')) == 'mic_1'
+
+    def test_unity_calibration(self):
+        # Chosen as "Unity" in the GUI. It used to have no name at all, so
+        # describing it raised -- inside the very handler meant to keep a
+        # missing date from failing the experiment.
+        assert describe_calibration(UnityInputCalibration()) == 'unity'
+
+    def test_nominal_calibration(self):
+        assert describe_calibration(NominalInputCalibration(5.0)) ==             'Nominal (5 mV/Pa)'
 
 
 class TestCalibrationParameter:

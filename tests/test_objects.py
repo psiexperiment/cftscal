@@ -23,6 +23,8 @@ from cftscal.objects import (
     CFTSMeasurementMicrophoneCalibration,
     CFTSSpeakerCalibration,
     CFTSStarshipCalibration,
+    NominalInputCalibration,
+    UnityInputCalibration,
     _CURRENT_MARKER,
 )
 
@@ -1361,3 +1363,36 @@ class TestListGroupPaths:
         )
         result = self._list(tmp_path)
         assert result == ['', 'Lab1/study_1/MMM']
+
+
+
+class TestCalibrationsWithoutFiles:
+    '''
+    Unity and Nominal calibrations are not backed by a file, so nothing
+    passes them a name the way FileCalibration's constructor does. The
+    `Calibration` base class builds ordering, hashing and repr on `name`,
+    so each must provide one of its own.
+    '''
+
+    @pytest.mark.parametrize('calibration, name', [
+        (UnityInputCalibration(), 'unity'),
+        (NominalInputCalibration(12.3), 'Nominal (12.3 mV/Pa)'),
+    ])
+    def test_name(self, calibration, name):
+        assert calibration.name == name
+        assert name in repr(calibration)
+
+    def test_unity_instances_are_interchangeable(self):
+        assert UnityInputCalibration() == UnityInputCalibration()
+        assert hash(UnityInputCalibration()) == hash(UnityInputCalibration())
+
+    def test_nominal_instances_differ_by_sensitivity(self):
+        assert NominalInputCalibration(5.0) == NominalInputCalibration(5.0)
+        assert NominalInputCalibration(5.0) != NominalInputCalibration(6.0)
+
+    def test_name_matches_gui_display_name(self):
+        # The status experiments report and the GUI's label for the same
+        # selection are one and the same text.
+        from cftscal.plugins.settings import MultiTypeSensorReference
+        ref = MultiTypeSensorReference(device_type='Nominal', sensitivity=12.3)
+        assert ref.display_name() == ref.get_calibration().name

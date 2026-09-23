@@ -39,15 +39,24 @@ class Calibration:
     Defines the methods that need to be stubbed out for a Calibration and
     implements some specail methods to enable ordering, hashing, and converting
     to/from string for inter-process communication.
+
+    Every subclass must provide a `name`: it identifies the calibration in the
+    GUI and in the status reported to experiments (see
+    `cftscal.paradigms.calibration_status.describe_calibration`), and the
+    ordering, hashing and repr below are built on it.
     '''
     def load(self):
         raise NotImplementedError
 
+    @property
     def datetime(self):
-        raise NotImplementedError
-
-    def load(self):
-        raise NotImplementedError
+        # When the calibration was measured, or None if it never was (e.g.,
+        # unity, or a nominal sensitivity from a spec sheet). Subclasses
+        # backed by a measurement override this. A property rather than a
+        # method, like those overrides: ordering, hashing and repr read it as
+        # an attribute, and a bound method there made repr recurse through
+        # the method's own repr of the calibration.
+        return None
 
     def __repr__(self):
         return f'Calibration :: {self.name} ({self.datetime} - {self.label})'
@@ -548,6 +557,9 @@ class CFTSBaseLoader(CalibrationLoader):
 ################################################################################
 class UnityInputCalibration(Calibration):
 
+    #: Matches the one name `UnityInputCalibrationLoader` lists.
+    name = 'unity'
+
     def load(self):
         return FlatCalibration.unity()
 
@@ -582,6 +594,12 @@ class NominalInputCalibration(Calibration):
 
     def __init__(self, sensitivity):
         self.sensitivity = sensitivity
+
+    @property
+    def name(self):
+        # There is no device name to go by, so the sensitivity is what
+        # identifies it.
+        return f'Nominal ({self.sensitivity:g} mV/Pa)'
 
     def load(self):
         return FlatCalibration.from_mv_pa(self.sensitivity)

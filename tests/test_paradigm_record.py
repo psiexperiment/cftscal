@@ -73,6 +73,23 @@ class TestInitializeAllInputs:
             assert channel.gain == 40.0
             assert channel.calibration == 'calibration for some/cal'
 
+    def test_unity_calibration(self, event):
+        # Goes through the real input manager (no `manager` fixture) with
+        # the string cftscal passes when an input is set to "Unity" --
+        # which used to fail the experiment while reporting the
+        # calibration in use.
+        from cftscal.objects import UnityInputCalibration
+        set_channels('mic_1', gain='40',
+                     calibration=UnityInputCalibration().to_string())
+
+        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+                                     ['channels', 'gain', 'calibration'],
+                                     event)
+
+        channel = event.controller.channels['hw_ai::mic_1']
+        assert channel.calibration.get_sens(1000) == 0
+        assert event.context.items['mic_1_calibration'].value == 'unity'
+
     def test_per_channel_variables(self, event, manager):
         set_env(CFTS_INPUT_CHANNELS='mic_1,mic_2',
                 CFTS_INPUT_MIC_1_GAIN='40', CFTS_INPUT_MIC_1='cal/one',

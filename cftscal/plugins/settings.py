@@ -605,10 +605,11 @@ class MultiTypeSensorReference(SensorReference):
         return super().is_configured()
 
     def display_name(self):
-        if self.device_type == 'Unity':
-            return 'unity'
-        if self.device_type == 'Nominal':
-            return f'Nominal ({self.sensitivity:g} mV/Pa)'
+        # Neither has an instance name to show, so show the name of the
+        # calibration they resolve to -- the same text experiments report
+        # as the calibration in use.
+        if self.device_type in ('Unity', 'Nominal'):
+            return self.get_calibration().name
         return super().display_name()
 
     def switch_type(self, new_type):

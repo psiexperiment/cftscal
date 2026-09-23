@@ -55,16 +55,20 @@ def describe_calibration(calibration):
     if calibration is None:
         return NOT_LOADED
     try:
-        return f'{calibration.name} ({calibration.datetime:%Y-%m-%d})'
+        date = calibration.datetime
     except Exception as exc:
-        # Not every calibration can report a date. The base class leaves
-        # `datetime` unimplemented, calibrations that predate the
-        # metadata sidecar raise FileNotFoundError, and a malformed
-        # sidecar raises while parsing. None of that is worth failing an
-        # experiment over -- the name alone still identifies it.
+        # Calibrations that predate the metadata sidecar raise
+        # FileNotFoundError, and a malformed sidecar raises while parsing.
+        # Neither is worth failing an experiment over -- the name alone
+        # still identifies the calibration.
         log.info('Could not determine date for calibration %s (%r)',
                  calibration.name, exc)
+        date = None
+    # None as well for calibrations that were never measured (unity, or a
+    # nominal sensitivity).
+    if date is None:
         return calibration.name
+    return f'{calibration.name} ({date:%Y-%m-%d})'
 
 
 class CalibrationParameter(EnumParameter):
