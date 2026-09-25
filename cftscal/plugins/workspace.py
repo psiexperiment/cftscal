@@ -7,7 +7,10 @@ from atom.api import (
     Atom, Dict, Enum, Float, List, Property, Str, Typed, Value
 )
 
-from psi import config_source, get_config as get_setting, save_config as save_settings
+from psi import (
+    config_source, get_config as get_setting, get_config_file,
+    save_config as save_settings
+)
 
 # Belt-and-suspenders: cftscal/__init__.py already sets this before any
 # cftscal.* module (including this one) can be imported, but set it again
@@ -255,18 +258,27 @@ class WorkspaceSettings(Atom):
                 if config_source(setting) == 'environment'}
 
     def load_config(self):
-        try:
-            for member, setting in self.SETTINGS.items():
+        # Each setting is applied on its own. Reading them in one try block
+        # meant that a single failure -- an unparseable configuration file,
+        # say -- silently abandoned every setting after it and left the
+        # workspace on its built-in defaults, which looks exactly like a
+        # machine that was never configured.
+        for member, setting in self.SETTINGS.items():
+            try:
                 setattr(self, member, get_setting(setting))
-            # Resolve the live device from the durable identity, which is
-            # set first so that it survives a device being absent right
-            # now; the device dict only drives the picker and the sample
-            # rate list.
-            if self.selected_device_name:
+            except Exception as e:
+                log.exception('Could not apply %s from %s: %s',
+                              setting, get_config_file(), e)
+
+        # Resolve the live device from the durable identity, which is set
+        # first so that it survives a device being absent right now; the
+        # device dict only drives the picker and the sample rate list.
+        if self.selected_device_name:
+            try:
                 self.selected_device = self._resolve_device(
                     self.selected_device_name, self.selected_device_hostapi)
-        except Exception as e:
-            log.warning(f'Error loading workspace config: {e}')
+            except Exception as e:
+                log.exception('Could not resolve the saved audio device: %s', e)
 
     def _resolve_device(self, name, hostapi):
         """Return the current device dict matching a saved identity, or None.
