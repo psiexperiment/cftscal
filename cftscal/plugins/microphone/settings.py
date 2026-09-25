@@ -33,7 +33,7 @@ class MicrophoneCalibrationSettings(CalibrationSettings):
             'microphone', ai.group_path, ai.sensor.name, '{date_time}',
         )
         env = {
-            **ai.get_env_vars(include_cal=False, env_prefix='CFTS_MICROPHONE'),
+            **ai.get_env_vars(include_cal=False, env_prefix='CFTSCAL_MICROPHONE'),
             **self.pistonphone.get_env_vars(),
         }
         metadata = {

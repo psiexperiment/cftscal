@@ -51,8 +51,8 @@ class SpeakerCalibrationSettings(CalibrationSettings):
         pathname = self._make_path(
             'speaker', ao.group_path, ao.generator.name, '{date_time}',
         )
-        env = ai.get_env_vars(env_prefix='CFTS_MICROPHONE')
-        env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTS_SPEAKER'))
+        env = ai.get_env_vars(env_prefix='CFTSCAL_MICROPHONE')
+        env.update(ao.get_env_vars(include_cal=False, env_prefix='CFTSCAL_SPEAKER'))
         metadata = {
             'speaker': ao.generator.name,
             'microphone': ai.sensor.name,

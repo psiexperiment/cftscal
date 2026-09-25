@@ -32,7 +32,7 @@ import os
 #: in `cftscal/paradigms/objects.enaml` (one channel, named by an
 #: environment variable) and the `AllInputs` manifest in
 #: `cftscal/paradigms/record.enaml` (several channels, named by
-#: `CFTS_INPUT_CHANNELS`).
+#: `CFTSCAL_INPUT_CHANNELS`).
 INPUT_VARS = {
     'gain': '{prefix}_{name}_GAIN',
     'calibration': '{prefix}_{name}',
@@ -135,7 +135,7 @@ def read_named_vars(label, name, prefix, var_templates, required_vars,
     callers that already know which piece of hardware they are
     configuring and therefore have no name to look up (e.g.,
     `initialize_all_inputs` in ``cftscal/paradigms/record.enaml``, which
-    loops over the channels listed in ``CFTS_INPUT_CHANNELS``).
+    loops over the channels listed in ``CFTSCAL_INPUT_CHANNELS``).
 
     Unlike :func:`read_env_vars`, this function does not check
     `required_vars` for typos. The caller knows the full set of valid
@@ -156,7 +156,7 @@ def read_named_vars(label, name, prefix, var_templates, required_vars,
         uppercased, into each template.
     prefix : str
         Prefix shared by the environment variables (e.g.,
-        ``'CFTS_INPUT'``). Substituted into each template.
+        ``'CFTSCAL_INPUT'``). Substituted into each template.
     var_templates : dict
         Maps the name of each setting (e.g., ``'gain'``) to a template
         for the environment variable that provides it. See
@@ -184,8 +184,8 @@ def read_named_vars(label, name, prefix, var_templates, required_vars,
 
     Examples
     --------
-    >>> env = {'CFTS_INPUT_MICROPHONE_1_GAIN': '40'}
-    >>> read_named_vars('microphone_1', 'microphone_1', 'CFTS_INPUT',
+    >>> env = {'CFTSCAL_INPUT_MICROPHONE_1_GAIN': '40'}
+    >>> read_named_vars('microphone_1', 'microphone_1', 'CFTSCAL_INPUT',
     ...                 {'gain': '{prefix}_{name}_GAIN'}, ['gain'],
     ...                 env=env)
     {'gain': '40'}
@@ -217,9 +217,9 @@ def read_env_vars(label, name_var, var_templates, required_vars, env=None):
     All of the objects defined in ``cftscal/paradigms/objects.enaml``
     (inputs, outputs, microphones, starships, input amplifiers) follow
     the same two-step convention. One environment variable indicates
-    which piece of hardware to use (e.g., ``CFTS_MICROPHONE=primary``),
+    which piece of hardware to use (e.g., ``CFTSCAL_MICROPHONE=primary``),
     and the name of every other variable is built from that value (e.g.,
-    ``CFTS_MICROPHONE_PRIMARY_GAIN``). This function performs both steps
+    ``CFTSCAL_MICROPHONE_PRIMARY_GAIN``). This function performs both steps
     and checks that everything listed in ``required_vars`` was actually
     found.
 
@@ -230,7 +230,7 @@ def read_env_vars(label, name_var, var_templates, required_vars, env=None):
         ``id``). Only used to make error messages easier to understand.
     name_var : str
         Name of the environment variable indicating which piece of
-        hardware to use (e.g., ``'CFTS_MICROPHONE'``). In
+        hardware to use (e.g., ``'CFTSCAL_MICROPHONE'``). In
         ``required_vars``, this setting is called ``'name'``.
     var_templates : dict
         Maps the name of each remaining setting (e.g., ``'gain'``) to a
@@ -266,9 +266,9 @@ def read_env_vars(label, name_var, var_templates, required_vars, env=None):
 
     Examples
     --------
-    >>> env = {'CFTS_MICROPHONE': 'primary',
-    ...        'CFTS_MICROPHONE_PRIMARY_GAIN': '40'}
-    >>> read_env_vars('microphone', 'CFTS_MICROPHONE',
+    >>> env = {'CFTSCAL_MICROPHONE': 'primary',
+    ...        'CFTSCAL_MICROPHONE_PRIMARY_GAIN': '40'}
+    >>> read_env_vars('microphone', 'CFTSCAL_MICROPHONE',
     ...               {'gain': '{prefix}_{name}_GAIN'},
     ...               ['name', 'gain'], env=env)
     {'name': 'primary', 'gain': '40'}

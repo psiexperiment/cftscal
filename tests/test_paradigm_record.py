@@ -3,7 +3,7 @@ Tests for the `AllInputs` manifest in ``cftscal/paradigms/record.enaml``.
 
 Unlike the objects in ``objects.enaml``, which configure one channel
 selected by an environment variable, `AllInputs` configures every
-channel named in ``CFTS_INPUT_CHANNELS``. Each of those channels is
+channel named in ``CFTSCAL_INPUT_CHANNELS``. Each of those channels is
 expected to come with its own gain and calibration, so the same
 ``required_vars`` mechanism applies -- per channel.
 '''
@@ -31,15 +31,15 @@ def manager(monkeypatch):
 
 def set_channels(*names, **kwargs):
     '''
-    Set CFTS_INPUT_CHANNELS plus, for each channel, whichever of its gain
+    Set CFTSCAL_INPUT_CHANNELS plus, for each channel, whichever of its gain
     and calibration variables the test asks for.
     '''
-    env = {'CFTS_INPUT_CHANNELS': ','.join(names)}
+    env = {'CFTSCAL_INPUT_CHANNELS': ','.join(names)}
     for name in names:
         if 'gain' in kwargs:
-            env[f'CFTS_INPUT_{name.upper()}_GAIN'] = kwargs['gain']
+            env[f'CFTSCAL_INPUT_{name.upper()}_GAIN'] = kwargs['gain']
         if 'calibration' in kwargs:
-            env[f'CFTS_INPUT_{name.upper()}'] = kwargs['calibration']
+            env[f'CFTSCAL_INPUT_{name.upper()}'] = kwargs['calibration']
     set_env(**env)
 
 
@@ -62,7 +62,7 @@ class TestInitializeAllInputs:
     def test_all_vars_set(self, event, manager):
         set_channels('mic_1', 'mic_2', gain='40', calibration='some/cal')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain', 'calibration'],
                                      event)
 
@@ -80,7 +80,7 @@ class TestInitializeAllInputs:
         event.controller.channels['hw_ai::input_2'] = FakeChannel('Mic B')
         set_channels('input_1', 'input_2', gain='40', calibration='some/cal')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain', 'calibration'],
                                      event)
 
@@ -95,7 +95,7 @@ class TestInitializeAllInputs:
         set_channels('input_1')
 
         with pytest.raises(MissingEnvironmentVariables):
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
 
@@ -111,7 +111,7 @@ class TestInitializeAllInputs:
         set_channels('mic_1', gain='40',
                      calibration=UnityInputCalibration().to_string())
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain', 'calibration'],
                                      event)
 
@@ -120,11 +120,11 @@ class TestInitializeAllInputs:
         assert event.context.items['mic_1_calibration'].value == 'unity'
 
     def test_per_channel_variables(self, event, manager):
-        set_env(CFTS_INPUT_CHANNELS='mic_1,mic_2',
-                CFTS_INPUT_MIC_1_GAIN='40', CFTS_INPUT_MIC_1='cal/one',
-                CFTS_INPUT_MIC_2_GAIN='20', CFTS_INPUT_MIC_2='cal/two')
+        set_env(CFTSCAL_INPUT_CHANNELS='mic_1,mic_2',
+                CFTSCAL_INPUT_MIC_1_GAIN='40', CFTSCAL_INPUT_MIC_1='cal/one',
+                CFTSCAL_INPUT_MIC_2_GAIN='20', CFTSCAL_INPUT_MIC_2='cal/two')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain', 'calibration'],
                                      event)
 
@@ -136,22 +136,22 @@ class TestInitializeAllInputs:
 
     def test_missing_gain_raises(self, event, manager):
         set_channels('mic_1', 'mic_2', calibration='some/cal')
-        set_env(CFTS_INPUT_MIC_1_GAIN='40')
+        set_env(CFTSCAL_INPUT_MIC_1_GAIN='40')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
-        assert exc.value.missing == [('CFTS_INPUT_MIC_2_GAIN', 'gain')]
+        assert exc.value.missing == [('CFTSCAL_INPUT_MIC_2_GAIN', 'gain')]
 
     def test_missing_calibration_raises(self, event):
         set_channels('mic_1', gain='40')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
-        assert 'CFTS_INPUT_MIC_1' in str(exc.value)
+        assert 'CFTSCAL_INPUT_MIC_1' in str(exc.value)
 
     def test_every_missing_variable_reported_at_once(self, event):
         # Fixing these one experiment launch at a time would be tedious
@@ -159,41 +159,41 @@ class TestInitializeAllInputs:
         set_channels('mic_1', 'mic_2')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
         assert exc.value.missing == [
-            ('CFTS_INPUT_MIC_1_GAIN', 'gain'),
-            ('CFTS_INPUT_MIC_1', 'calibration'),
-            ('CFTS_INPUT_MIC_2_GAIN', 'gain'),
-            ('CFTS_INPUT_MIC_2', 'calibration'),
+            ('CFTSCAL_INPUT_MIC_1_GAIN', 'gain'),
+            ('CFTSCAL_INPUT_MIC_1', 'calibration'),
+            ('CFTSCAL_INPUT_MIC_2_GAIN', 'gain'),
+            ('CFTSCAL_INPUT_MIC_2', 'calibration'),
         ]
 
     def test_missing_channels_raises(self, event):
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
-        assert exc.value.missing == [('CFTS_INPUT_CHANNELS', 'channels')]
+        assert exc.value.missing == [('CFTSCAL_INPUT_CHANNELS', 'channels')]
 
     def test_empty_channels_raises(self, event):
-        set_env(CFTS_INPUT_CHANNELS='')
+        set_env(CFTSCAL_INPUT_CHANNELS='')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
-        assert 'CFTS_INPUT_CHANNELS' in str(exc.value)
+        assert 'CFTSCAL_INPUT_CHANNELS' in str(exc.value)
 
     def test_nothing_required_and_nothing_set(self, event):
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT', [], event)
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT', [], event)
         assert event.controller.channels == {}
 
     def test_optional_calibration_still_applied(self, event, manager):
         # Not requiring a setting does not stop it from being used.
         set_channels('mic_1', gain='40', calibration='some/cal')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels'], event)
 
         channel = event.controller.channels['hw_ai::mic_1']
@@ -203,7 +203,7 @@ class TestInitializeAllInputs:
     def test_optional_calibration_missing(self, event):
         set_channels('mic_1', gain='40')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain'], event)
 
         channel = event.controller.channels['hw_ai::mic_1']
@@ -211,9 +211,9 @@ class TestInitializeAllInputs:
         assert channel.calibration is None
 
     def test_custom_env_prefix(self, event):
-        set_env(CFTS_EEG_CHANNELS='amp_1', CFTS_EEG_AMP_1_GAIN='40')
+        set_env(CFTSCAL_EEG_CHANNELS='amp_1', CFTSCAL_EEG_AMP_1_GAIN='40')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_EEG',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_EEG',
                                      ['channels', 'gain'], event)
 
         assert event.controller.channels['hw_ai::amp_1'].gain == 40.0
@@ -222,7 +222,7 @@ class TestInitializeAllInputs:
         set_channels('mic_1', gain='40', calibration='some/cal')
 
         with pytest.raises(ValueError) as exc:
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['chanels', 'gain'], event)
         assert 'chanels' in str(exc.value)
         assert 'channels, gain, calibration' in str(exc.value)
@@ -232,11 +232,11 @@ class TestCalibrationItems:
     '''
     One calibration item per active channel, rather than the single item
     the objects in objects.enaml contribute: this manifest configures
-    every channel named in CFTS_INPUT_CHANNELS.
+    every channel named in CFTSCAL_INPUT_CHANNELS.
     '''
 
     def test_one_item_per_channel(self, event):
-        set_env(CFTS_INPUT_CHANNELS='mic_1,mic_2')
+        set_env(CFTSCAL_INPUT_CHANNELS='mic_1,mic_2')
         items = find_context_items(record.AllInputs(), CalibrationParameter)
         assert [i.name for i in items] == \
             ['mic_1_calibration', 'mic_2_calibration']
@@ -244,11 +244,11 @@ class TestCalibrationItems:
             ['mic_1 calibration', 'mic_2 calibration']
 
     def test_reports_every_channel(self, event, manager):
-        set_env(CFTS_INPUT_CHANNELS='mic_1,mic_2',
-                CFTS_INPUT_MIC_1_GAIN='40', CFTS_INPUT_MIC_1='cal_a',
-                CFTS_INPUT_MIC_2_GAIN='20', CFTS_INPUT_MIC_2='cal_b')
+        set_env(CFTSCAL_INPUT_CHANNELS='mic_1,mic_2',
+                CFTSCAL_INPUT_MIC_1_GAIN='40', CFTSCAL_INPUT_MIC_1='cal_a',
+                CFTSCAL_INPUT_MIC_2_GAIN='20', CFTSCAL_INPUT_MIC_2='cal_b')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain', 'calibration'],
                                      event)
 
@@ -260,11 +260,11 @@ class TestCalibrationItems:
     def test_one_uncalibrated_channel_is_reported(self, event, manager):
         # That channel is recording against unity while the others are
         # calibrated, which is exactly the case worth catching.
-        set_env(CFTS_INPUT_CHANNELS='mic_1,mic_2',
-                CFTS_INPUT_MIC_1_GAIN='40', CFTS_INPUT_MIC_1='cal_a',
-                CFTS_INPUT_MIC_2_GAIN='20')
+        set_env(CFTSCAL_INPUT_CHANNELS='mic_1,mic_2',
+                CFTSCAL_INPUT_MIC_1_GAIN='40', CFTSCAL_INPUT_MIC_1='cal_a',
+                CFTSCAL_INPUT_MIC_2_GAIN='20')
 
-        record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+        record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                      ['channels', 'gain'], event)
 
         assert event.context.items['mic_1_calibration'].value == \
@@ -274,10 +274,10 @@ class TestCalibrationItems:
     def test_channel_with_missing_variables_is_reported(self, event):
         # The run is going to fail anyway, but the item should not be
         # left looking like the channel was simply never configured.
-        set_env(CFTS_INPUT_CHANNELS='mic_1')
+        set_env(CFTSCAL_INPUT_CHANNELS='mic_1')
 
         with pytest.raises(MissingEnvironmentVariables):
-            record.initialize_all_inputs('all_inputs', 'CFTS_INPUT',
+            record.initialize_all_inputs('all_inputs', 'CFTSCAL_INPUT',
                                          ['channels', 'gain', 'calibration'],
                                          event)
 

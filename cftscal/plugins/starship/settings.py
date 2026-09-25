@@ -49,7 +49,7 @@ class StarshipCalibrationSettings(CalibrationSettings):
             'starship', starship.group_path, starship.starship, '{date_time}',
         )
         env = {
-            **microphone.get_env_vars(env_prefix='CFTS_MICROPHONE'),
+            **microphone.get_env_vars(env_prefix='CFTSCAL_MICROPHONE'),
             **starship.get_env_vars(include_cal=False),
         }
         metadata = {

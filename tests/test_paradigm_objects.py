@@ -99,10 +99,10 @@ class TestInitializeInput:
     def test_all_vars_set(self, event, monkeypatch):
         manager = FakeManager()
         monkeypatch.setattr(objects, 'input_manager', manager)
-        set_env(CFTS_INPUT='mic_1', CFTS_INPUT_MIC_1_GAIN='40',
-                CFTS_INPUT_MIC_1='some/calibration')
+        set_env(CFTSCAL_INPUT='mic_1', CFTSCAL_INPUT_MIC_1_GAIN='40',
+                CFTSCAL_INPUT_MIC_1='some/calibration')
 
-        objects.initialize_input('my_input', 'CFTS_INPUT',
+        objects.initialize_input('my_input', 'CFTSCAL_INPUT',
                                  ['name', 'gain', 'calibration'], event)
 
         item = event.context.items['my_input']
@@ -116,34 +116,34 @@ class TestInitializeInput:
         assert channel.calibration == 'calibration for some/calibration'
 
     def test_optional_calibration_not_set(self, event):
-        set_env(CFTS_INPUT='mic_1', CFTS_INPUT_MIC_1_GAIN='40')
+        set_env(CFTSCAL_INPUT='mic_1', CFTSCAL_INPUT_MIC_1_GAIN='40')
 
-        objects.initialize_input('my_input', 'CFTS_INPUT',
+        objects.initialize_input('my_input', 'CFTSCAL_INPUT',
                                  ['name', 'gain'], event)
 
         assert event.context.items['my_input'].expression == '"mic_1"'
         assert event.controller.channels == {}
 
     def test_missing_required_calibration_raises(self, event):
-        set_env(CFTS_INPUT='mic_1', CFTS_INPUT_MIC_1_GAIN='40')
+        set_env(CFTSCAL_INPUT='mic_1', CFTSCAL_INPUT_MIC_1_GAIN='40')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            objects.initialize_input('my_input', 'CFTS_INPUT',
+            objects.initialize_input('my_input', 'CFTSCAL_INPUT',
                                      ['name', 'gain', 'calibration'], event)
-        assert 'CFTS_INPUT_MIC_1' in str(exc.value)
+        assert 'CFTSCAL_INPUT_MIC_1' in str(exc.value)
 
     def test_nothing_required_and_nothing_set(self, event):
         # Nothing is configured, but the experiment can still be set up
         # by hand in the GUI.
-        objects.initialize_input('my_input', 'CFTS_INPUT', [], event)
+        objects.initialize_input('my_input', 'CFTSCAL_INPUT', [], event)
         # Including the calibration item, which is left showing the
         # NOT_CONFIGURED it was declared with.
         assert event.context.items == {}
 
     def test_custom_env_prefix(self, event):
-        set_env(CFTS_EEG='mic_1', CFTS_EEG_MIC_1_GAIN='40')
+        set_env(CFTSCAL_EEG='mic_1', CFTSCAL_EEG_MIC_1_GAIN='40')
 
-        objects.initialize_input('my_input', 'CFTS_EEG', ['name', 'gain'],
+        objects.initialize_input('my_input', 'CFTSCAL_EEG', ['name', 'gain'],
                                  event)
 
         assert event.context.items['my_input_gain'].value == '40'
@@ -154,9 +154,9 @@ class TestInitializeOutput:
     def test_all_vars_set(self, event, monkeypatch):
         manager = FakeManager()
         monkeypatch.setattr(objects, 'output_manager', manager)
-        set_env(CFTS_SPEAKER='speaker_1', CFTS_SPEAKER_SPEAKER_1='some/cal')
+        set_env(CFTSCAL_SPEAKER='speaker_1', CFTSCAL_SPEAKER_SPEAKER_1='some/cal')
 
-        objects.initialize_output('my_output', 'CFTS_SPEAKER',
+        objects.initialize_output('my_output', 'CFTSCAL_SPEAKER',
                                   ['name', 'calibration'], event)
 
         assert event.context.items['my_output'].expression == '"speaker_1"'
@@ -164,17 +164,17 @@ class TestInitializeOutput:
         assert channel.calibration == 'calibration for some/cal'
 
     def test_missing_required_calibration_raises(self, event):
-        set_env(CFTS_SPEAKER='speaker_1')
+        set_env(CFTSCAL_SPEAKER='speaker_1')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
-            objects.initialize_output('my_output', 'CFTS_SPEAKER',
+            objects.initialize_output('my_output', 'CFTSCAL_SPEAKER',
                                       ['name', 'calibration'], event)
-        assert 'CFTS_SPEAKER_SPEAKER_1' in str(exc.value)
+        assert 'CFTSCAL_SPEAKER_SPEAKER_1' in str(exc.value)
 
     def test_calibration_not_required(self, event):
-        set_env(CFTS_SPEAKER='speaker_1')
+        set_env(CFTSCAL_SPEAKER='speaker_1')
 
-        objects.initialize_output('my_output', 'CFTS_SPEAKER', ['name'], event)
+        objects.initialize_output('my_output', 'CFTSCAL_SPEAKER', ['name'], event)
 
         assert event.context.items['my_output'].expression == '"speaker_1"'
         assert event.controller.channels == {}
@@ -186,11 +186,11 @@ class TestInitializeMicrophone:
         manager = FakeManager()
         monkeypatch.setitem(objects.MICROPHONE_MANAGERS,
                             'measurement_microphone', manager)
-        set_env(CFTS_MICROPHONE='mic_1', CFTS_MICROPHONE_MIC_1_GAIN='40',
-                CFTS_MICROPHONE_MIC_1='some/cal')
+        set_env(CFTSCAL_MICROPHONE='mic_1', CFTSCAL_MICROPHONE_MIC_1_GAIN='40',
+                CFTSCAL_MICROPHONE_MIC_1='some/cal')
 
         objects.initialize_microphone('my_mic', 'measurement_microphone',
-                                      'CFTS_MICROPHONE',
+                                      'CFTSCAL_MICROPHONE',
                                       ['name', 'gain', 'calibration'], event)
 
         assert event.context.items['my_mic_input'].expression == '"mic_1"'
@@ -202,31 +202,31 @@ class TestInitializeMicrophone:
         manager = FakeManager()
         monkeypatch.setitem(objects.MICROPHONE_MANAGERS,
                             'generic_microphone', manager)
-        set_env(CFTS_GENERIC_MICROPHONE='mic_1',
-                CFTS_GENERIC_MICROPHONE_MIC_1_GAIN='40',
-                CFTS_GENERIC_MICROPHONE_MIC_1='some/cal')
+        set_env(CFTSCAL_GENERIC_MICROPHONE='mic_1',
+                CFTSCAL_GENERIC_MICROPHONE_MIC_1_GAIN='40',
+                CFTSCAL_GENERIC_MICROPHONE_MIC_1='some/cal')
 
         objects.initialize_microphone('my_mic', 'generic_microphone',
-                                      'CFTS_GENERIC_MICROPHONE',
+                                      'CFTSCAL_GENERIC_MICROPHONE',
                                       ['name', 'gain', 'calibration'], event)
 
         assert manager.loaded == 'some/cal'
 
     def test_missing_required_gain_raises(self, event):
-        set_env(CFTS_MICROPHONE='mic_1')
+        set_env(CFTSCAL_MICROPHONE='mic_1')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
             objects.initialize_microphone('my_mic', 'measurement_microphone',
-                                          'CFTS_MICROPHONE',
+                                          'CFTSCAL_MICROPHONE',
                                           ['name', 'gain'], event)
-        assert 'CFTS_MICROPHONE_MIC_1_GAIN' in str(exc.value)
+        assert 'CFTSCAL_MICROPHONE_MIC_1_GAIN' in str(exc.value)
 
     def test_unsupported_microphone_type_raises(self, event):
-        set_env(CFTS_MICROPHONE='mic_1')
+        set_env(CFTSCAL_MICROPHONE='mic_1')
 
         with pytest.raises(ValueError) as exc:
             objects.initialize_microphone('my_mic', 'lapel_microphone',
-                                          'CFTS_MICROPHONE', ['name'], event)
+                                          'CFTSCAL_MICROPHONE', ['name'], event)
         assert 'lapel_microphone' in str(exc.value)
         assert 'measurement_microphone' in str(exc.value)
 
@@ -236,8 +236,8 @@ class TestInitializeStarship:
     def test_all_vars_set(self, event, monkeypatch):
         manager = FakeManager()
         monkeypatch.setattr(objects, 'starship_manager', manager)
-        set_env(CFTS_TEST_STARSHIP='ss_1', CFTS_STARSHIP_SS_1_GAIN='40',
-                CFTS_STARSHIP_SS_1='some/cal')
+        set_env(CFTSCAL_TEST_STARSHIP='ss_1', CFTSCAL_STARSHIP_SS_1_GAIN='40',
+                CFTSCAL_STARSHIP_SS_1='some/cal')
 
         objects.initialize_starship('my_starship', 'test',
                                     ['name', 'gain', 'calibration'], event)
@@ -248,7 +248,7 @@ class TestInitializeStarship:
         assert channel.calibration == 'calibration for some/cal'
 
     def test_side_selects_environment_variable(self, event):
-        set_env(CFTS_NONTEST_STARSHIP='ss_2', CFTS_STARSHIP_SS_2_GAIN='40')
+        set_env(CFTSCAL_NONTEST_STARSHIP='ss_2', CFTSCAL_STARSHIP_SS_2_GAIN='40')
 
         objects.initialize_starship('my_starship', 'nontest',
                                     ['name', 'gain'], event)
@@ -259,12 +259,12 @@ class TestInitializeStarship:
         with pytest.raises(MissingEnvironmentVariables) as exc:
             objects.initialize_starship('my_starship', 'test',
                                         ['name', 'gain'], event)
-        assert 'CFTS_TEST_STARSHIP' in str(exc.value)
+        assert 'CFTSCAL_TEST_STARSHIP' in str(exc.value)
 
     def test_calibration_not_required(self, event):
         # The probe-tube calibration paradigms create the calibration,
         # so there is none to load yet.
-        set_env(CFTS_TEST_STARSHIP='ss_1', CFTS_STARSHIP_SS_1_GAIN='40')
+        set_env(CFTSCAL_TEST_STARSHIP='ss_1', CFTSCAL_STARSHIP_SS_1_GAIN='40')
 
         objects.initialize_starship('my_starship', 'test',
                                     ['name', 'gain'], event)
@@ -275,13 +275,13 @@ class TestInitializeStarship:
 class TestInitializeInputAmplifier:
 
     def test_all_vars_set(self, event):
-        set_env(CFTS_INPUT_AMPLIFIER='amp_1',
-                CFTS_INPUT_AMPLIFIER_AMP_1_GAIN='50000',
-                CFTS_INPUT_AMPLIFIER_AMP_1_FREQ_LB='10',
-                CFTS_INPUT_AMPLIFIER_AMP_1_FREQ_UB='10000')
+        set_env(CFTSCAL_INPUT_AMPLIFIER='amp_1',
+                CFTSCAL_INPUT_AMPLIFIER_AMP_1_GAIN='50000',
+                CFTSCAL_INPUT_AMPLIFIER_AMP_1_FREQ_LB='10',
+                CFTSCAL_INPUT_AMPLIFIER_AMP_1_FREQ_UB='10000')
 
         objects.initialize_input_amplifier(
-            'eeg', 'CFTS_INPUT_AMPLIFIER',
+            'eeg', 'CFTSCAL_INPUT_AMPLIFIER',
             ['name', 'gain', 'freq_lb', 'freq_ub'], event)
 
         items = event.context.items
@@ -292,19 +292,19 @@ class TestInitializeInputAmplifier:
         assert all(not i.editable for i in items.values())
 
     def test_missing_required_filter_cutoff_raises(self, event):
-        set_env(CFTS_INPUT_AMPLIFIER='amp_1',
-                CFTS_INPUT_AMPLIFIER_AMP_1_GAIN='50000',
-                CFTS_INPUT_AMPLIFIER_AMP_1_FREQ_LB='10')
+        set_env(CFTSCAL_INPUT_AMPLIFIER='amp_1',
+                CFTSCAL_INPUT_AMPLIFIER_AMP_1_GAIN='50000',
+                CFTSCAL_INPUT_AMPLIFIER_AMP_1_FREQ_LB='10')
 
         with pytest.raises(MissingEnvironmentVariables) as exc:
             objects.initialize_input_amplifier(
-                'eeg', 'CFTS_INPUT_AMPLIFIER',
+                'eeg', 'CFTSCAL_INPUT_AMPLIFIER',
                 ['name', 'gain', 'freq_lb', 'freq_ub'], event)
-        assert 'CFTS_INPUT_AMPLIFIER_AMP_1_FREQ_UB' in str(exc.value)
+        assert 'CFTSCAL_INPUT_AMPLIFIER_AMP_1_FREQ_UB' in str(exc.value)
 
     def test_missing_amplifier_not_required(self, event):
         # User configures the amplifier by hand in the GUI.
-        objects.initialize_input_amplifier('eeg', 'CFTS_INPUT_AMPLIFIER', [],
+        objects.initialize_input_amplifier('eeg', 'CFTSCAL_INPUT_AMPLIFIER', [],
                                            event)
         assert event.context.items == {}
 
@@ -331,10 +331,10 @@ class TestCalibrationItem:
 
     def test_input_reports_loaded_calibration(self, event, monkeypatch):
         monkeypatch.setattr(objects, 'input_manager', FakeManager())
-        set_env(CFTS_INPUT='mic_1', CFTS_INPUT_MIC_1_GAIN='40',
-                CFTS_INPUT_MIC_1='cal_a')
+        set_env(CFTSCAL_INPUT='mic_1', CFTSCAL_INPUT_MIC_1_GAIN='40',
+                CFTSCAL_INPUT_MIC_1='cal_a')
 
-        objects.initialize_input('my_input', 'CFTS_INPUT',
+        objects.initialize_input('my_input', 'CFTSCAL_INPUT',
                                  ['name', 'gain', 'calibration'], event)
 
         assert event.context.items['my_input_calibration'].value == \
@@ -343,18 +343,18 @@ class TestCalibrationItem:
     def test_input_reports_missing_calibration(self, event):
         # The experiment still runs -- against unity -- so this is the
         # only sign anything is wrong.
-        set_env(CFTS_INPUT='mic_1', CFTS_INPUT_MIC_1_GAIN='40')
+        set_env(CFTSCAL_INPUT='mic_1', CFTSCAL_INPUT_MIC_1_GAIN='40')
 
-        objects.initialize_input('my_input', 'CFTS_INPUT', ['name', 'gain'],
+        objects.initialize_input('my_input', 'CFTSCAL_INPUT', ['name', 'gain'],
                                  event)
 
         assert event.context.items['my_input_calibration'].value == NOT_LOADED
 
     def test_output_reports_loaded_calibration(self, event, monkeypatch):
         monkeypatch.setattr(objects, 'output_manager', FakeManager())
-        set_env(CFTS_SPEAKER='speaker_1', CFTS_SPEAKER_SPEAKER_1='cal_a')
+        set_env(CFTSCAL_SPEAKER='speaker_1', CFTSCAL_SPEAKER_SPEAKER_1='cal_a')
 
-        objects.initialize_output('my_output', 'CFTS_SPEAKER',
+        objects.initialize_output('my_output', 'CFTSCAL_SPEAKER',
                                   ['name', 'calibration'], event)
 
         assert event.context.items['my_output_calibration'].value == \
@@ -363,11 +363,11 @@ class TestCalibrationItem:
     def test_microphone_reports_loaded_calibration(self, event, monkeypatch):
         monkeypatch.setitem(objects.MICROPHONE_MANAGERS,
                             'measurement_microphone', FakeManager())
-        set_env(CFTS_MICROPHONE='mic_1', CFTS_MICROPHONE_MIC_1_GAIN='40',
-                CFTS_MICROPHONE_MIC_1='cal_a')
+        set_env(CFTSCAL_MICROPHONE='mic_1', CFTSCAL_MICROPHONE_MIC_1_GAIN='40',
+                CFTSCAL_MICROPHONE_MIC_1='cal_a')
 
         objects.initialize_microphone('my_mic', 'measurement_microphone',
-                                      'CFTS_MICROPHONE',
+                                      'CFTSCAL_MICROPHONE',
                                       ['name', 'gain', 'calibration'], event)
 
         assert event.context.items['my_mic_input_calibration'].value == \
@@ -375,8 +375,8 @@ class TestCalibrationItem:
 
     def test_starship_reports_loaded_calibration(self, event, monkeypatch):
         monkeypatch.setattr(objects, 'starship_manager', FakeManager())
-        set_env(CFTS_TEST_STARSHIP='ss_1', CFTS_STARSHIP_SS_1_GAIN='40',
-                CFTS_STARSHIP_SS_1='cal_a')
+        set_env(CFTSCAL_TEST_STARSHIP='ss_1', CFTSCAL_STARSHIP_SS_1_GAIN='40',
+                CFTSCAL_STARSHIP_SS_1='cal_a')
 
         objects.initialize_starship('my_starship', 'test',
                                     ['name', 'gain', 'calibration'], event)
@@ -385,7 +385,7 @@ class TestCalibrationItem:
             'cal_a (2025-06-12)'
 
     def test_starship_reports_missing_calibration(self, event):
-        set_env(CFTS_TEST_STARSHIP='ss_1', CFTS_STARSHIP_SS_1_GAIN='40')
+        set_env(CFTSCAL_TEST_STARSHIP='ss_1', CFTSCAL_STARSHIP_SS_1_GAIN='40')
 
         objects.initialize_starship('my_starship', 'test', ['name', 'gain'],
                                     event)

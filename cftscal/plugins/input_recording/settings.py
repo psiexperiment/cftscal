@@ -153,7 +153,7 @@ class InputRecordingSettings(CalibrationSettings):
         pathname = self._make_path(
             'input-recording', self.group_path, self.generator.name, '{date_time}',
         )
-        env = {'CFTS_INPUT_CHANNELS': ','.join(c.input_name for c in active)}
+        env = {'CFTSCAL_INPUT_CHANNELS': ','.join(c.input_name for c in active)}
         sensors = {}
         for channel in active:
             env.update(channel.get_env_vars())

@@ -1,14 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
-import json
 from pathlib import Path
 
 from atom.api import (
     Atom, Dict, Enum, Float, List, Property, Str, Typed, Value
 )
 
-from psi import get_config_folder
+from psi import config_source, get_config as get_setting, save_config as save_settings
 
 # Belt-and-suspenders: cftscal/__init__.py already sets this before any
 # cftscal.* module (including this one) can be imported, but set it again
@@ -65,7 +64,7 @@ class WorkspaceSettings(Atom):
         klass = self.custom_io_class.strip() or 'IOManifest'
         return f'{self.custom_io_path}::{klass}'
 
-    # Optional callback fired after save_config() writes the JSON file.
+    # Optional callback fired after save_config() writes the settings.
     # Set by the caller (e.g. show_workspace_settings) to trigger plugin reload.
     _on_save = Value()
 
@@ -138,8 +137,11 @@ class WorkspaceSettings(Atom):
         self._update_sample_rates()
 
     def _default_data_path(self):
-        from cftscal import CAL_ROOT
-        return CAL_ROOT
+        # Resolved on demand rather than read from a module-level constant
+        # captured at import: the old constant never changed after startup,
+        # so picking a new folder in the GUI left every later reader on the
+        # previous path until the process was restarted.
+        return Path(get_setting('CFTSCAL_ROOT'))
 
     def _default_available_devices(self):
         return [dict(d) for d in sd.query_devices()]
@@ -208,62 +210,61 @@ class WorkspaceSettings(Atom):
         self.sample_rate = new_rate
         self.available_sample_rates = rates
 
+    #: Setting name for each persisted member. These used to live in the
+    #: workspace's own workspace.json, which gave the calibration folder
+    #: two homes: the JSON quietly outranked the CFTSCAL_ROOT environment
+    #: variable, so setting the variable on a configured rig did nothing.
+    #: They are ordinary settings now, resolved like any other.
+    SETTINGS = {
+        'data_path': 'CFTSCAL_ROOT',
+        'hw_mode': 'CFTSCAL_HW_MODE',
+        'custom_io_path': 'CFTSCAL_CUSTOM_IO_PATH',
+        'custom_io_class': 'CFTSCAL_CUSTOM_IO_CLASS',
+        # The durable device identity (name + host API), never an index --
+        # an index is meaningless across sessions. See load_config, which
+        # re-finds the live device from these on startup.
+        'selected_device_name': 'CFTSCAL_DEVICE_NAME',
+        'selected_device_hostapi': 'CFTSCAL_DEVICE_HOSTAPI',
+        'sample_rate': 'CFTSCAL_SAMPLE_RATE',
+        'enabled_plugins': 'CFTSCAL_ENABLED_PLUGINS',
+    }
+
     def save_config(self):
-        file = get_config_folder() / 'cfts' / 'workspace.json'
-        file.parent.mkdir(exist_ok=True, parents=True)
-        config = {
-            'data_path': str(self.data_path),
-            'hw_mode': self.hw_mode,
-            'custom_io_path': self.custom_io_path,
-            'custom_io_class': self.custom_io_class,
-            # Persist the durable device identity (name + host API), never an
-            # index -- an index is meaningless across sessions. See
-            # load_config, which re-finds the live device from these on
-            # startup.
-            'selected_device_name': self.selected_device_name,
-            'selected_device_hostapi': self.selected_device_hostapi,
-            'sample_rate': self.sample_rate,
-            'enabled_plugins': list(self.enabled_plugins),
-        }
-        file.write_text(json.dumps(config, indent=2))
+        updates = {}
+        for member, setting in self.SETTINGS.items():
+            value = getattr(self, member)
+            if isinstance(value, Path):
+                value = str(value)
+            elif isinstance(value, list):
+                value = list(value)
+            updates[setting] = value
+        save_settings(updates)
         if self._on_save is not None:
             self._on_save()
 
+    def overridden_settings(self):
+        '''
+        Members whose value is being forced by the environment.
+
+        Saving one of these succeeds but changes nothing the application
+        then reads, so the view disables the control and names the
+        variable responsible rather than letting the user write into a
+        void and wonder why nothing happened.
+        '''
+        return {member: setting for member, setting in self.SETTINGS.items()
+                if config_source(setting) == 'environment'}
+
     def load_config(self):
-        file = get_config_folder() / 'cfts' / 'workspace.json'
-        if not file.exists():
-            return
-        config = json.loads(file.read_text())
-        # 'selected_device' is the legacy name-only key (pre-host-API); the
-        # live device is re-found from name + host API below.
-        saved_name = config.get('selected_device_name') \
-            or config.get('selected_device', '')
-        saved_hostapi = config.get('selected_device_hostapi', '')
         try:
-            for k, v in config.items():
-                if k == 'data_path':
-                    v = Path(v)
-                if k == 'hw_configuration':
-                    # Back-compat: configs saved before hw_mode/
-                    # custom_io_path/custom_io_class replaced the single
-                    # free-form hw_configuration string (picked from a
-                    # flat list of every discovered IO file/module path).
-                    self._load_legacy_hw_configuration(v)
-                    continue
-                if k == 'selected_device':
-                    # Legacy string key, handled via saved_name above. (Distinct
-                    # from the modern selected_device dict member, which isn't
-                    # persisted.)
-                    continue
-                setattr(self, k, v)
-            # Set the durable identity directly (not via the device) so it
-            # survives even when the device is absent right now; the live
-            # device dict is then re-found from it for the picker/sample rates.
-            self.selected_device_name = saved_name
-            self.selected_device_hostapi = saved_hostapi
-            if saved_name:
+            for member, setting in self.SETTINGS.items():
+                setattr(self, member, get_setting(setting))
+            # Resolve the live device from the durable identity, which is
+            # set first so that it survives a device being absent right
+            # now; the device dict only drives the picker and the sample
+            # rate list.
+            if self.selected_device_name:
                 self.selected_device = self._resolve_device(
-                    saved_name, saved_hostapi)
+                    self.selected_device_name, self.selected_device_hostapi)
         except Exception as e:
             log.warning(f'Error loading workspace config: {e}')
 
@@ -291,15 +292,6 @@ class WorkspaceSettings(Atom):
         log.warning('Saved audio device %r (host API %r) not found',
                     name, hostapi)
         return None
-
-    def _load_legacy_hw_configuration(self, value):
-        if value == 'Sound Card':
-            self.hw_mode = 'Sound Card'
-            return
-        self.hw_mode = 'Custom (Enaml IO manifest)'
-        path, sep, klass = value.partition('::')
-        self.custom_io_path = path
-        self.custom_io_class = klass if sep else 'IOManifest'
 
 
 if __name__ == '__main__':

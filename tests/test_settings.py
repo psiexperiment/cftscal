@@ -17,8 +17,36 @@ from cftscal.plugins.input_recording.settings import InputRecordingSettings
 from cftscal.plugins.ir_sensor.settings import IRSensorSettings
 from cftscal.plugins.speaker.settings import SpeakerCalibrationSettings
 from cftscal.plugins.starship.settings import StarshipCalibrationSettings
+from psi import config as psi_config, get_all_config, get_config, save_config
+
 from cftscal.plugins.settings import CalibrationSettings, SensorDevice
 from cftscal.plugins.workspace import WorkspaceSettings
+
+
+def _use_temp_config(tmp_path, monkeypatch):
+    '''
+    Point psi's configuration file at a scratch location.
+
+    WorkspaceSettings reads and writes ordinary psi settings now rather
+    than a workspace.json of its own, so a test that builds one has to
+    redirect the configuration file -- otherwise it reads the developer's
+    real settings, and save_config() would write to them.
+    '''
+    monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+    psi_config.reload_config()
+
+
+@pytest.fixture(autouse=True)
+def _reset_psi_config():
+    '''
+    Drop the cached configuration after every test.
+
+    monkeypatch restores PSI_CONFIG_FILE on teardown but psi caches the
+    parsed file, so without this a test that redirected the config would
+    leave the next one reading a scratch file that no longer exists.
+    '''
+    yield
+    psi_config.reload_config()
 
 
 class TestMicrophoneCalibrationSettingsDefaults:
@@ -155,11 +183,11 @@ class TestInputRecordingSettings:
         settings.run_input_recording()
 
         assert captured['experiment'] == 'cftscal.paradigms.input_recording'
-        assert captured['env']['CFTS_INPUT_CHANNELS'] == 'ai2'
-        assert captured['env']['CFTS_INPUT_AI2_GAIN'] == '20.0'
-        assert captured['env']['CFTS_INPUT_AI2'] == 'stub-cal-string'
-        assert 'CFTS_INPUT_AI0_GAIN' not in captured['env']
-        assert 'CFTS_INPUT_AI1_GAIN' not in captured['env']
+        assert captured['env']['CFTSCAL_INPUT_CHANNELS'] == 'ai2'
+        assert captured['env']['CFTSCAL_INPUT_AI2_GAIN'] == '20.0'
+        assert captured['env']['CFTSCAL_INPUT_AI2'] == 'stub-cal-string'
+        assert 'CFTSCAL_INPUT_AI0_GAIN' not in captured['env']
+        assert 'CFTSCAL_INPUT_AI1_GAIN' not in captured['env']
         assert captured['metadata'] == {
             'generator': settings.generator.name,
             'sensors': {'ai2': {'label': 'Ch 2', 'sensor': 'MMM0', 'gain': 20.0}},
@@ -185,7 +213,7 @@ class TestInputRecordingSettings:
         monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
         settings.run_input_recording()
 
-        assert captured['env']['CFTS_INPUT_AI2'] == 'cftscal.objects.UnityInputCalibration'
+        assert captured['env']['CFTSCAL_INPUT_AI2'] == 'cftscal.objects.UnityInputCalibration'
         assert captured['metadata']['sensors']['ai2']['sensor'] == 'unity'
 
     def test_run_input_recording_happy_path_nominal(self, monkeypatch):
@@ -204,7 +232,7 @@ class TestInputRecordingSettings:
         monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
         settings.run_input_recording()
 
-        assert captured['env']['CFTS_INPUT_AI2'] == (
+        assert captured['env']['CFTSCAL_INPUT_AI2'] == (
             'cftscal.objects.NominalInputCalibration::12.3'
         )
         assert captured['metadata']['sensors']['ai2']['sensor'] == (
@@ -362,7 +390,7 @@ class TestSelectedItemPersistenceRoundTrip:
         # calls refresh_available(), which queries a real
         # CalibrationManager/CFTSBaseLoader -- redirect CAL_ROOT so that
         # never touches the real calibration tree.
-        monkeypatch.setattr('cftscal.objects.CAL_ROOT', tmp_path)
+        monkeypatch.setenv('CFTSCAL_ROOT', str(tmp_path))
 
     def test_starship_selected_input(self):
         settings = StarshipCalibrationSettings(
@@ -479,7 +507,7 @@ class TestStarshipAvailableCouplers:
 
     @pytest.fixture(autouse=True)
     def _isolate_cal_root(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('cftscal.objects.CAL_ROOT', tmp_path)
+        monkeypatch.setenv('CFTSCAL_ROOT', str(tmp_path))
 
     def test_starts_empty(self):
         settings = StarshipCalibrationSettings(
@@ -518,9 +546,7 @@ class TestWorkspaceSettingsEnabledPlugins:
     '''
 
     def _make_settings(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
+        _use_temp_config(tmp_path, monkeypatch)
         return WorkspaceSettings()
 
     def test_defaults_to_empty(self, tmp_path, monkeypatch):
@@ -544,15 +570,11 @@ class TestWorkspaceSettingsHwConfiguration:
     a computed Property derived from ``hw_mode`` and, in custom mode,
     ``custom_io_path``/``custom_io_class``. Neither of those two readers
     changed: this locks in that the derivation still produces what they
-    expect, and that old ``workspace.json`` files (which persisted
-    ``hw_configuration`` directly, picked from a flat list of every
-    discovered IO file/module path) still load correctly.
+    expect from the individual settings it is built out of.
     '''
 
     def _make_settings(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
+        _use_temp_config(tmp_path, monkeypatch)
         return WorkspaceSettings()
 
     def test_sound_card_mode(self, tmp_path, monkeypatch):
@@ -599,50 +621,29 @@ class TestWorkspaceSettingsHwConfiguration:
         assert restored.custom_io_class == 'MyManifest'
         assert restored.hw_configuration == 'C:/rig/io.enaml::MyManifest'
 
-    def test_loads_legacy_sound_card_config(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
-        config_file = tmp_path / 'cfts' / 'workspace.json'
-        config_file.parent.mkdir(parents=True)
-        config_file.write_text(json.dumps({'hw_configuration': 'Sound Card'}))
+    # The three tests that used to live here loaded the pre-hw_mode
+    # `hw_configuration` key out of a workspace.json. Both the file and
+    # the back-compat loader are gone: settings migrate once, through
+    # `psi-config migrate`, rather than being understood forever by the
+    # code that reads them.
 
-        settings = WorkspaceSettings()
-        assert settings.hw_mode == 'Sound Card'
-        assert settings.hw_configuration == 'Sound Card'
-
-    def test_loads_legacy_custom_config_with_class(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
-        config_file = tmp_path / 'cfts' / 'workspace.json'
-        config_file.parent.mkdir(parents=True)
-        config_file.write_text(json.dumps({
-            'hw_configuration': 'C:/rig/io.enaml::MyManifest',
-        }))
-
-        settings = WorkspaceSettings()
-        assert settings.hw_mode == 'Custom (Enaml IO manifest)'
-        assert settings.custom_io_path == 'C:/rig/io.enaml'
-        assert settings.custom_io_class == 'MyManifest'
-
-    def test_loads_legacy_custom_config_without_class(self, tmp_path, monkeypatch):
-        # e.g. an old STANDARD_IO dotted module path, which never carried
-        # an explicit '::ClassName' suffix -- defaults to IOManifest, same
-        # as load_io_manifest() itself does for a bare '.enaml' path.
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
-        config_file = tmp_path / 'cfts' / 'workspace.json'
-        config_file.parent.mkdir(parents=True)
-        config_file.write_text(json.dumps({
-            'hw_configuration': 'some_pkg.io.CustomManifest',
-        }))
+    def test_custom_mode_reads_settings_individually(
+            self, tmp_path, monkeypatch):
+        # hw_configuration is composed from hw_mode plus the two custom
+        # settings, so each has to survive the round trip on its own.
+        _use_temp_config(tmp_path, monkeypatch)
+        save_config({
+            'CFTSCAL_HW_MODE': 'Custom (Enaml IO manifest)',
+            'CFTSCAL_CUSTOM_IO_PATH': 'some_pkg.io.CustomManifest',
+            'CFTSCAL_CUSTOM_IO_CLASS': 'IOManifest',
+        })
 
         settings = WorkspaceSettings()
         assert settings.hw_mode == 'Custom (Enaml IO manifest)'
         assert settings.custom_io_path == 'some_pkg.io.CustomManifest'
         assert settings.custom_io_class == 'IOManifest'
+        assert settings.hw_configuration == \
+            'some_pkg.io.CustomManifest::IOManifest'
 
 
 class TestRunCalMetadataMerge:
@@ -659,9 +660,7 @@ class TestRunCalMetadataMerge:
         # WorkspaceSettings() is constructed internally by _run_cal; point
         # its config folder at a scratch dir like TestPersistEnabledPlugins
         # does, so it doesn't touch the real ~/.config.
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
+        _use_temp_config(tmp_path, monkeypatch)
         settings = CalibrationSettings()
         settings.data_path = tmp_path
         return settings
@@ -805,9 +804,7 @@ class TestWorkspaceSettingsDeviceSelection:
                        hostapis if hostapis is not None else _HOSTAPIS,
                        default_input=default_input)
         monkeypatch.setattr('cftscal.plugins.workspace.sd', fake)
-        monkeypatch.setattr(
-            'cftscal.plugins.workspace.get_config_folder', lambda: tmp_path,
-        )
+        _use_temp_config(tmp_path, monkeypatch)
         return WorkspaceSettings()
 
     def test_fresh_install_seeds_identity_from_default_device(
@@ -850,12 +847,11 @@ class TestWorkspaceSettingsDeviceSelection:
         settings.selected_device = settings.available_devices[2]
         settings.save_config()
 
-        saved = json.loads(
-            (tmp_path / 'cfts' / 'workspace.json').read_text())
-        assert saved['selected_device_name'] == 'RME Babyface'
-        assert saved['selected_device_hostapi'] == 'ASIO'
-        # Persisted by identity only -- no positional index leaks into config.
-        assert 'selected_device' not in saved
+        assert get_config('CFTSCAL_DEVICE_NAME') == 'RME Babyface'
+        assert get_config('CFTSCAL_DEVICE_HOSTAPI') == 'ASIO'
+        # Persisted by identity only -- no positional index leaks into the
+        # configuration file.
+        assert 'CFTSCAL_DEVICE_INDEX' not in get_all_config()
 
     def test_reresolves_device_after_device_list_reorder(
             self, tmp_path, monkeypatch):
@@ -889,14 +885,16 @@ class TestWorkspaceSettingsDeviceSelection:
         assert restored.selected_device_query == 'RME Babyface, ASIO'
         assert restored.selected_device_info == ''
 
-    def test_loads_legacy_name_only_config(self, tmp_path, monkeypatch):
-        # Configs written before host API was tracked used a bare
-        # 'selected_device' name key.
-        config_file = tmp_path / 'cfts' / 'workspace.json'
-        config_file.parent.mkdir(parents=True)
-        config_file.write_text(json.dumps({
-            'selected_device': 'RME Babyface',
-        }))
+    def test_name_without_host_api_resolves_by_name(
+            self, tmp_path, monkeypatch):
+        # A blank host API is still a supported state -- it is what a
+        # device identity looks like before one has been recorded -- so a
+        # name on its own must still resolve, by name alone.
+        _use_temp_config(tmp_path, monkeypatch)
+        save_config({
+            'CFTSCAL_DEVICE_NAME': 'RME Babyface',
+            'CFTSCAL_DEVICE_HOSTAPI': '',
+        })
         settings = self._make_settings(tmp_path, monkeypatch)
         # Resolves by name to the first match and fills in its host API.
         assert settings.selected_device_name == 'RME Babyface'

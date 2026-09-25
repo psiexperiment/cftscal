@@ -100,12 +100,12 @@ def initialize_settings(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    if (level := os.environ.get('CFTS_PISTONPHONE_LEVEL', None)):
+    if (level := os.environ.get('CFTSCAL_PISTONPHONE_LEVEL', None)):
         item = context.get_item('reference_level')
         item.set_value(level)
         item.editable = False
 
-    if (freq := os.environ.get('CFTS_PISTONPHONE_FREQUENCY', None)):
+    if (freq := os.environ.get('CFTSCAL_PISTONPHONE_FREQUENCY', None)):
         item = context.get_item('reference_frequency')
         item.set_value(freq)
         item.editable = False

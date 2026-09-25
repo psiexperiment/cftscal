@@ -39,4 +39,15 @@ your own, or design new hardware that cftscal will later calibrate.
 
     [:octicons-arrow-right-24: Read](hardware-design.md)
 
+-   :material-cog-outline:{ .lg .middle } **Settings and Handoff Variables**
+
+    ---
+
+    Every cftscal setting and which layer it resolves from, plus the separate
+    set of environment variables cftscal uses to hand hardware configuration
+    to a calibration run. Read this if a setting will not save, or if a run
+    fails complaining about a missing environment variable.
+
+    [:octicons-arrow-right-24: Read](configuration.md)
+
 </div>

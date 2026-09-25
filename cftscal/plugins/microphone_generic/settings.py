@@ -72,18 +72,18 @@ class MicrophoneComparisonSettings(CalibrationSettings):
         )
         env = {
             **self.measurement_input.get_env_vars(
-                env_prefix='CFTS_MICROPHONE',
+                env_prefix='CFTSCAL_MICROPHONE',
             ),
             # Since we are calibrating the test microphone, we do not load the
             # calibration for the microphone.
             **self.generic_input.get_env_vars(
-                env_prefix='CFTS_GENERIC_MICROPHONE',
+                env_prefix='CFTSCAL_GENERIC_MICROPHONE',
                 include_cal=False,
             ),
             # It's not necessary to load the calibration for the speaker since
             # we just need a sound source that both mics can record.
             **self.speaker_output.get_env_vars(
-                env_prefix='CFTS_SPEAKER',
+                env_prefix='CFTSCAL_SPEAKER',
                 include_cal=False,
             ),
         }

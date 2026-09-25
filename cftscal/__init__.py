@@ -20,21 +20,13 @@ os.environ['SD_ENABLE_ASIO'] = '1'
 import pyqtgraph as pg
 pg.setConfigOptions(antialias=False)
 
-from pathlib import Path
-import json
+from psi import register_defaults
 
+from .config_defaults import DEFAULTS
 
-DEFAULT_CAL_ROOT = os.path.expanduser('~/Documents/cftscal')
-CAL_ROOT = Path(os.environ.get('CFTSCAL_ROOT', DEFAULT_CAL_ROOT))
+register_defaults(DEFAULTS)
 
-try:
-    from psi import get_config_folder
-    config_file = get_config_folder() / 'cfts' / 'workspace.json'
-    if config_file.exists():
-        config = json.loads(config_file.read_text())
-        if 'data_path' in config:
-            CAL_ROOT = Path(config['data_path'])
-except ImportError:
-    pass
-
-log.info('Base folder for calibrations is %s', CAL_ROOT)
+# There is deliberately no module-level CAL_ROOT any more. It was captured
+# at import and never reassigned, so changing the calibration folder in the
+# GUI left every later reader on the old path until the process restarted.
+# Read `get_config('CFTSCAL_ROOT')` at the point of use instead.

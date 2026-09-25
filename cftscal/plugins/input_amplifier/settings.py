@@ -4,7 +4,6 @@ from psi import get_config
 
 from ..settings import CalibrationSettings, InputSettings, InputAmplifierReference
 
-from cftscal import CAL_ROOT
 
 
 class InputAmplifierCalibrationSettings(CalibrationSettings):
@@ -30,9 +29,9 @@ class InputAmplifierCalibrationSettings(CalibrationSettings):
         pathname = self._make_path(
             'input_amplifier', ai.group_path, ai.sensor.name, '{date_time}',
         )
-        env_prefix = f'CFTS_INPUT_AMPLIFIER_{ai.input_name.upper()}'
+        env_prefix = f'CFTSCAL_INPUT_AMPLIFIER_{ai.input_name.upper()}'
         env = {
-            **ai.get_env_vars(include_cal=False, env_prefix='CFTS_INPUT_AMPLIFIER'),
+            **ai.get_env_vars(include_cal=False, env_prefix='CFTSCAL_INPUT_AMPLIFIER'),
             **ai.sensor.get_env_vars(include_cal=False, env_prefix=env_prefix),
         }
         metadata = {

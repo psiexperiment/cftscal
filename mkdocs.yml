@@ -76,3 +76,4 @@ nav:
       - Calibration Math: reference/calibration-math.md
       - Signal Analysis: reference/signal-analysis.md
       - Hardware Design: reference/hardware-design.md
+      - Settings and Handoff Variables: reference/configuration.md
