@@ -16,7 +16,8 @@ def _write(path, text='fake content'):
 class TestSeedDefaultState:
 
     def _make_config(self, monkeypatch, layout_root, preferences_root):
-        roots = {'LAYOUT_ROOT': str(layout_root), 'PREFERENCES_ROOT': str(preferences_root)}
+        roots = {'PSI_LAYOUT_ROOT': str(layout_root),
+                 'PSI_PREFERENCES_ROOT': str(preferences_root)}
         monkeypatch.setattr(ds, 'get_config', lambda key: roots[key])
 
     def test_copies_when_destination_missing(self, tmp_path, monkeypatch):
@@ -79,7 +80,8 @@ class TestSeedDefaultState:
 class TestSeedAllDefaultState:
 
     def _make_config(self, monkeypatch, layout_root, preferences_root):
-        roots = {'LAYOUT_ROOT': str(layout_root), 'PREFERENCES_ROOT': str(preferences_root)}
+        roots = {'PSI_LAYOUT_ROOT': str(layout_root),
+                 'PSI_PREFERENCES_ROOT': str(preferences_root)}
         monkeypatch.setattr(ds, 'get_config', lambda key: roots[key])
 
     def test_discovers_and_seeds_every_packaged_paradigm(self, tmp_path, monkeypatch):

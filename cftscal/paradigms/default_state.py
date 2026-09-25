@@ -32,7 +32,7 @@ from psi import get_config
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent / 'resources'
 
 #: which -> the psi config key naming that kind of file's root directory.
-_ROOTS = {'layout': 'LAYOUT_ROOT', 'preferences': 'PREFERENCES_ROOT'}
+_ROOTS = {'layout': 'PSI_LAYOUT_ROOT', 'preferences': 'PSI_PREFERENCES_ROOT'}
 
 
 def seed_default_state(paradigm_name):
@@ -47,7 +47,7 @@ def seed_default_state(paradigm_name):
         The name passed as the first argument to that paradigm's
         ``ParadigmDescription(...)`` call (e.g. ``'pistonphone_calibration'``)
         -- the same string psi itself uses as the directory key under
-        ``LAYOUT_ROOT``/``PREFERENCES_ROOT``.
+        ``PSI_LAYOUT_ROOT``/``PSI_PREFERENCES_ROOT``.
     '''
     for which, root_config in _ROOTS.items():
         src = RESOURCE_ROOT / which / paradigm_name / f'default.{which}'
