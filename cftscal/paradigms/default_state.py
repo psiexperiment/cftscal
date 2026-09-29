@@ -31,15 +31,16 @@ from psi import get_config
 #: with no renaming/reshaping.
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent / 'resources'
 
-#: which -> the psi config key naming that kind of file's root directory.
-_ROOTS = {'layout': 'LAYOUT_ROOT', 'preferences': 'PREFERENCES_ROOT'}
+#: The kinds of default state that can be seeded. Each is a subdirectory
+#: of PSI_SETTINGS_ROOT, which is also how psi itself addresses them.
+_KINDS = ('layout', 'preferences')
 
 
 def seed_default_state(paradigm_name):
     '''
     Copy cftscal's packaged default layout/preferences for
-    ``paradigm_name`` into psiexperiment's LAYOUT_ROOT/PREFERENCES_ROOT,
-    if and only if the user doesn't already have one there.
+    ``paradigm_name`` under psiexperiment's ``PSI_SETTINGS_ROOT``, if and
+    only if the user doesn't already have one there.
 
     Parameters
     ----------
@@ -47,13 +48,14 @@ def seed_default_state(paradigm_name):
         The name passed as the first argument to that paradigm's
         ``ParadigmDescription(...)`` call (e.g. ``'pistonphone_calibration'``)
         -- the same string psi itself uses as the directory key under
-        ``LAYOUT_ROOT``/``PREFERENCES_ROOT``.
+        ``PSI_SETTINGS_ROOT/layout`` and ``PSI_SETTINGS_ROOT/preferences``.
     '''
-    for which, root_config in _ROOTS.items():
+    settings_root = Path(get_config('PSI_SETTINGS_ROOT'))
+    for which in _KINDS:
         src = RESOURCE_ROOT / which / paradigm_name / f'default.{which}'
         if not src.exists():
             continue
-        dest = Path(get_config(root_config)) / paradigm_name / f'default.{which}'
+        dest = settings_root / which / paradigm_name / f'default.{which}'
         if dest.exists():
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +76,7 @@ def seed_all_default_state():
     be wasted filesystem I/O with no ongoing benefit.
     '''
     names = set()
-    for which in _ROOTS:
+    for which in _KINDS:
         base = RESOURCE_ROOT / which
         if base.exists():
             names.update(p.name for p in base.iterdir() if p.is_dir())

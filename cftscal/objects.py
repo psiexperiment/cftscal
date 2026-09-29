@@ -23,7 +23,7 @@ from psiaudio import util
 from psidata.api import Recording
 from cftsdata.api import InearCalibration, MicrophoneCalibration
 
-from . import CAL_ROOT
+from psi import get_config
 
 
 #: Marker file (see CalibratedObject.set_current_calibration) written
@@ -482,7 +482,11 @@ class CalibrationManager:
 class CFTSBaseLoader(CalibrationLoader):
 
     def __init__(self):
-        self.base_path = CAL_ROOT / self.subfolder
+        # Resolved here rather than read from a module-level constant
+        # captured at import: the constant never changed after startup, so
+        # a loader built after the calibration folder was changed in the
+        # GUI still pointed at the previous location.
+        self.base_path = Path(get_config('CFTSCAL_ROOT')) / self.subfolder
         self.base_path.mkdir(parents=True, exist_ok=True)
 
     def list_names(self):

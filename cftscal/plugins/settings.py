@@ -7,7 +7,7 @@ import subprocess
 
 from atom.api import set_default, Atom, Enum, Float, List, Str, Typed
 
-from psi import get_config_folder
+from psi import get_config as get_setting, save_config as save_settings
 from psi.util import get_tagged_members, get_tagged_values
 
 
@@ -66,8 +66,11 @@ class CalibrationSettings(Atom):
     data_path = Typed(Path)
 
     def _default_data_path(self):
-        from cftscal import CAL_ROOT
-        return CAL_ROOT
+        # Resolved on demand: the module-level constant this used to read
+        # was captured at import and never reassigned, so a calibration
+        # started after the folder was changed in the GUI still wrote to
+        # the old location.
+        return Path(get_setting('CFTSCAL_ROOT'))
 
     def _make_path(self, subfolder, group_path, *parts):
         '''
@@ -110,19 +113,17 @@ class CalibrationSettings(Atom):
         return path
 
     def save_config(self):
-        file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
-        file = file.with_suffix('.json')
-        file.parent.mkdir(exist_ok=True, parents=True)
-        config = self.get_config()
-        file.write_text(json.dumps(config, indent=2))
+        # One table per plugin under CFTSCAL_PLUGIN, rather than one JSON
+        # file per plugin under the psi config folder. Read-modify-write
+        # of the whole table: psi.save_config replaces the value it is
+        # given, so the other plugins' entries have to be carried over.
+        plugins = dict(get_setting('CFTSCAL_PLUGIN'))
+        plugins[self.settings_filename] = self.get_config()
+        save_settings({'CFTSCAL_PLUGIN': plugins})
 
     def load_config(self):
-        file = get_config_folder() / 'cfts' / 'calibration' / self.settings_filename
-        file = file.with_suffix('.json')
-        if not file.exists():
-            return
-        config = json.loads(file.read_text())
-        if config is not None:
+        config = get_setting('CFTSCAL_PLUGIN').get(self.settings_filename)
+        if config:
             self.set_config(config)
 
     def get_config(self):
@@ -295,8 +296,8 @@ class PistonphoneSettings(GeneratorSettings):
 
     def get_env_vars(self):
         return {
-            'CFTS_PISTONPHONE_LEVEL': str(self.level),
-            'CFTS_PISTONPHONE_FREQUENCY': str(self.frequency),
+            'CFTSCAL_PISTONPHONE_LEVEL': str(self.level),
+            'CFTSCAL_PISTONPHONE_FREQUENCY': str(self.frequency),
         }
 
 
@@ -677,7 +678,7 @@ class InputSettings(PersistentSettings):
     #: channels in the plugin view swaps in that channel's saved value.
     group_path = Str().tag(persist=True)
 
-    def get_env_vars(self, include_cal=True, env_prefix='CFTS_INPUT'):
+    def get_env_vars(self, include_cal=True, env_prefix='CFTSCAL_INPUT'):
         # NOTE: the bare `env_prefix` key below is only meaningful to the
         # old single-channel initialize_input() handler
         # (cftscal/paradigms/objects.enaml). input_recording's
@@ -685,7 +686,7 @@ class InputSettings(PersistentSettings):
         # channel and merges the results, so that bare key ends up
         # holding whichever channel's call happened last -- harmless,
         # since the multi-channel paradigm side only reads
-        # CFTS_INPUT_CHANNELS and the per-channel-namespaced keys below.
+        # CFTSCAL_INPUT_CHANNELS and the per-channel-namespaced keys below.
         env = {
             env_prefix: self.input_name,
             f'{env_prefix}_{self.input_name.upper()}_GAIN': str(self.sensor.gain),
@@ -721,7 +722,7 @@ class OutputSettings(PersistentSettings):
     #: whichever output is currently selected.
     group_path = Str().tag(persist=True)
 
-    def get_env_vars(self, include_cal=True, env_prefix='CFTS_OUTPUT'):
+    def get_env_vars(self, include_cal=True, env_prefix='CFTSCAL_OUTPUT'):
         env = {
             env_prefix: self.output_name,
         }
@@ -774,13 +775,13 @@ class StarshipSettings(PersistentSettings):
 
     def get_env_vars(self, include_cal=True):
         env = {
-            'CFTS_TEST_STARSHIP': self.connection_name,
-            f'CFTS_STARSHIP_{self.connection_name.upper()}_GAIN': str(self.gain),
+            'CFTSCAL_TEST_STARSHIP': self.connection_name,
+            f'CFTSCAL_STARSHIP_{self.connection_name.upper()}_GAIN': str(self.gain),
         }
         if include_cal:
             starship = starship_manager.get_object(self.starship)
             cal = starship.get_current_calibration()
-            env[f'CFTS_STARSHIP_{self.connection_name.upper()}'] = cal.to_string()
+            env[f'CFTSCAL_STARSHIP_{self.connection_name.upper()}'] = cal.to_string()
         return env
 
 

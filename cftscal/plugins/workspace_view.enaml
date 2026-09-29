@@ -13,6 +13,20 @@ from psi.core.enaml.api import ListDictTable
 from .branding import load_app_icon
 
 
+def overridden_tip(member, overridden):
+    '''
+    Tooltip explaining that a setting is being forced by the environment.
+
+    Empty when it is not, which leaves the widget with no tooltip.
+    '''
+    setting = overridden.get(member)
+    if setting is None:
+        return ''
+    return f'Currently set by the {setting} environment variable, which ' \
+        'takes precedence over the configuration file. Clear it to change ' \
+        'this here.'
+
+
 enamldef WorkspaceSettingsView(Window): win:
 
     initial_size = (400, 400)
@@ -32,6 +46,10 @@ enamldef WorkspaceSettingsView(Window): win:
     #: empty checklist.
     attr plugin_info = []
 
+    #: {member: setting name} for every setting an environment variable is
+    #: currently forcing. Drives the disabled controls and their tooltips.
+    attr overridden = settings.overridden_settings() if settings else {}
+
     Container:
         Form:
             Label:
@@ -42,8 +60,15 @@ enamldef WorkspaceSettingsView(Window): win:
                 Field: data_path:
                     text << str(settings.data_path) if settings.data_path else ''
                     read_only = True
+                    tool_tip << overridden_tip('data_path', win.overridden)
                 PushButton:
                     text = 'Browse...'
+                    # Saving a setting the environment is forcing would
+                    # succeed and change nothing the application then
+                    # reads. Disabling it and naming the variable beats a
+                    # Save button that silently does nothing.
+                    enabled << 'data_path' not in win.overridden
+                    tool_tip << overridden_tip('data_path', win.overridden)
                     clicked ::
                         current = str(settings.data_path) if settings.data_path else ''
                         path = FileDialogEx.get_existing_directory(self, current_path=current)

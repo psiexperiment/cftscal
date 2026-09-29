@@ -160,7 +160,7 @@ def _parse_ir_sensor(folder):
     }
 
 
-# Each entry maps a subfolder name under CAL_ROOT to the parser that
+# Each entry maps a subfolder name under CFTSCAL_ROOT to the parser that
 # extracts the metadata dict from a leaf calibration directory in that tree.
 PARSERS = {
     'microphone': _parse_microphone_measurement,
@@ -595,7 +595,7 @@ def migrate(root, dry_run=False, overwrite=False):
     Parameters
     ----------
     root : Path
-        Root of the calibration tree (typically ``CAL_ROOT``).
+        Root of the calibration tree (typically ``CFTSCAL_ROOT``).
     dry_run : bool
         If True, log what would be written/renamed without touching the
         filesystem.
@@ -752,12 +752,13 @@ def migrate(root, dry_run=False, overwrite=False):
 
 
 def main():
-    from cftscal import CAL_ROOT
+    from psi import get_config
+    cal_root = Path(get_config('CFTSCAL_ROOT'))
 
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument(
-        '--root', type=Path, default=CAL_ROOT,
-        help=f'Calibration root directory (default: {CAL_ROOT}).'
+        '--root', type=Path, default=cal_root,
+        help=f'Calibration root directory (default: {cal_root}).'
     )
     parser.add_argument(
         '--dry-run', action='store_true',

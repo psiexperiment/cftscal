@@ -5,6 +5,25 @@ import pytest
 from .fakes import FakeEvent
 
 
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    '''
+    Give every test its own empty configuration file.
+
+    cftscal reads and writes ordinary psi settings now rather than a
+    workspace.json of its own, so a test that builds a settings object
+    would otherwise read the developer's real configuration and
+    save_config() would write into it. Only the settings tests used to
+    redirect it, and only by remembering to.
+    '''
+    from psi import config as psi_config
+
+    monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+    psi_config.reload_config()
+    yield
+    psi_config.reload_config()
+
+
 @pytest.fixture
 def event(monkeypatch):
     '''

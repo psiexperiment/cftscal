@@ -7,9 +7,9 @@ PATH = 'cftscal.paradigms.'
 CORE_PATH = 'psi.paradigms.core.'
 
 
-def active_input_channels(env_prefix='CFTS_INPUT'):
+def active_input_channels(env_prefix='CFTSCAL_INPUT'):
     '''
-    Comma-separated CFTS_INPUT_CHANNELS -> list of channel names, one per
+    Comma-separated CFTSCAL_INPUT_CHANNELS -> list of channel names, one per
     active slot. cftscal's own UI (InputRecordingSettings.
     run_input_recording) rejects assigning the same real channel to more
     than one slot -- gain/calibration are properties of the physical
@@ -37,7 +37,7 @@ all_inputs_mixin = {
     'manifest': PATH + 'record.AllInputs',
     'required': True,
     # Defaults are right here: InputRecordingSettings.
-    # run_input_recording() sets CFTS_INPUT_CHANNELS plus a gain and a
+    # run_input_recording() sets CFTSCAL_INPUT_CHANNELS plus a gain and a
     # calibration for every channel it launches with (it refuses to
     # launch at all until every active channel has a sensor), so all
     # three are required.
@@ -191,7 +191,7 @@ ParadigmDescription(
                 'id': 'generic_microphone',
                 'title': 'Generic Microphone',
                 'microphone_type': 'generic_microphone',
-                'env_prefix': 'CFTS_GENERIC_MICROPHONE',
+                'env_prefix': 'CFTSCAL_GENERIC_MICROPHONE',
                 # This is the microphone being calibrated, so there is
                 # no calibration to load for it yet.
                 'required_vars': ['name', 'gain'],
@@ -224,7 +224,7 @@ ParadigmDescription(
                 'id': 'generic_microphone',
                 'title': 'Generic Microphone',
                 'microphone_type': 'generic_microphone',
-                'env_prefix': 'CFTS_GENERIC_MICROPHONE',
+                'env_prefix': 'CFTSCAL_GENERIC_MICROPHONE',
                 # This is the microphone being calibrated, so there is
                 # no calibration to load for it yet.
                 'required_vars': ['name', 'gain'],

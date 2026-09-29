@@ -1,8 +1,10 @@
-'''
+﻿'''
 Tests for :mod:`cftscal.paradigms.default_state` -- seeding
 psiexperiment's per-paradigm default layout/preferences files from
 cftscal's own packaged copies.
 '''
+from pathlib import Path
+
 import pytest
 
 from cftscal.paradigms import default_state as ds
@@ -16,7 +18,10 @@ def _write(path, text='fake content'):
 class TestSeedDefaultState:
 
     def _make_config(self, monkeypatch, layout_root, preferences_root):
-        roots = {'LAYOUT_ROOT': str(layout_root), 'PREFERENCES_ROOT': str(preferences_root)}
+        # The two directories the tests build are <parent>/layout and
+        # <parent>/preferences, which is exactly the shape
+        # PSI_SETTINGS_ROOT addresses.
+        roots = {'PSI_SETTINGS_ROOT': str(Path(layout_root).parent)}
         monkeypatch.setattr(ds, 'get_config', lambda key: roots[key])
 
     def test_copies_when_destination_missing(self, tmp_path, monkeypatch):
@@ -79,7 +84,10 @@ class TestSeedDefaultState:
 class TestSeedAllDefaultState:
 
     def _make_config(self, monkeypatch, layout_root, preferences_root):
-        roots = {'LAYOUT_ROOT': str(layout_root), 'PREFERENCES_ROOT': str(preferences_root)}
+        # The two directories the tests build are <parent>/layout and
+        # <parent>/preferences, which is exactly the shape
+        # PSI_SETTINGS_ROOT addresses.
+        roots = {'PSI_SETTINGS_ROOT': str(Path(layout_root).parent)}
         monkeypatch.setattr(ds, 'get_config', lambda key: roots[key])
 
     def test_discovers_and_seeds_every_packaged_paradigm(self, tmp_path, monkeypatch):

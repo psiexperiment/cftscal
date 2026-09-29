@@ -27,6 +27,11 @@ test = ["pytest"]
 [project.scripts]
 cfts-cal = "cftscal.main:main"
 
+[project.entry-points."psi.settings"]
+# Lets psi-config (and anything else built on psi) see this
+# package's settings without importing the package itself.
+cftscal = "cftscal.config_defaults:DEFAULTS"
+
 [tool.setuptools.packages.find]
 include = ["cftscal*"]
 namespaces = false

@@ -128,7 +128,7 @@ enamldef Input(ExperimentManifest): manifest:
 
     id = 'input'
     title = manifest.id.capitalize().replace('_', ' ')
-    attr env_prefix = 'CFTS_INPUT'
+    attr env_prefix = 'CFTSCAL_INPUT'
     attr required_vars = ['name'] + list(INPUT_VARS)
 
     Extension:
@@ -241,7 +241,7 @@ enamldef Output(ExperimentManifest): manifest:
 
     id = 'output'
     title = manifest.id.capitalize().replace('_', ' ')
-    attr env_prefix = 'CFTS_OUTPUT'
+    attr env_prefix = 'CFTSCAL_OUTPUT'
     attr required_vars = ['name'] + list(OUTPUT_VARS)
 
     Extension:
@@ -290,7 +290,7 @@ enamldef Output(ExperimentManifest): manifest:
 enamldef Speaker(Output): manifest:
 
     id = 'system_output'
-    env_prefix = 'CFTS_SPEAKER'
+    env_prefix = 'CFTSCAL_SPEAKER'
 
 
 #: Maps the `microphone_type` attribute on the `Microphone` manifest to
@@ -347,7 +347,7 @@ enamldef Microphone(ExperimentManifest): manifest:
 
     Environment variables are used to configure the microphone, gain, and
     calibration. Here, <env_prefix> is set as an attribute on the manifest
-    (defaults to CFTS_MICROPHONE) and <name> is the uppercased name of the
+    (defaults to CFTSCAL_MICROPHONE) and <name> is the uppercased name of the
     microphone channel as identified in the IO manifest.
 
     <env_prefix>
@@ -378,7 +378,7 @@ enamldef Microphone(ExperimentManifest): manifest:
     title = manifest.id.capitalize().replace('_', ' ')
 
     attr label_fmt = lambda x: re.sub(r'\bmicrophone\b', '', x, flags=re.IGNORECASE)
-    attr env_prefix = 'CFTS_MICROPHONE'
+    attr env_prefix = 'CFTSCAL_MICROPHONE'
     attr required_vars = ['name'] + list(INPUT_VARS)
 
     # This is the original microphone type we expected, so I have configured it
@@ -448,11 +448,11 @@ enamldef Microphone(ExperimentManifest): manifest:
 #: Environment variables read by `initialize_starship`. Unlike the other
 #: objects, the names of these variables are not built from the variable
 #: naming the starship (that one is side-specific, e.g.
-#: CFTS_TEST_STARSHIP, while these are not), so the templates spell out
+#: CFTSCAL_TEST_STARSHIP, while these are not), so the templates spell out
 #: the full name instead of using `{prefix}`.
 STARSHIP_VARS = {
-    'gain': 'CFTS_STARSHIP_{name}_GAIN',
-    'calibration': 'CFTS_STARSHIP_{name}',
+    'gain': 'CFTSCAL_STARSHIP_{name}_GAIN',
+    'calibration': 'CFTSCAL_STARSHIP_{name}',
 }
 
 
@@ -460,7 +460,7 @@ def initialize_starship(manifest_id, side, required_vars, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    env = read_env_vars(manifest_id, f'CFTS_{side.upper()}_STARSHIP',
+    env = read_env_vars(manifest_id, f'CFTSCAL_{side.upper()}_STARSHIP',
                         STARSHIP_VARS, required_vars)
     if (starship := env['name']) is None:
         # The calibration item is left reporting "not configured".
@@ -500,14 +500,14 @@ enamldef Starship(ExperimentManifest): manifest:
     <side> is set as an attribute on the manifest and <name> is the name as
     identified in the IO manifest:
 
-    CFTS_<side>_STARSHIP
+    CFTSCAL_<side>_STARSHIP
         Indicates which starship name to use ('name' in `required_vars`).
 
-    CFTS_STARSHIP_<name>_GAIN
+    CFTSCAL_STARSHIP_<name>_GAIN
         Indicates the current gain setting on the mcirophone amplifier
         ('gain' in `required_vars`).
 
-    CFTS_STARSHIP_<name>
+    CFTSCAL_STARSHIP_<name>
         A calibration string (provided by cftscal) that will load the correct
         calibration when passed to `starship_manager.from_string`
         ('calibration' in `required_vars`).
@@ -711,7 +711,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
 
     Environment variables are used to configure the amplifier. Here,
     <env_prefix> is set as an attribute on the manifest (defaults to
-    CFTS_INPUT_AMPLIFIER) and <name> is the uppercased name of the input
+    CFTSCAL_INPUT_AMPLIFIER) and <name> is the uppercased name of the input
     channel as identified in the IO manifest.
 
     <env_prefix>
@@ -738,7 +738,7 @@ enamldef InputAmplifier(ExperimentManifest): manifest:
     id = 'input_amplifier'
     title = manifest.id.capitalize().replace('_', ' ')
     attr target_fs
-    attr env_prefix = 'CFTS_INPUT_AMPLIFIER'
+    attr env_prefix = 'CFTSCAL_INPUT_AMPLIFIER'
     attr required_vars = ['name'] + list(INPUT_AMPLIFIER_VARS)
 
     Extension:

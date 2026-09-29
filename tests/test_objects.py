@@ -680,7 +680,7 @@ class TestNominalInputCalibration:
 
     def test_round_trips_through_manager_from_string_dispatch(self):
         # The generic CalibrationManager.from_string() dispatch (used to
-        # decode the CFTS_INPUT_<channel> env var on the psi side) picks
+        # decode the CFTSCAL_INPUT_<channel> env var on the psi side) picks
         # the class purely off the qualname prefix in to_string()'s
         # output -- confirms NominalInputCalibration is wired into that
         # the same way UnityInputCalibration already is.
