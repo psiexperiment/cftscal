@@ -22,9 +22,9 @@ from enaml.widgets.api import (
 )
 
 from psi.data.plots import make_color
-# AddItem lives in psiapp so that psiapp's own widgets can use it without
+# AddItem lives in psi.launcher so that its own widgets can use it without
 # importing cftscal. Re-exported here for the plugin views.
-from psiapp.widgets import AddItem
+from psi.launcher.widgets import AddItem
 from psiaudio import util
 
 from . import settings

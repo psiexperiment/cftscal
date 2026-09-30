@@ -1,9 +1,10 @@
 from psi.application import configure_logging
 #configure_logging('DEBUG')
 
-# psiapp.util rather than psiapp.api: the latter pulls in .enaml modules and
-# so needs the enaml import hook active, which this needs no part of.
-from psiapp.util import set_app_id
+# psi.core.app_id rather than psi.launcher.api: the latter pulls in .enaml
+# modules and so needs the enaml import hook active, which this needs no part
+# of.
+from psi.core.app_id import set_app_id
 
 import importlib
 import logging

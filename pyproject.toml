@@ -13,8 +13,8 @@ maintainers = [
 ]
 dependencies = [
     "cftsdata",
-    "psiexperiment",
-    "psiapp >= 0.0.7",
+    # 0.9.0 is the first release with psi.launcher.
+    "psiexperiment >=0.9.0",
     "enaml >=0.13.0",
     "pyyaml",
     "tqdm",
