@@ -1,0 +1,229 @@
+'''
+Test rig on a single RME Fireface USB (ASIO).
+
+Declares every channel that cftscal, cfts, abts and noise-exp look for in the
+IO manifest, so all four can be run end to end on one sound card with nothing
+else attached. Select it as:
+
+* cftscal: Workspace settings > hardware > custom IO, with this file as the
+  path (the class defaults to `IOManifest`). The cfts, abts and noise-exp
+  launchers list their hardware through cftscal, so this also sets what they
+  offer.
+* The experiments cfts, abts and noise-exp start: these do not pass `--io`, so
+  `psi` uses `<PSI_IO_ROOT>/<hostname>.enaml`. Point that at this manifest
+  with a one-line file, `from cftscal.io.dummy_fireface import IOManifest`
+  (in a separate folder set as `PSI_IO_ROOT` to leave the real one alone).
+* `psi` directly: `--io cftscal.io.dummy_fireface.IOManifest`.
+
+Channels are found either by device type (`supported_devices`, which is how
+cftscal's `list_*_connections` populate the launchers' drop-downs) or by name
+(where a paradigm hard-codes one). Every output is on the same number as an
+input, so patching output N to input N gives a loopback for checking that
+stimuli actually come out.
+
+====  ========================  ========================  =====================
+Chan  Output (hw_ao)            Input (hw_ai)             Used by
+====  ========================  ========================  =====================
+0     starship_A_primary        starship_A_microphone     cfts, cftscal
+1     starship_A_secondary      starship_B_microphone     cfts, cftscal
+2     starship_B_primary        eeg (input amplifier)     cfts, cftscal
+3     starship_B_secondary      cal_microphone            cftscal, noise-exp
+4     speaker_1                 microphone_1 (generic)    abts, noise-exp, cfts
+5     speaker_2                 loopback_1                cfts (free field),
+                                                          abts
+6     ir_emitter                output_monitor            abts, cfts
+7                               temperature               cfts
+8                               np_contact                abts
+9                               resp_contact_1            abts
+10                              resp_contact_2            abts
+====  ========================  ========================  =====================
+
+abts's pellet dispensers and lights are software-timed digital outputs, which a
+sound card cannot produce. `DummyFirefaceEngine` accepts them anyway and logs
+each change (logger `cftscal.io.dummy_fireface`) instead of driving a line.
+
+Not covered: cfts's turntable plugin (a counter input) and the video plugins
+(separate processes, not IO).
+'''
+import logging
+log = logging.getLogger('cftscal.io.dummy_fireface')
+
+from threading import Timer
+
+from atom.api import set_default, Typed
+from enaml.workbench.api import Extension, PluginManifest
+
+from psi.controller.api import SoftwareDOChannel
+from psi.controller.engines.soundcard import (
+    SoundcardEngine, SoundcardHardwareAIChannel, SoundcardHardwareAOChannel,
+)
+
+
+class DummyFirefaceEngine(SoundcardEngine):
+    '''
+    The Fireface, plus software digital outputs that are logged rather than
+    driven.
+
+    A plain Python class rather than an enamldef with `func` methods:
+    `fire_sw_do` turns the line back off from a timer thread, and calling an
+    Enaml `func` off the main thread crashes the interpreter.
+    '''
+    name = set_default('fireface')
+    device_name = set_default('ASIO Fireface USB')
+
+    #: Current state of each software digital output, by channel name.
+    sw_do_state = Typed(dict, ())
+
+    def set_sw_do(self, name, state):
+        self.sw_do_state[name] = state
+        log.info('Digital output %s set %s', name, 'high' if state else 'low')
+
+    def fire_sw_do(self, name, duration=0.1):
+        log.info('Digital output %s fired for %.3f s', name, duration)
+        self.set_sw_do(name, 1)
+        Timer(duration, lambda: self.set_sw_do(name, 0)).start()
+
+
+enamldef Output(SoundcardHardwareAOChannel):
+    calibration_user_editable = True
+
+
+enamldef Input(SoundcardHardwareAIChannel):
+    gain = 0
+    # Full-scale input level of the Fireface as configured in TotalMix (the
+    # member has no default of its own).
+    dBFS = (19, 'dBu')
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Test rig on a single Fireface USB. See the module docstring for the
+    channel map.
+    '''
+    id = 'dummy_fireface_io'
+
+    Extension:
+        id = 'dummy_fireface'
+        point = 'psi.controller.io'
+
+        DummyFirefaceEngine:
+
+            # Starships: one microphone and two speakers each, found by the
+            # starship_<ID>_{microphone,primary,secondary} naming convention
+            # (see cftscal.util.list_starship_connections). IDs must not
+            # contain underscores.
+            Output:
+                channel = 0
+                name = 'starship_A_primary'
+                label = 'Starship A primary'
+                supported_devices = ['starship']
+            Output:
+                channel = 1
+                name = 'starship_A_secondary'
+                label = 'Starship A secondary'
+                supported_devices = ['starship']
+            Output:
+                channel = 2
+                name = 'starship_B_primary'
+                label = 'Starship B primary'
+                supported_devices = ['starship']
+            Output:
+                channel = 3
+                name = 'starship_B_secondary'
+                label = 'Starship B secondary'
+                supported_devices = ['starship']
+            Input:
+                channel = 0
+                name = 'starship_A_microphone'
+                label = 'Starship A microphone'
+                supported_devices = ['starship']
+            Input:
+                channel = 1
+                name = 'starship_B_microphone'
+                label = 'Starship B microphone'
+                supported_devices = ['starship']
+
+            # Free-field and behavior speakers. abts's behavior paradigms
+            # address the first as hw_ao::speaker_1.
+            Output:
+                channel = 4
+                name = 'speaker_1'
+                label = 'Speaker 1'
+                supported_devices = ['speaker']
+            Output:
+                channel = 5
+                name = 'speaker_2'
+                label = 'Speaker 2'
+                supported_devices = ['speaker']
+
+            # Physiology amplifier (EEG) for ABR/EFR in cfts.
+            Input:
+                channel = 2
+                name = 'eeg'
+                label = 'EEG'
+                supported_devices = ['input_amplifier']
+
+            # Calibration (reference) microphone for cftscal, and the
+            # microphone noise-exp monitors the exposure with.
+            Input:
+                channel = 3
+                name = 'cal_microphone'
+                label = 'Calibration microphone'
+                supported_devices = ['measurement_microphone']
+
+            # Generic microphone, used by abts to monitor the booth.
+            Input:
+                channel = 4
+                name = 'microphone_1'
+                label = 'Microphone 1'
+                supported_devices = ['generic_microphone']
+
+            # Channels paradigms look up by name.
+            Input:
+                # abts: behavior_nafc records hw_ai::loopback_<N> for each
+                # speaker.
+                channel = 5
+                name = 'loopback_1'
+                label = 'Loopback 1'
+            Input:
+                # cfts: OutputMonitor/OutputMonitorView plugins.
+                channel = 6
+                name = 'output_monitor'
+                label = 'Output monitor'
+            Input:
+                # cfts: TemperatureMixinManifest.
+                channel = 7
+                name = 'temperature'
+                label = 'Temperature'
+            Output:
+                # abts: StrobedIR emitter for the go/nogo paradigms.
+                channel = 6
+                name = 'ir_emitter'
+                label = 'IR emitter'
+            Input:
+                channel = 8
+                name = 'np_contact'
+                label = 'Nose-poke IR'
+            Input:
+                channel = 9
+                name = 'resp_contact_1'
+                label = 'Response 1 IR'
+            Input:
+                channel = 10
+                name = 'resp_contact_2'
+                label = 'Response 2 IR'
+
+            # abts: rewards and lights (psibehavior's reward, cue and
+            # timeout plugins), as software digital outputs.
+            SoftwareDOChannel:
+                name = 'pellet_1'
+                label = 'Pellet dispenser 1'
+            SoftwareDOChannel:
+                name = 'pellet_2'
+                label = 'Pellet dispenser 2'
+            SoftwareDOChannel:
+                name = 'cue_light'
+                label = 'Cue light'
+            SoftwareDOChannel:
+                name = 'room_light'
+                label = 'Room light'

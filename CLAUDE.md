@@ -81,6 +81,10 @@ Global manager singletons (`measurement_microphone_manager`, `speaker_manager`, 
 
 Functions like `list_outputs()`, `list_inputs()`, `list_starship_connections()` scan the psiexperiment IO manifest to enumerate available hardware channels. Plugin `available` properties call these functions to determine if the plugin should be shown.
 
+### Test Rig IO Manifest (`cftscal/io/dummy_fireface.enaml`)
+
+`cftscal.io.dummy_fireface.IOManifest` declares, on a single ASIO Fireface USB, every channel cftscal, cfts, abts and noise-exp look for (starships A/B, speakers, calibration and generic microphones, EEG amplifier, and the channels paradigms hard-code by name: `loopback_1`, `output_monitor`, `temperature`, `ir_emitter`, `np_contact`, `resp_contact_{1,2}`). Its engine, `DummyFirefaceEngine`, also accepts abts's software digital outputs (`pellet_{1,2}`, `cue_light`, `room_light`) and logs them. That engine is a plain Python class on purpose: an Enaml `func` called from `fire_sw_do`'s timer thread segfaulted the interpreter. The module docstring has the channel map and how to select it; `tests/test_dummy_io.py` pins the channels (and streams on the real device when one is attached).
+
 ### Workspace Settings (`cftscal/plugins/workspace.py`)
 
 Manages global settings (data path, hardware configuration, audio device, sample rate). The `WorkspaceSettings` Atom class is shared across all plugins.
