@@ -37,3 +37,20 @@ def event(monkeypatch):
     '''
     monkeypatch.setattr(os, 'environ', {})
     return FakeEvent()
+
+
+@pytest.fixture(scope='session')
+def qt_app():
+    '''
+    A single QtApplication for tests that render widgets.  Skips the
+    Qt tests (rather than failing) on a headless box where
+    a QtApplication can't be created -- the rest of the suite is
+    deliberately Qt-free, so we don't want to introduce a hard display
+    dependency.
+    '''
+    try:
+        from enaml.qt.qt_application import QtApplication
+        app = QtApplication.instance() or QtApplication()
+    except Exception as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f'QtApplication unavailable: {exc}')
+    return app

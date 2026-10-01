@@ -10,6 +10,7 @@ import datetime as dt
 from functools import cached_property, total_ordering
 import importlib
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -26,11 +27,21 @@ from cftsdata.api import InearCalibration, MicrophoneCalibration
 from psi import get_config
 
 
+log = logging.getLogger(__name__)
+
 #: Marker file (see CalibratedObject.set_current_calibration) written
 #: directly inside an object's own directory -- not inside any individual
 #: calibration's directory -- naming which of that object's calibrations
 #: is pinned as "current".
 _CURRENT_MARKER = 'current.json'
+
+
+class CorruptCalibrationError(ValueError):
+    '''
+    Raised when a calibration's files exist but cannot be understood (e.g.,
+    ``metadata.json`` is not valid JSON, or a required field is missing).
+    '''
+    pass
 
 
 @total_ordering
@@ -58,13 +69,46 @@ class Calibration:
         # the method's own repr of the calibration.
         return None
 
+    @property
+    def problem(self):
+        '''
+        Description of what is wrong with this calibration, or None if
+        nothing is.
+
+        The tree view marks calibrations that report a problem instead of
+        refusing to open the whole workspace. Subclasses backed by files on
+        disk override this.
+        '''
+        return None
+
+    def _fallback_datetime(self):
+        # Used for sorting only, when `datetime` cannot be read.
+        return dt.datetime.min
+
+    @property
+    def sort_datetime(self):
+        '''
+        The datetime to sort by. Same as `datetime`, except that a
+        calibration whose datetime cannot be read (see `problem`) gets a
+        best guess instead of raising an error, so that one damaged
+        calibration does not prevent the others from being listed.
+        '''
+        try:
+            return self.datetime
+        except Exception:
+            return self._fallback_datetime()
+
     def __repr__(self):
-        return f'Calibration :: {self.name} ({self.datetime} - {self.label})'
+        try:
+            datetime = self.datetime
+        except Exception:
+            datetime = '?'
+        return f'Calibration :: {self.name} ({datetime} - {self.label})'
 
     def _get_cmp_key(self, obj):
         if obj is None:
             return (None, None, None)
-        return obj.name, obj.datetime, obj.label
+        return obj.name, obj.sort_datetime, obj.label
 
     def __lt__(self, obj):
         return self._get_cmp_key(self) < self._get_cmp_key(obj)
@@ -90,6 +134,15 @@ class FileCalibration(Calibration):
         self.name = name
         self.filename = Path(filename)
 
+    def _fallback_datetime(self):
+        # Calibration folders are named ``YYYYMMDD-HHMMSS_...``, so the
+        # folder name is a reasonable guess at when it was measured.
+        prefix = self.filename.name.split('_', 1)[0]
+        try:
+            return dt.datetime.strptime(prefix, '%Y%m%d-%H%M%S')
+        except ValueError:
+            return super()._fallback_datetime()
+
     def to_string(self):
         return f'{self.qualname}::{self.name}::{self.filename}'
 
@@ -111,6 +164,12 @@ class CFTSFileCalibration(FileCalibration):
     '''
     METADATA_FILENAME = 'metadata.json'
 
+    #: Fields that must be present in ``metadata.json``. A calibration
+    #: missing any of them is reported as having a problem (see
+    #: `problem`). Subclasses add the fields their properties read without
+    #: a default.
+    REQUIRED_METADATA = ('datetime',)
+
     @cached_property
     def metadata(self):
         meta_file = self.filename / self.METADATA_FILENAME
@@ -121,11 +180,49 @@ class CFTSFileCalibration(FileCalibration):
                 f'Run `python -m cftscal.migrate_metadata` to generate '
                 f'metadata files for existing calibrations.'
             )
-        return json.loads(meta_file.read_text())
+        try:
+            metadata = json.loads(meta_file.read_text())
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise CorruptCalibrationError(
+                f'Could not read {self.METADATA_FILENAME}: {e}'
+            ) from e
+        if not isinstance(metadata, dict):
+            raise CorruptCalibrationError(
+                f'{self.METADATA_FILENAME} does not contain a JSON object.'
+            )
+        return metadata
 
     @cached_property
     def datetime(self):
-        return dt.datetime.fromisoformat(self.metadata['datetime'])
+        try:
+            return dt.datetime.fromisoformat(self.metadata['datetime'])
+        except KeyError as e:
+            raise CorruptCalibrationError(
+                f'{self.METADATA_FILENAME} has no datetime.'
+            ) from e
+        except (TypeError, ValueError) as e:
+            raise CorruptCalibrationError(
+                f'{self.METADATA_FILENAME} has an invalid datetime: '
+                f'{self.metadata["datetime"]!r}'
+            ) from e
+
+    @cached_property
+    def problem(self):
+        try:
+            metadata = self.metadata
+        except (FileNotFoundError, CorruptCalibrationError) as e:
+            return str(e)
+        problems = []
+        missing = [k for k in self.REQUIRED_METADATA if k not in metadata]
+        if missing:
+            problems.append(f'{self.METADATA_FILENAME} is missing required '
+                            f'field(s): {", ".join(missing)}.')
+        if 'datetime' in metadata:
+            try:
+                self.datetime
+            except CorruptCalibrationError as e:
+                problems.append(str(e))
+        return ' '.join(problems) or None
 
 
 @total_ordering
@@ -475,7 +572,14 @@ class CalibrationManager:
         values = set()
         for loader in self.loaders:
             for folder, name, cal in loader.list_all_calibrations():
-                values.add(getattr(cal, prop_name))
+                # Skip damaged calibrations (see `Calibration.problem`)
+                # rather than failing, since this is used to fill in
+                # drop-downs when a workspace opens.
+                try:
+                    values.add(getattr(cal, prop_name))
+                except Exception as e:
+                    log.warning('Could not read %s from %s: %s',
+                                prop_name, getattr(cal, 'filename', cal), e)
         return values
 
 
@@ -633,7 +737,7 @@ class EPLStarshipCalibration(FileCalibration):
     def _get_cmp_key(self, obj):
         if obj is None:
             return (None, None, None, None)
-        return obj.name, obj.datetime, obj.smoothed, obj.label
+        return obj.name, obj.sort_datetime, obj.smoothed, obj.label
 
     @cached_property
     def datetime(self):
@@ -666,9 +770,21 @@ class EPLStarshipCalibration(FileCalibration):
             cal = pd.read_csv(fh, sep='\t', header=None)
             return InterpCalibration.from_spl(cal[0], cal[1], attrs=attrs)
 
+    @cached_property
+    def problem(self):
+        try:
+            self.datetime
+        except Exception as e:
+            return f'Could not read date from {self.filename.name}: {e}'
+        return None
+
     def __repr__(self):
         s = 'smoothed' if self.smoothed else 'raw'
-        return f'Calibration :: {self.name} ({self.datetime} {s} - {self.label})'
+        try:
+            datetime = self.datetime
+        except Exception:
+            datetime = '?'
+        return f'Calibration :: {self.name} ({datetime} {s} - {self.label})'
 
 
 class EPLStarshipLoader(CalibrationLoader):
@@ -701,6 +817,10 @@ class CFTSStarshipCalibration(CFTSFileCalibration):
     Wrapper around a probe tube calibration file generated by the
     psiexperiment-based CFTS calibration program.
     '''
+
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + (
+        'microphone', 'coupler', 'stimulus',
+    )
 
     @property
     def starship(self):
@@ -803,6 +923,8 @@ class CFTSSpeakerCalibration(CFTSFileCalibration):
     Wrapper around a speaker calibration file generated by the
     psiexperiment-based CFTS calibration program.
     '''
+
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + ('microphone', 'method')
 
     @property
     def speaker(self):
@@ -946,6 +1068,8 @@ class CFTSMicrophoneCalibration(CFTSFileCalibration):
 
 class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + ('pistonphone',)
+
     @property
     def pistonphone(self):
         return self.metadata['pistonphone']
@@ -1004,6 +1128,8 @@ class CFTSMeasurementMicrophoneCalibration(CFTSMicrophoneCalibration):
 
 
 class CFTSGenericMicrophoneCalibration(CFTSMicrophoneCalibration):
+
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + ('stimulus',)
 
     @property
     def sensor_id(self):
@@ -1108,6 +1234,8 @@ class CFTSInputRecording(CFTSFileCalibration):
     Input monitor recording created by CFTS
     '''
 
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + ('generator',)
+
     @property
     def generator(self):
         return self.metadata['generator']
@@ -1161,6 +1289,8 @@ class InEar(CalibratedObject):
 
 
 class CFTSInEarCalibration(CFTSFileCalibration):
+
+    REQUIRED_METADATA = CFTSFileCalibration.REQUIRED_METADATA + ('starship', 'coupler')
 
     @property
     def starship(self):

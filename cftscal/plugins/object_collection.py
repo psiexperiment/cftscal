@@ -1,4 +1,10 @@
-from atom.api import Atom, Bool, Event, Value, List, observe
+import logging
+
+from atom.api import Atom, Bool, Event, Value, List, Str, observe
+
+
+log = logging.getLogger(__name__)
+
 
 class ObjectNode(Atom):
     '''
@@ -8,6 +14,20 @@ class ObjectNode(Atom):
     item = Value()
     parent = Value()
     color = Value(None)
+
+    #: Description of what is wrong with this calibration (e.g., a damaged
+    #: ``metadata.json``, or an error raised while plotting it). Empty if
+    #: nothing is. The tree view marks nodes that have a problem.
+    problem = Str()
+
+    def _default_problem(self):
+        return getattr(self.item, 'problem', None) or ''
+
+    def _observe_item(self, event):
+        # The item is replaced each time the tree is refreshed from disk,
+        # and the calibration may have been repaired (or damaged) since.
+        if event['type'] == 'update':
+            self.problem = getattr(self.item, 'problem', None) or ''
 
     def _observe_selected(self, event):
         if self.selected:
@@ -37,6 +57,14 @@ class ObjectGroup(Atom):
         self.item = item
         self.parent = parent
         self.update_subitems(calibrations)
+
+    @property
+    def problems(self):
+        '''
+        List of ``(node, problem)`` for each calibration in this group that
+        has a problem (see `ObjectNode.problem`).
+        '''
+        return [(n, n.problem) for n in self.subitems if n.problem]
 
     def notify(self, node, selected):
         self.parent.notify(node, selected)
@@ -158,7 +186,18 @@ class ObjectCollection(Atom):
 
     def notify(self, node, selected):
         for manager in self.view_managers:
-            result = manager.notify(node.item, selected)
+            # A damaged calibration may fail to plot. Report it on the node
+            # (the tree marks it) rather than letting the error escape into
+            # the GUI, which would leave the plots half-updated.
+            try:
+                result = manager.notify(node.item, selected)
+            except Exception as e:
+                log.exception('Could not %s %s',
+                              'plot' if selected else 'remove',
+                              getattr(node.item, 'filename', node.item))
+                if selected:
+                    node.problem = f'Could not plot calibration: {e}'
+                continue
             if not selected:
                 node.color = None
             elif result is not None and 'color' in result:

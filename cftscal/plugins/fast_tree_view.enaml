@@ -1,8 +1,8 @@
 from atom.api import set_default, Bool, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QAbstractItemView
-from qtpy.QtGui import QColor, QBrush, QDrag
+from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QAbstractItemView, QStyle
+from qtpy.QtGui import QColor, QBrush, QDrag, QIcon
 from qtpy.QtCore import Qt, QMimeData
 import shutil
 
@@ -122,6 +122,8 @@ class FastTreeWidget(QTreeWidget):
         for obj in self._observed_objects:
             obj.unobserve('selected', self._on_model_selected_changed)
             obj.unobserve('color', self._on_model_color_changed)
+            if isinstance(obj, ObjectNode):
+                obj.unobserve('problem', self._on_model_problem_changed)
         self._observed_objects.clear()
         self._item_map.clear()
         self.clear()
@@ -208,6 +210,7 @@ class FastTreeWidget(QTreeWidget):
                 self._observed_objects.append(sub)
                 sub.observe('selected', self._on_model_selected_changed)
                 sub.observe('color', self._on_model_color_changed)
+                sub.observe('problem', self._on_model_problem_changed)
                 # Fill the columns
                 for col_idx, attr in enumerate(self.attrs):
                     try:
@@ -215,7 +218,53 @@ class FastTreeWidget(QTreeWidget):
                     except:
                         val = '⚠'
                     s_item.setText(col_idx + 1, val)
+                self._apply_problem(s_item, sub.problem)
+            self._apply_group_problem(g_item, group)
         self.blockSignals(False)
+
+    def _apply_problem(self, item, problem):
+        '''
+        Mark a row as having a problem (warning icon, red text, and the
+        problem as a tooltip), or clear the mark if ``problem`` is empty.
+        '''
+        # Restore the previous state rather than unblocking, since
+        # populate_tree calls this while it has signals blocked.
+        blocked = self.blockSignals(True)
+        if problem:
+            icon = self.style().standardIcon(QStyle.SP_MessageBoxWarning)
+            brush = QBrush(QColor('firebrick'))
+        else:
+            icon = QIcon()
+            brush = QBrush()
+        item.setIcon(0, icon)
+        for i in range(self.columnCount()):
+            item.setForeground(i, brush)
+            item.setToolTip(i, problem or '')
+        self.blockSignals(blocked)
+
+    def _apply_group_problem(self, g_item, group):
+        '''
+        Mark a group if any of its calibrations have a problem, so the
+        problem is visible even when the group is collapsed.
+        '''
+        problems = group.problems
+        if not problems:
+            self._apply_problem(g_item, '')
+            return
+        lines = [f'{n.item.filename.name}: {p}' for n, p in problems]
+        n = len(problems)
+        header = f'{n} calibration{"s" if n > 1 else ""} with problems:'
+        self._apply_problem(g_item, '\n'.join([header] + lines))
+
+    def _on_model_problem_changed(self, change):
+        '''Model -> UI: Called by Atom when a node's problem changes.'''
+        node = change['object']
+        item = self._item_map.get(id(node))
+        if item:
+            self._apply_problem(item, change['value'])
+        g_item = self._item_map.get(id(node.parent))
+        if g_item:
+            self._apply_group_problem(g_item, node.parent)
 
     def handle_item_changed(self, item, column):
         """UI -> Model: Called natively by Qt when a user clicks a checkbox."""
@@ -250,10 +299,10 @@ class FastTreeWidget(QTreeWidget):
             brush = QBrush()
         else:
             brush = QBrush(make_color(color_val))
-        self.blockSignals(True)
+        blocked = self.blockSignals(True)
         for i in range(self.columnCount()):
             item.setBackground(i, brush)
-        self.blockSignals(False)
+        self.blockSignals(blocked)
 
     def handle_item_double_clicked(self, item, column):
         """Rename the underlying calibration file/directory on double-click."""
@@ -566,6 +615,10 @@ class FastTreeWidget(QTreeWidget):
 
     def _context_menu_for_leaf(self, sub, global_pos):
         menu = QMenu()
+        problem_action = None
+        if sub.problem:
+            problem_action = menu.addAction('Show problem…')
+            menu.addSeparator()
         export_action = menu.addAction('Export as WAV…')
         current_action = None
         if self.enable_current:
@@ -577,13 +630,26 @@ class FastTreeWidget(QTreeWidget):
             )
         delete_action = menu.addAction('Delete')
         action = menu.exec_(global_pos)
-        if action == export_action:
-            default_name = f'{sub.item.name}_{sub.item.datetime:%Y%m%d-%H%M%S}.wav'
+        if problem_action is not None and action == problem_action:
+            QMessageBox.warning(
+                self, 'Problem with calibration',
+                f'{sub.item.filename}\n\n{sub.problem}',
+            )
+        elif action == export_action:
+            # sort_datetime rather than datetime, which a damaged calibration
+            # may not have.
+            default_name = f'{sub.item.name}_{sub.item.sort_datetime:%Y%m%d-%H%M%S}.wav'
             filename, _ = QFileDialog.getSaveFileName(
                 self, 'Export as WAV', default_name, 'WAV files (*.wav)',
             )
             if filename:
-                export_calibration(sub.item, filename)
+                try:
+                    export_calibration(sub.item, filename)
+                except Exception as e:
+                    QMessageBox.critical(
+                        self, 'Export failed',
+                        f'Could not export {sub.item.filename.name}: {e}',
+                    )
         elif current_action is not None and action == current_action:
             if is_current:
                 obj.clear_current_calibration()
@@ -591,7 +657,9 @@ class FastTreeWidget(QTreeWidget):
                 obj.set_current_calibration(sub.item)
             self.collection.update_groups()
         elif action == delete_action:
-            name = f'{sub.item.datetime} from {sub.item.name}'
+            # The folder name rather than the datetime, which a damaged
+            # calibration may not have.
+            name = f'{sub.item.filename.name} from {sub.item.name}'
             reply = QMessageBox.question(
                 self, 'Confirm', f'Are you sure you want to delete {name}?',
                 QMessageBox.Yes | QMessageBox.No

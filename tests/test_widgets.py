@@ -2,7 +2,6 @@
 Tests for :mod:`cftscal.plugins.widgets`.
 '''
 import enaml
-import pytest
 
 with enaml.imports():
     from cftscal.plugins.widgets import BasePlotManager, SensorView, _remove_selected
@@ -49,23 +48,6 @@ class TestCreatePlot:
         color, plots = manager.create_empty_plots()
         assert len(plots) == 1
         assert isinstance(plots[0], pg.PlotDataItem)
-
-
-@pytest.fixture(scope='module')
-def qt_app():
-    '''
-    A single QtApplication for the rendering tests below.  Skips the
-    whole module's Qt tests (rather than failing) on a headless box where
-    a QtApplication can't be created -- the rest of the suite is
-    deliberately Qt-free, so we don't want to introduce a hard display
-    dependency.
-    '''
-    try:
-        from enaml.qt.qt_application import QtApplication
-        app = QtApplication.instance() or QtApplication()
-    except Exception as exc:  # pragma: no cover - environment dependent
-        pytest.skip(f'QtApplication unavailable: {exc}')
-    return app
 
 
 def _find(widget, type_name):
