@@ -18,12 +18,24 @@ and the file's location.
 | Setting | Default | Contents |
 | --- | --- | --- |
 | `CFTSCAL_ROOT` | `~/Documents/cftscal` | Where calibration data is stored. |
-| `CFTSCAL_HW_MODE` | `Sound Card` | Either `Sound Card` or `Custom (Enaml IO manifest)`. |
-| `CFTSCAL_CUSTOM_IO_PATH` | `''` | Path to a custom IO manifest `.enaml` file. Only meaningful when the mode is not `Sound Card`. |
-| `CFTSCAL_CUSTOM_IO_CLASS` | `IOManifest` | Name of the `enamldef` within that file. |
-| `CFTSCAL_DEVICE_NAME` | `''` | Name of the selected audio device. |
-| `CFTSCAL_DEVICE_HOSTAPI` | `''` | Host API the device belongs to. Together with the name this is the *durable* identity of a device — never a PortAudio index, which is meaningless across sessions. |
-| `CFTSCAL_SAMPLE_RATE` | `0.0` | Sampling rate for the selected device. |
+| `CFTSCAL_IO` | `default` if this machine has its own IO manifest, else `sound-card` | The IO manifest cftscal *and* the cfts, abts and noise-exp launchers run psi with — see below. |
+| `CFTSCAL_DEVICE_NAME` | `''` | Name of the selected audio device. Only used when `CFTSCAL_IO` is `sound-card`. |
+| `CFTSCAL_DEVICE_HOSTAPI` | `''` | Host API the device belongs to. Together with the name this is the *durable* identity of a device — never a PortAudio index, which is meaningless across sessions. Only used when `CFTSCAL_IO` is `sound-card`. |
+| `CFTSCAL_SAMPLE_RATE` | `0.0` | Sampling rate for the selected device. Only used when `CFTSCAL_IO` is `sound-card`. |
+
+`CFTSCAL_IO` is one of:
+
+- `sound-card` — the audio device chosen by `CFTSCAL_DEVICE_NAME`,
+  `CFTSCAL_DEVICE_HOSTAPI` and `CFTSCAL_SAMPLE_RATE`.
+- `default` — this machine's own manifest, `<PSI_IO_ROOT>/<hostname>.enaml`,
+  the one `psi` uses when run without `--io`.
+- Anything else is given to psi's `--io` as written: a file
+  (`C:/io/rig.enaml`, optionally `::ClassName`) or a dotted module path
+  (`cftscal.io.dummy_fireface.IOManifest`).
+
+The launchers fill their channel choices from this manifest and run their
+experiments on it, so the two can no longer disagree. `cftscal.util.resolve_io`
+is the one place it is interpreted.
 | `CFTSCAL_ENABLED_PLUGINS` | `[]` | Plugins to load regardless of what their hardware probes report, so a machine without the hardware can still browse existing calibrations. |
 | `CFTSCAL_PLUGIN` | `{}` | Per-plugin GUI state, one `[CFTSCAL_PLUGIN.<name>]` table each. Written by the GUI; there is no reason to edit it by hand. |
 
@@ -44,6 +56,34 @@ To see which layer supplied a value:
 ```bash
 psi-config show
 ```
+
+### Upgrading from the old settings files
+
+Older versions of cftscal kept these settings in their own JSON files in
+the psi configuration folder (`~/psi`, or the folder named by the
+`PSI_CONFIG` environment variable): `cfts/workspace.json` and one
+`cfts/calibration/<plugin>.json` per plugin.
+
+cftscal moves them into `config.toml` the first time it starts, so there is
+nothing to do. In detail:
+
+- Only settings that `config.toml` does not have yet are written, so
+  nothing set since is overwritten.
+- The old files are left untouched. A note, `cfts/MIGRATED.txt`, is
+  written beside them saying what was moved where. It also stops the move
+  from happening again, so a setting you later remove from `config.toml`
+  does not come back.
+- It works without a `config.py`. On a machine that also has one,
+  `psi-config migrate` converts both at once.
+
+To preview what would be moved without changing anything:
+
+```bash
+python -m cftscal.migrate_settings
+```
+
+Add `--apply` to do it now rather than at the next start. To redo it,
+delete `MIGRATED.txt`.
 
 ## The handoff contract
 

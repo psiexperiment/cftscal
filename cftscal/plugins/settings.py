@@ -18,7 +18,7 @@ from cftscal.objects import (
     NominalInputCalibration, UnityInputCalibration,
 )
 
-from cftscal.plugins.workspace import WorkspaceSettings
+from cftscal.util import resolve_io
 
 
 def _merge_picker_list(obj, list_attr, source):
@@ -181,7 +181,6 @@ class CalibrationSettings(Atom):
                 setattr(self, name, config[name])
 
     def _run_cal(self, filename, experiment, env=None, metadata=None):
-        settings = WorkspaceSettings()
         if env is None:
             env = {}
         env = {**os.environ, **env}
@@ -203,20 +202,9 @@ class CalibrationSettings(Atom):
         # PATH -- so the bare name resolves there with no path/extension
         # handling needed here. Unfrozen, it resolves via PATH to the
         # psi-main console-script entry point (same target as `psi`).
-        args = ['psi-main', experiment, str(filename)]
-        if settings.hw_configuration == 'Sound Card':
-            env.update({
-                # Identify the device by its fully-qualified "<name>, <host
-                # API>" string, not by index (the index is unstable across
-                # processes and even between launch and run). sounddevice
-                # resolves this to the one intended device even when the bare
-                # name is ambiguous.
-                'PSI_SOUND_DEVICE_NAME': settings.selected_device_query,
-                'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
-            })
-            args.extend(['--io', 'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'])
-        else:
-            args.extend(['--io', settings.hw_configuration])
+        manifest, io_env = resolve_io()
+        env.update(io_env)
+        args = ['psi-main', experiment, str(filename), '--io', manifest]
         print(json.dumps(env, indent=2))
         print(' '.join(args))
 

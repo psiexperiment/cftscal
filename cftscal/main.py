@@ -27,6 +27,7 @@ import enaml
 from enaml.application import deferred_call
 from enaml.workbench.ui.api import UIWorkbench
 
+from .migrate_settings import migrate_legacy_settings
 from .paradigms.default_state import seed_all_default_state
 
 UI_PLUGIN = 'enaml.workbench.ui'
@@ -75,6 +76,14 @@ def main():
     # from the `psi.psi` that the calibration subprocesses claim, so cftscal
     # and the experiments it launches get their own taskbar buttons.
     set_app_id('psi.cftscal')
+
+    # Before anything reads a setting. A failure here must not stop
+    # cftscal from starting: the worst case is the defaults, which the
+    # user can correct in the settings dialog.
+    try:
+        migrate_legacy_settings()
+    except Exception:
+        log.exception('Could not migrate the old cftscal settings files')
 
     seed_all_default_state()
 

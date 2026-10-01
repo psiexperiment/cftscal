@@ -22,6 +22,22 @@ os.environ['SD_ENABLE_ASIO'] = '1'
 
 import sounddevice as sd
 
+from psi.application import get_default_io
+
+from cftscal.util import IO_DEFAULT, IO_SOUND_CARD, device_query
+
+
+#: hw_mode for any IO manifest other than this machine's own or the sound
+#: card. Only the view uses it; what is saved is the manifest itself.
+IO_CUSTOM = 'custom'
+
+#: How the view labels each hw_mode.
+HW_MODE_LABELS = {
+    IO_DEFAULT: "This computer's IO manifest",
+    IO_SOUND_CARD: 'Sound card',
+    IO_CUSTOM: 'Other IO manifest',
+}
+
 
 def get_supported_samplerates(device=None):
     standard_rates = [44100, 48000, 88200, 96000, 192000]
@@ -39,33 +55,53 @@ class WorkspaceSettings(Atom):
 
     data_path = Typed(Path)
 
-    #: Either the system's audio interface ("Sound Card", configured via
-    #: selected_device/sample_rate below) or a custom psiexperiment IO
-    #: manifest .enaml file (custom_io_path/custom_io_class below) -- e.g.
-    #: for NI-DAQ, TDT, or other hardware with its own IO manifest.
-    hw_mode = Enum('Sound Card', 'Custom (Enaml IO manifest)')
+    #: Which kind of IO manifest the view is editing: this machine's own
+    #: (IO_DEFAULT), the sound card configured by selected_device and
+    #: sample_rate below (IO_SOUND_CARD), or any other manifest, named by
+    #: custom_io_path/custom_io_class below (IO_CUSTOM) -- e.g. NI-DAQ,
+    #: TDT, or other hardware with its own IO manifest. All three are
+    #: saved as the one CFTSCAL_IO setting; see io_reference.
+    hw_mode = Enum(IO_DEFAULT, IO_SOUND_CARD, IO_CUSTOM)
 
-    #: Path to the .enaml file containing the custom IO manifest, and the
-    #: name of the enamldef class within it to load. Only meaningful when
-    #: hw_mode == 'Custom (Enaml IO manifest)'.
+    #: The other manifest, when hw_mode is IO_CUSTOM: an .enaml file and the
+    #: name of the enamldef within it, or a dotted module path (in which
+    #: case the class is ignored).
     custom_io_path = Str()
     custom_io_class = Str('IOManifest')
 
-    #: The actual string passed to psi's ``--io`` argument / cftscal's
-    #: ``load_io_manifest()`` -- derived from hw_mode and (when custom)
-    #: custom_io_path/custom_io_class rather than stored directly, so
-    #: there's a single place composing it. See _run_cal in
-    #: cftscal/plugins/settings.py and io_manifest() in cftscal/util.py,
-    #: the only two readers.
-    hw_configuration = Property()
+    #: The CFTSCAL_IO value the three members above amount to. Setting it
+    #: splits a saved value back into them. cftscal.util.resolve_io turns
+    #: it into what psi is actually run with.
+    io_reference = Property()
 
-    def _get_hw_configuration(self):
-        if self.hw_mode == 'Sound Card':
-            return 'Sound Card'
-        if not self.custom_io_path:
-            return ''
+    def _get_io_reference(self):
+        if self.hw_mode != IO_CUSTOM:
+            return self.hw_mode
+        path = self.custom_io_path.strip()
+        if not path.endswith('.enaml'):
+            return path
         klass = self.custom_io_class.strip() or 'IOManifest'
-        return f'{self.custom_io_path}::{klass}'
+        return f'{path}::{klass}'
+
+    def _set_io_reference(self, value):
+        value = value.strip()
+        if value in (IO_DEFAULT, IO_SOUND_CARD):
+            self.hw_mode = value
+            return
+        self.hw_mode = IO_CUSTOM
+        path, sep, klass = value.partition('::')
+        self.custom_io_path = path
+        self.custom_io_class = klass if sep else 'IOManifest'
+
+    def default_io_description(self):
+        '''
+        This machine's own IO manifest, or why there is none, for the view.
+        '''
+        try:
+            return str(get_default_io())
+        except ValueError:
+            return (f'None: no IO manifest for {get_setting("PSI_HOSTNAME")} '
+                    f'in {get_setting("PSI_IO_ROOT")}')
 
     # Optional callback fired after save_config() writes the settings.
     # Set by the caller (e.g. show_workspace_settings) to trigger plugin reload.
@@ -98,9 +134,8 @@ class WorkspaceSettings(Atom):
     selected_device_query = Property()
 
     def _get_selected_device_query(self):
-        if self.selected_device_hostapi:
-            return f'{self.selected_device_name}, {self.selected_device_hostapi}'
-        return self.selected_device_name
+        return device_query(self.selected_device_name,
+                            self.selected_device_hostapi)
 
     #: Transient, in-memory only: the ``available_devices`` entry (a device
     #: dict) currently highlighted in the picker, or None when the saved
@@ -220,9 +255,8 @@ class WorkspaceSettings(Atom):
     #: They are ordinary settings now, resolved like any other.
     SETTINGS = {
         'data_path': 'CFTSCAL_ROOT',
-        'hw_mode': 'CFTSCAL_HW_MODE',
-        'custom_io_path': 'CFTSCAL_CUSTOM_IO_PATH',
-        'custom_io_class': 'CFTSCAL_CUSTOM_IO_CLASS',
+        # hw_mode, custom_io_path and custom_io_class, combined.
+        'io_reference': 'CFTSCAL_IO',
         # The durable device identity (name + host API), never an index --
         # an index is meaningless across sessions. See load_config, which
         # re-finds the live device from these on startup.
@@ -254,8 +288,14 @@ class WorkspaceSettings(Atom):
         variable responsible rather than letting the user write into a
         void and wonder why nothing happened.
         '''
-        return {member: setting for member, setting in self.SETTINGS.items()
-                if config_source(setting) == 'environment'}
+        overridden = {member: setting
+                      for member, setting in self.SETTINGS.items()
+                      if config_source(setting) == 'environment'}
+        # The controls edit the parts io_reference is made of.
+        if 'io_reference' in overridden:
+            for member in ('hw_mode', 'custom_io_path', 'custom_io_class'):
+                overridden[member] = overridden['io_reference']
+        return overridden
 
     def load_config(self):
         # Each setting is applied on its own. Reading them in one try block

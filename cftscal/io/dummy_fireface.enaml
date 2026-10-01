@@ -5,14 +5,10 @@ Declares every channel that cftscal, cfts, abts and noise-exp look for in the
 IO manifest, so all four can be run end to end on one sound card with nothing
 else attached. Select it as:
 
-* cftscal: Workspace settings > hardware > custom IO, with this file as the
-  path (the class defaults to `IOManifest`). The cfts, abts and noise-exp
-  launchers list their hardware through cftscal, so this also sets what they
-  offer.
-* The experiments cfts, abts and noise-exp start: these do not pass `--io`, so
-  `psi` uses `<PSI_IO_ROOT>/<hostname>.enaml`. Point that at this manifest
-  with a one-line file, `from cftscal.io.dummy_fireface import IOManifest`
-  (in a separate folder set as `PSI_IO_ROOT` to leave the real one alone).
+* cftscal, and the cfts, abts and noise-exp launchers: set `CFTSCAL_IO` to
+  `cftscal.io.dummy_fireface.IOManifest` (or pick this file under Workspace
+  settings > Hardware > Other IO manifest). They all run on, and list
+  channels from, that one setting.
 * `psi` directly: `--io cftscal.io.dummy_fireface.IOManifest`.
 
 Channels are found either by device type (`supported_devices`, which is how

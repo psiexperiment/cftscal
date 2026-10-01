@@ -532,82 +532,121 @@ class TestWorkspaceSettingsEnabledPlugins:
         assert restored.enabled_plugins == ['input-recording', 'starship']
 
 
-class TestWorkspaceSettingsHwConfiguration:
+class TestWorkspaceSettingsIO:
     '''
-    ``hw_configuration`` -- the string actually passed to psi's ``--io``
-    argument (see ``_run_cal`` in cftscal/plugins/settings.py) and to
-    ``load_io_manifest()`` (see ``io_manifest()`` in cftscal/util.py) -- is
-    a computed Property derived from ``hw_mode`` and, in custom mode,
-    ``custom_io_path``/``custom_io_class``. Neither of those two readers
-    changed: this locks in that the derivation still produces what they
-    expect from the individual settings it is built out of.
+    The view edits a mode plus, for any other manifest, a path and class.
+    They are saved as the one CFTSCAL_IO setting, ``io_reference``, which
+    `cftscal.util.resolve_io` turns into what psi is run with.
     '''
 
-    def test_sound_card_mode(self):
+    def test_keyword_modes(self):
         settings = WorkspaceSettings()
-        settings.hw_mode = 'Sound Card'
-        assert settings.hw_configuration == 'Sound Card'
+        settings.hw_mode = 'sound-card'
+        assert settings.io_reference == 'sound-card'
+        settings.hw_mode = 'default'
+        assert settings.io_reference == 'default'
 
-    def test_custom_mode_composes_path_and_class(self):
+    def test_custom_file_composes_path_and_class(self):
         settings = WorkspaceSettings()
-        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.hw_mode = 'custom'
         settings.custom_io_path = 'C:/rig/io.enaml'
         settings.custom_io_class = 'MyManifest'
-        assert settings.hw_configuration == 'C:/rig/io.enaml::MyManifest'
+        assert settings.io_reference == 'C:/rig/io.enaml::MyManifest'
 
-    def test_custom_mode_defaults_class_to_iomanifest(self):
+    def test_custom_file_blank_class_falls_back_to_iomanifest(self):
         settings = WorkspaceSettings()
-        settings.hw_mode = 'Custom (Enaml IO manifest)'
-        settings.custom_io_path = 'C:/rig/io.enaml'
-        assert settings.custom_io_class == 'IOManifest'
-        assert settings.hw_configuration == 'C:/rig/io.enaml::IOManifest'
-
-    def test_custom_mode_blank_class_falls_back_to_iomanifest(self):
-        settings = WorkspaceSettings()
-        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.hw_mode = 'custom'
         settings.custom_io_path = 'C:/rig/io.enaml'
         settings.custom_io_class = '   '
-        assert settings.hw_configuration == 'C:/rig/io.enaml::IOManifest'
+        assert settings.io_reference == 'C:/rig/io.enaml::IOManifest'
 
-    def test_custom_mode_without_path_is_empty(self):
+    def test_custom_module_ignores_class(self):
+        # Appending ::IOManifest to a dotted module path made a reference
+        # psi could not load.
         settings = WorkspaceSettings()
-        settings.hw_mode = 'Custom (Enaml IO manifest)'
-        assert settings.hw_configuration == ''
+        settings.hw_mode = 'custom'
+        settings.custom_io_path = 'some_pkg.io.CustomManifest'
+        assert settings.io_reference == 'some_pkg.io.CustomManifest'
 
-    def test_round_trips_through_save_and_load(self):
+    def test_custom_without_path_is_empty(self):
         settings = WorkspaceSettings()
-        settings.hw_mode = 'Custom (Enaml IO manifest)'
+        settings.hw_mode = 'custom'
+        assert settings.io_reference == ''
+
+    def test_round_trips_as_one_setting(self):
+        settings = WorkspaceSettings()
+        settings.hw_mode = 'custom'
         settings.custom_io_path = 'C:/rig/io.enaml'
         settings.custom_io_class = 'MyManifest'
         settings.save_config()
+        assert get_config('CFTSCAL_IO') == 'C:/rig/io.enaml::MyManifest'
 
         restored = WorkspaceSettings()
-        assert restored.hw_mode == 'Custom (Enaml IO manifest)'
+        assert restored.hw_mode == 'custom'
         assert restored.custom_io_path == 'C:/rig/io.enaml'
         assert restored.custom_io_class == 'MyManifest'
-        assert restored.hw_configuration == 'C:/rig/io.enaml::MyManifest'
 
-    # The three tests that used to live here loaded the pre-hw_mode
-    # `hw_configuration` key out of a workspace.json. Both the file and
-    # the back-compat loader are gone: settings migrate once, through
-    # `psi-config migrate`, rather than being understood forever by the
-    # code that reads them.
+    def test_saved_keyword_is_loaded(self):
+        save_config({'CFTSCAL_IO': 'sound-card'})
+        assert WorkspaceSettings().hw_mode == 'sound-card'
 
-    def test_custom_mode_reads_settings_individually(self):
-        # hw_configuration is composed from hw_mode plus the two custom
-        # settings, so each has to survive the round trip on its own.
+    def test_environment_override_disables_every_io_control(
+            self, monkeypatch):
+        monkeypatch.setenv('CFTSCAL_IO', 'default')
+        overridden = WorkspaceSettings().overridden_settings()
+        for member in ('hw_mode', 'custom_io_path', 'custom_io_class'):
+            assert overridden[member] == 'CFTSCAL_IO'
+
+
+class TestResolveIO:
+    '''
+    `resolve_io` is the one place CFTSCAL_IO is interpreted, for cftscal's
+    own calibrations and for every launcher built on it.
+    '''
+
+    def test_sound_card(self):
+        from cftscal.util import SOUND_CARD_MANIFEST, resolve_io
         save_config({
-            'CFTSCAL_HW_MODE': 'Custom (Enaml IO manifest)',
-            'CFTSCAL_CUSTOM_IO_PATH': 'some_pkg.io.CustomManifest',
-            'CFTSCAL_CUSTOM_IO_CLASS': 'IOManifest',
+            'CFTSCAL_IO': 'sound-card',
+            'CFTSCAL_DEVICE_NAME': 'ASIO Fireface USB',
+            'CFTSCAL_DEVICE_HOSTAPI': 'ASIO',
+            'CFTSCAL_SAMPLE_RATE': 96000.0,
         })
+        manifest, env = resolve_io()
+        assert manifest == SOUND_CARD_MANIFEST
+        assert env == {
+            'PSI_SOUND_DEVICE_NAME': 'ASIO Fireface USB, ASIO',
+            'PSI_SOUND_DEVICE_FS': '96000',
+        }
 
-        settings = WorkspaceSettings()
-        assert settings.hw_mode == 'Custom (Enaml IO manifest)'
-        assert settings.custom_io_path == 'some_pkg.io.CustomManifest'
-        assert settings.custom_io_class == 'IOManifest'
-        assert settings.hw_configuration == \
-            'some_pkg.io.CustomManifest::IOManifest'
+    def test_default_is_this_machines_manifest(self, monkeypatch):
+        from cftscal import util
+        monkeypatch.setattr(util, 'get_default_io', lambda: 'C:/io/rig1.enaml')
+        save_config({'CFTSCAL_IO': 'default'})
+        assert util.resolve_io() == ('C:/io/rig1.enaml', {})
+
+    def test_anything_else_is_passed_through(self):
+        from cftscal.util import resolve_io
+        save_config({'CFTSCAL_IO': 'C:/io/rig.enaml::RigIO'})
+        assert resolve_io() == ('C:/io/rig.enaml::RigIO', {})
+
+    def test_empty_is_an_error(self):
+        from cftscal.util import resolve_io
+        save_config({'CFTSCAL_IO': ''})
+        with pytest.raises(ValueError, match='No IO manifest is selected'):
+            resolve_io()
+
+    def test_default_setting_follows_the_hostname_manifest(self, monkeypatch):
+        import psi.application
+        monkeypatch.setattr(psi.application, 'get_default_io',
+                            lambda: 'C:/io/rig1.enaml')
+        assert get_config('CFTSCAL_IO') == 'default'
+
+        def missing():
+            raise ValueError('no manifest')
+
+        monkeypatch.setattr(psi.application, 'get_default_io', missing)
+        assert get_config('CFTSCAL_IO') == 'sound-card'
 
 
 class TestRunCalMetadataMerge:

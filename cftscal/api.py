@@ -6,7 +6,8 @@ from .util import (
     list_measurement_microphone_connections,
     list_outputs,
     list_speaker_connections,
-    list_starship_connections
+    list_starship_connections,
+    resolve_io,
 )
 
 from .objects import (

@@ -19,6 +19,11 @@ def isolated_config(tmp_path, monkeypatch):
     from psi import config as psi_config
 
     monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+    # The folder cftscal kept its settings in before config.toml. Pointed
+    # somewhere empty so that starting cftscal in a test does not migrate
+    # the developer's own old settings files (see
+    # cftscal.migrate_settings).
+    monkeypatch.setenv('PSI_CONFIG', str(tmp_path / 'legacy'))
     psi_config.reload_config()
     yield
     psi_config.reload_config()

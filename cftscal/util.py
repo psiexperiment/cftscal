@@ -1,10 +1,83 @@
 import logging
 log = logging.getLogger(__name__)
 
+import os
 from functools import partial
 
+from psi import get_config
 from psi.application import get_default_io, initialize_io_manifest
 from psi.controller.api import Channel, HardwareAIChannel, HardwareAOChannel
+
+
+#: CFTSCAL_IO value meaning the audio device chosen by CFTSCAL_DEVICE_NAME,
+#: CFTSCAL_DEVICE_HOSTAPI and CFTSCAL_SAMPLE_RATE.
+IO_SOUND_CARD = 'sound-card'
+
+#: CFTSCAL_IO value meaning this machine's own IO manifest,
+#: <PSI_IO_ROOT>/<hostname>.enaml.
+IO_DEFAULT = 'default'
+
+#: The manifest psi builds for a single sound card from the
+#: PSI_SOUND_DEVICE_* environment variables.
+SOUND_CARD_MANIFEST = \
+    'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'
+
+
+def device_query(name, hostapi):
+    '''
+    The "<name>, <host API>" string identifying an audio device.
+
+    sounddevice matches this exactly against its own "<name>, <host API>"
+    for each device, so it resolves to the one intended device even when
+    the bare name substring-matches several (the same device exposed
+    through several drivers). Never an index, which shifts whenever the
+    set of devices changes. Falls back to the bare name if the host API is
+    unknown.
+    '''
+    return f'{name}, {hostapi}' if hostapi else name
+
+
+def resolve_io():
+    '''
+    The IO manifest to run psi with, and the environment it needs.
+
+    This is the one place CFTSCAL_IO is interpreted. cftscal's own
+    calibrations and every launcher built on it (cfts, abts, noise-exp)
+    pass the result to psi as ``--io``, and `io_manifest`, which fills the
+    launchers' channel choices, loads the same thing -- so the channels a
+    user picks from are the channels the experiment then runs on.
+
+    Returns
+    -------
+    manifest : str
+        The value for psi's ``--io``.
+    env : dict
+        Environment variables the manifest reads. Empty except for the
+        sound card, whose manifest is configured entirely from them.
+
+    Raises
+    ------
+    ValueError
+        If no manifest is configured, or CFTSCAL_IO is 'default' and this
+        machine has no IO manifest of its own.
+    '''
+    io = get_config('CFTSCAL_IO').strip()
+    if io == IO_SOUND_CARD:
+        rate = get_config('CFTSCAL_SAMPLE_RATE')
+        env = {
+            'PSI_SOUND_DEVICE_NAME': device_query(
+                get_config('CFTSCAL_DEVICE_NAME'),
+                get_config('CFTSCAL_DEVICE_HOSTAPI')),
+            'PSI_SOUND_DEVICE_FS': str(int(rate)),
+        }
+        return SOUND_CARD_MANIFEST, env
+    if io == IO_DEFAULT:
+        return str(get_default_io()), {}
+    if not io:
+        raise ValueError(
+            'No IO manifest is selected. Choose the hardware in cftscal\'s '
+            'workspace settings, or set CFTSCAL_IO.')
+    return io, {}
 
 
 NO_OUTPUT_ERROR = '''
@@ -24,23 +97,15 @@ def reset_io_manifest():
 
 
 def io_manifest():
-    from cftscal.plugins.workspace import WorkspaceSettings
-    settings = WorkspaceSettings()
-    if settings.hw_configuration == 'Sound Card':
-        import os
-        os.environ.update({
-            # Identify the device by its fully-qualified "<name>, <host API>"
-            # string, not by index (the index is unstable across processes and
-            # even between launch and run). sounddevice resolves this to the
-            # one intended device even when the bare name is ambiguous.
-            'PSI_SOUND_DEVICE_NAME': settings.selected_device_query,
-            'PSI_SOUND_DEVICE_FS': str(int(settings.sample_rate)),
-        })
-        manifest = 'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'
-    else:
-        manifest = settings.hw_configuration
+    '''
+    The IO manifest `resolve_io` selects, loaded into this process.
+    '''
     global IO_MANIFEST
     if IO_MANIFEST is None:
+        manifest, env = resolve_io()
+        # The sound card manifest reads its device from the environment
+        # when it is instantiated, here as much as in a psi subprocess.
+        os.environ.update(env)
         # initialize_io_manifest rather than load_io_manifest(...)(): the
         # manifest is Enaml, so the hardware is not touched until it is
         # instantiated. Doing the instantiation ourselves put the interesting
@@ -201,7 +266,7 @@ list_input_amplifier_connections = \
 
 
 def show_connections():
-    print(f'Looking for connections in {get_default_io()}')
+    print(f'Looking for connections in {resolve_io()[0]}')
     fn_list = {
         'Starship': list_starship_connections,
         'Input Amplifier': list_input_amplifier_connections,

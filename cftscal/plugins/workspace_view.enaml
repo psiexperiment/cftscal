@@ -10,7 +10,10 @@ from enaml.widgets.api import (
 
 from psi.core.enaml.api import ListDictTable
 
+from cftscal.util import IO_DEFAULT, IO_SOUND_CARD
+
 from .branding import load_app_icon
+from .workspace import HW_MODE_LABELS, IO_CUSTOM
 
 
 def overridden_tip(member, overridden):
@@ -78,11 +81,23 @@ enamldef WorkspaceSettingsView(Window): win:
             Label:
                 text = 'Hardware'
             ObjectCombo:
-                items = ['Sound Card', 'Custom (Enaml IO manifest)']
+                items = list(HW_MODE_LABELS)
+                to_string = lambda m: HW_MODE_LABELS[m]
                 selected := settings.hw_mode
+                enabled << 'hw_mode' not in win.overridden
+                tool_tip << overridden_tip('hw_mode', win.overridden)
 
             Conditional:
-                condition << settings.hw_mode == 'Sound Card'
+                condition << settings.hw_mode == IO_DEFAULT
+
+                Label:
+                    text = 'IO manifest'
+                Label:
+                    text = settings.default_io_description()
+                    foreground = '#808080'
+
+            Conditional:
+                condition << settings.hw_mode == IO_SOUND_CARD
 
                 Label:
                     text = 'Audio device'
@@ -108,7 +123,7 @@ enamldef WorkspaceSettingsView(Window): win:
                     to_string = lambda r: str(int(r)) if r else ''
 
             Conditional:
-                condition << settings.hw_mode == 'Custom (Enaml IO manifest)'
+                condition << settings.hw_mode == IO_CUSTOM
 
                 Label:
                     text = 'IO manifest file'
@@ -118,8 +133,10 @@ enamldef WorkspaceSettingsView(Window): win:
                     Field: io_path:
                         text << settings.custom_io_path
                         read_only = True
+                        tool_tip << overridden_tip('custom_io_path', win.overridden)
                     PushButton:
                         text = 'Browse...'
+                        enabled << 'custom_io_path' not in win.overridden
                         clicked ::
                             current = settings.custom_io_path
                             path = FileDialogEx.get_open_file_name(
@@ -133,6 +150,7 @@ enamldef WorkspaceSettingsView(Window): win:
                     text = 'Manifest class'
                 Field:
                     text := settings.custom_io_class
+                    enabled << 'custom_io_class' not in win.overridden
 
         Label:
             text = 'Always load these plugins (view-only, even without matching hardware)'

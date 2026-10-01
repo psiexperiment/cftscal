@@ -32,6 +32,11 @@ cfts-cal = "cftscal.main:main"
 # package's settings without importing the package itself.
 cftscal = "cftscal.config_defaults:DEFAULTS"
 
+[project.entry-points."psi.migrations"]
+# Lets `psi-config migrate` convert the settings files cftscal kept in the
+# legacy psi configuration folder, which only cftscal knows the format of.
+cftscal = "cftscal.migrate_settings:collect_legacy_settings"
+
 [tool.setuptools.packages.find]
 include = ["cftscal*"]
 namespaces = false
