@@ -235,6 +235,7 @@ enamldef StarshipView(Container): starship_view:
                         GroupPathPicker: starship_target:
                             plugin_settings = settings
                             subfolder = 'starship'
+                            auto_source = 'Starship'
                             collection << starship_tree.collection
                             path_target << starship
 

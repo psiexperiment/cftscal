@@ -137,3 +137,87 @@ class TestSensorViewRoles:
         assert _find(view, 'PushButton') == []
         # Instance combo still renders (bound to available_references).
         assert _find(view, 'ObjectCombo')
+
+
+class TestInputRecordingSlots:
+    '''
+    Each slot row's sensor picker must follow the channel picked in that
+    row's channel dropdown. The bindings call
+    ``settings.channel_for_slot()``, and Enaml's dependency tracer cannot
+    see the ``slot_channels`` read inside that method -- so without an
+    explicit read of ``settings.slot_channels`` in the binding itself, the
+    row kept showing the *old* channel's sensor. Any channel other than
+    the first two (whose sensors were already configured) then left the
+    Record button greyed out with no visible reason why.
+    '''
+
+    def _build(self, qt_app):
+        with enaml.imports():
+            from enaml.widgets.api import Window
+            from cftscal.plugins.input_recording.view import InputRecordingView
+        from cftscal.plugins.input_recording.settings import InputRecordingSettings
+        settings = InputRecordingSettings({f'Ch {i}': f'ai{i}' for i in range(4)})
+        win = Window()
+        view = InputRecordingView(win, settings=settings)
+        win.show()
+        return settings, view
+
+    def test_sensor_view_follows_slot_assignment(self, qt_app):
+        settings, view = self._build(qt_app)
+        settings.assign_slot(0, settings.available_inputs[2])
+        sensor_view, = _find(view, 'SensorView')
+        assert sensor_view.sensor is settings.available_inputs[2].sensor
+
+    def test_record_enabled_after_configuring_reassigned_slot(self, qt_app):
+        settings, view = self._build(qt_app)
+        settings.generator.name = 'speaker'
+        settings.assign_slot(0, settings.available_inputs[2])
+        # Configure the sensor the way the user does -- through the
+        # row's own sensor picker, not the settings object directly.
+        sensor_view, = _find(view, 'SensorView')
+        sensor_view.sensor.switch_type('Unity')
+        record, = [b for b in _find(view, 'PushButton') if b.text == 'Record']
+        assert record.enabled
+
+    def test_generator_is_a_text_field(self, qt_app):
+        settings, view = self._build(qt_app)
+        settings.available_inputs[0].sensor.switch_type('Unity')
+        record, = [b for b in _find(view, 'PushButton') if b.text == 'Record']
+        field, = _find(view, 'Field')
+        assert not record.enabled
+        # Typing into the field (auto_sync is a submit trigger) must
+        # reach the model and enable Record without needing Enter.
+        assert 'auto_sync' in field.submit_triggers
+        field.text = 'my lab speaker'
+        assert settings.generator.name == 'my lab speaker'
+        assert record.enabled
+
+
+class TestGroupPathPickerLabel:
+    '''
+    The "no folder picked" entry tells the user what the folder will be
+    created from, rather than the old, misleading "(root)".
+    '''
+
+    def _combo(self, qt_app, tmp_path, **kwargs):
+        with enaml.imports():
+            from enaml.widgets.api import Window
+            from cftscal.plugins.widgets import GroupPathPicker
+        from cftscal.plugins.input_recording.settings import InputRecordingSettings
+        settings = InputRecordingSettings({'Ch 0': 'ai0'})
+        settings.data_path = tmp_path
+        win = Window()
+        picker = GroupPathPicker(win, plugin_settings=settings,
+                                 subfolder='x', **kwargs)
+        win.show()
+        combo, = _find(picker, 'ObjectCombo')
+        return combo
+
+    def test_names_the_auto_source(self, qt_app, tmp_path):
+        combo = self._combo(qt_app, tmp_path, auto_source='Sensor ID')
+        assert combo.to_string('') == '(auto create from sensor id)'
+        assert combo.to_string('Lab1/MMM') == 'Lab1/MMM'
+
+    def test_generic_label_without_auto_source(self, qt_app, tmp_path):
+        combo = self._combo(qt_app, tmp_path)
+        assert combo.to_string('') == '(auto create)'

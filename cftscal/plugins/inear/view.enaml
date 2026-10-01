@@ -294,6 +294,7 @@ enamldef InEarView(Container):
                             GroupPathPicker: coupler_target:
                                 plugin_settings = settings
                                 subfolder = 'inear'
+                                auto_source = 'Starship'
                                 collection << inear_tree.collection
                                 path_target << ear
                                 show_label = False

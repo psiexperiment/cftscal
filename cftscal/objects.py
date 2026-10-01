@@ -224,6 +224,41 @@ class CFTSFileCalibration(FileCalibration):
                 problems.append(str(e))
         return ' '.join(problems) or None
 
+    @property
+    def note(self):
+        '''
+        Free-text note the user attached to this calibration (see
+        `set_note`), or ``''`` if there is none.
+        '''
+        return self.metadata.get('note', '')
+
+    def set_note(self, note):
+        '''
+        Save a free-text note into this calibration's ``metadata.json``.
+
+        Every other field in the file is left untouched. An empty (or
+        whitespace-only) note removes the field instead of storing ``''``.
+
+        Parameters
+        ----------
+        note : str
+            The note to save, e.g. what was typed into the tree's
+            "Edit note…" dialog.
+        '''
+        note = note.strip()
+        # Re-read from disk rather than starting from the cached copy, so
+        # the write never puts back stale values from when it was cached.
+        meta_file = self.filename / self.METADATA_FILENAME
+        self.__dict__.pop('metadata', None)
+        metadata = dict(self.metadata)
+        if note:
+            metadata['note'] = note
+        else:
+            metadata.pop('note', None)
+        meta_file.write_text(json.dumps(metadata, indent=2, sort_keys=True))
+        # Keep the cached copy in step with what's now on disk.
+        self.__dict__['metadata'] = metadata
+
 
 @total_ordering
 class CalibratedObject:

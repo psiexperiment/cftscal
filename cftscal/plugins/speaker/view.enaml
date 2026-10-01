@@ -183,6 +183,7 @@ enamldef SpeakerView(Container):
                         GroupPathPicker: speaker_target:
                             plugin_settings = settings
                             subfolder = 'speaker'
+                            auto_source = 'Speaker'
                             collection << speaker_tree.collection
                             path_target << ao
 

@@ -128,6 +128,7 @@ enamldef IRSensorView(Container):
                     GroupPathPicker:
                         plugin_settings = settings
                         subfolder = 'ir-sensor'
+                        auto_source = 'Input Channel'
                         collection << input_tree.collection
                         path_target << settings.selected_input
 

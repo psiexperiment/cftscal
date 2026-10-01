@@ -93,7 +93,7 @@ class CalibrationSettings(Atom):
 
         Behavior depends on ``group_path``:
 
-        - Empty ("(root)") → legacy layout:
+        - Empty (shown as "(auto create from ...)") → legacy layout:
           ``data_path / subfolder / device_name / filename``.
         - Set (e.g. ``"Lab1"`` or ``"Lab1/MMM0"``) → the selected folder
           IS the object dir; only the filename (last part) is appended:

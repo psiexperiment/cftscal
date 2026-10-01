@@ -152,18 +152,26 @@ class TestInputRecordingSettings:
             captured['env'] = env
             captured['metadata'] = metadata
 
+        settings.generator.name = 'Bench speaker #3 (Lab B)'
         monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
 
         settings.run_input_recording()
 
         assert captured['experiment'] == 'cftscal.paradigms.input_recording'
+        # No target folder picked, so the folder is auto-created from the
+        # slugified generator name...
+        assert captured['pathname'] == (
+            settings.data_path / 'input-recording'
+            / 'bench-speaker-3-lab-b' / '{date_time}'
+        )
         assert captured['env']['CFTSCAL_INPUT_CHANNELS'] == 'ai2'
         assert captured['env']['CFTSCAL_INPUT_AI2_GAIN'] == '20.0'
         assert captured['env']['CFTSCAL_INPUT_AI2'] == 'stub-cal-string'
         assert 'CFTSCAL_INPUT_AI0_GAIN' not in captured['env']
         assert 'CFTSCAL_INPUT_AI1_GAIN' not in captured['env']
+        # ...while the metadata keeps the text exactly as typed.
         assert captured['metadata'] == {
-            'generator': settings.generator.name,
+            'generator': 'Bench speaker #3 (Lab B)',
             'sensors': {'ai2': {'label': 'Ch 2', 'sensor': 'MMM0', 'gain': 20.0}},
         }
 
@@ -184,6 +192,7 @@ class TestInputRecordingSettings:
             captured['env'] = env
             captured['metadata'] = metadata
 
+        settings.generator.name = 'Bench speaker #3 (Lab B)'
         monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
         settings.run_input_recording()
 
@@ -203,6 +212,7 @@ class TestInputRecordingSettings:
             captured['env'] = env
             captured['metadata'] = metadata
 
+        settings.generator.name = 'Bench speaker #3 (Lab B)'
         monkeypatch.setattr(InputRecordingSettings, '_run_cal', _fake_run_cal)
         settings.run_input_recording()
 
@@ -900,3 +910,115 @@ class TestWorkspaceSettingsDeviceSelection:
         assert settings.selected_device_name == 'RME Babyface'
         assert settings.selected_device is settings.available_devices[1]
         assert settings.selected_device_hostapi == 'MME'
+
+
+class TestInputRecordingGeneratorNotPersisted:
+    '''
+    The input-recording generator is free text that only ends up in the
+    recording's metadata, and is too lab-specific to remember between
+    sessions -- it must never be saved, and an old config that still
+    carries one must not restore it.
+    '''
+
+    def _make_settings(self):
+        return InputRecordingSettings({'Ch 0': 'ai0', 'Ch 1': 'ai1'})
+
+    def test_generator_not_in_saved_config(self):
+        settings = self._make_settings()
+        settings.generator.name = 'Bench speaker #3 (Lab B)'
+        assert 'generator' not in settings.get_config()
+
+    def test_legacy_generator_config_is_ignored(self):
+        settings = self._make_settings()
+        settings.set_config({
+            'generator': {'name': 'test', 'available_generators': ['test']},
+        })
+        assert settings.generator.name == ''
+
+    def test_any_string_makes_it_ready(self):
+        settings = self._make_settings()
+        settings.available_inputs[0].sensor.switch_type('Unity')
+        assert not settings.ready_to_record()
+        settings.generator.name = 'anything at all, 123!'
+        assert settings.ready_to_record()
+
+
+class TestInputRecordingGeneratorFolder:
+    '''
+    The generator is free text, but with no target folder picked it also
+    names the recording's folder -- so the folder name is slugified, and a
+    name with nothing left after slugifying can't be recorded.
+    '''
+
+    def _make_settings(self):
+        settings = InputRecordingSettings({'Ch 0': 'ai0'})
+        settings.available_inputs[0].sensor.switch_type('Unity')
+        return settings
+
+    def test_punctuation_only_name_is_not_ready(self):
+        settings = self._make_settings()
+        settings.generator.name = '???'
+        assert not settings.ready_to_record()
+
+    def test_punctuation_only_name_refuses_to_record(self, monkeypatch):
+        settings = self._make_settings()
+        settings.generator.name = ' / : '
+        monkeypatch.setattr(
+            InputRecordingSettings, '_run_cal',
+            lambda *args, **kwargs: pytest.fail('should not launch'),
+        )
+        with pytest.raises(ValueError, match='letter or digit'):
+            settings.run_input_recording()
+
+    def test_target_folder_ignores_generator(self, monkeypatch):
+        # With a target folder picked, the generator isn't part of the
+        # path at all (see CalibrationSettings._make_path).
+        settings = self._make_settings()
+        settings.group_path = 'Lab1/Rig'
+        settings.generator.name = 'C:/weird name?'
+        captured = {}
+        monkeypatch.setattr(
+            InputRecordingSettings, '_run_cal',
+            lambda self, pathname, *args, **kwargs:
+                captured.setdefault('pathname', pathname),
+        )
+        settings.run_input_recording()
+        assert captured['pathname'] == (
+            settings.data_path / 'input-recording' / 'Lab1/Rig' / '{date_time}'
+        )
+
+
+class TestStarshipRunPaths:
+    '''
+    Golay and Chirp must both auto-create the folder from the starship
+    picked in the "Starship" dropdown. Chirp used to read
+    ``starship.name``, which StarshipSettings doesn't have, so the
+    button raised AttributeError before anything launched.
+    '''
+
+    @pytest.fixture(autouse=True)
+    def _isolate_cal_root(self, tmp_path, monkeypatch):
+        monkeypatch.setenv('CFTSCAL_ROOT', str(tmp_path))
+
+    @pytest.mark.parametrize('method', ['run_cal_golay', 'run_cal_chirp'])
+    def test_folder_from_selected_starship(self, method, monkeypatch):
+        settings = StarshipCalibrationSettings(
+            {'A': 'starship_A'}, {'Ch 0': 'ai0'},
+        )
+        starship = settings.selected_starship
+        starship.starship = 'SS-07'
+        microphone = settings.selected_input
+        microphone.sensor.name = 'MMM0'
+        monkeypatch.setattr(
+            type(microphone), 'get_env_vars', lambda self, **kwargs: {},
+        )
+        captured = {}
+        monkeypatch.setattr(
+            StarshipCalibrationSettings, '_run_cal',
+            lambda self, pathname, *args, **kwargs:
+                captured.setdefault('pathname', pathname),
+        )
+        getattr(settings, method)(starship, microphone)
+        assert captured['pathname'] == (
+            settings.data_path / 'starship' / 'SS-07' / '{date_time}'
+        )

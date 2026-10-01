@@ -42,7 +42,8 @@ from cftscal.objects import (
 def _list_group_paths(base_path):
     '''
     Return sorted posix-style paths of every folder beneath ``base_path``
-    that could accept a new calibration, plus ``''`` for "(root)".
+    that could accept a new calibration, plus ``''`` for "no folder picked" (shown as "(auto create from ...)"
+    -- see GroupPathPicker).
 
     A folder is a valid target if it is:
 
@@ -477,6 +478,23 @@ enamldef CalibratedObjects(Container): container:
         pass
 
 
+def _group_path_to_string(auto_source):
+    '''
+    Build GroupPathPicker's ``to_string`` for a given ``auto_source``.
+
+    A factory rather than an inline lambda because Enaml compiles lambdas
+    in a binding without their default arguments, and a lambda body can't
+    see the enamldef's attributes by name -- so the value is passed in
+    here and captured by an ordinary Python closure instead.
+
+    The label is lowercased for display (e.g. "Sensor ID" -> "(auto
+    create from sensor id)"); callers still pass it exactly as their UI
+    shows it.
+    '''
+    empty = f'(auto create from {auto_source.lower()})' if auto_source else '(auto create)'
+    return lambda path: path or empty
+
+
 enamldef GroupPathPicker(HGroup): picker:
     '''
     Folder-picker for the plugin's calibration target folder.
@@ -496,8 +514,14 @@ enamldef GroupPathPicker(HGroup): picker:
       switch per input channel pass e.g. ``path_target << settings.
       selected_input`` — then re-selecting an input rebinds the picker
       to that input's saved group_path.
+    - ``auto_source`` — what the folder is named after when no target
+      folder is picked, shown in the dropdown (lowercased) as e.g.
+      "(auto create from sensor id)". Use the exact label the plugin's UI shows next to that
+      field, so the user can find it -- it must match the device-name
+      part the plugin passes to ``CalibrationSettings._make_path``.
     '''
     attr plugin_settings
+    attr auto_source = ''
     attr subfolder = ''
     attr collection = None
     attr path_target << plugin_settings
@@ -527,7 +551,7 @@ enamldef GroupPathPicker(HGroup): picker:
     ObjectCombo: select:
         items = _list_group_paths(plugin_settings.data_path / subfolder)
         selected := path_target.group_path
-        to_string = lambda x: '(root)' if not x else x
+        to_string << _group_path_to_string(auto_source)
 
 
 enamldef SensorView(HGroup):

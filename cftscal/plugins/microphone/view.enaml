@@ -127,6 +127,7 @@ enamldef MicrophoneView(Container):
                     GroupPathPicker:
                         plugin_settings = settings
                         subfolder = 'microphone'
+                        auto_source = 'Sensor ID'
                         collection << mic_tree.collection
                         # Bind to the currently-selected input's group_path
                         # so switching input channels swaps in that

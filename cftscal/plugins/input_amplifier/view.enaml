@@ -105,6 +105,7 @@ enamldef InputAmplifierView(Container): container:
                     GroupPathPicker: amp_path:
                         plugin_settings = settings
                         subfolder = 'input_amplifier'
+                        auto_source = 'Amplifier'
                         collection << amp_tree.collection
                         path_target << settings.selected_input
 

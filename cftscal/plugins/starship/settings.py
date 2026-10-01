@@ -67,7 +67,7 @@ class StarshipCalibrationSettings(CalibrationSettings):
 
     def run_cal_chirp(self, starship, microphone):
         pathname = self._make_path(
-            'starship', starship.group_path, starship.name, '{date_time}',
+            'starship', starship.group_path, starship.starship, '{date_time}',
         )
         env = microphone.get_env_vars()
         env.update(starship.get_env_vars(include_cal=False))

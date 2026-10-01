@@ -1,15 +1,153 @@
 from atom.api import set_default, Bool, Value, observe
 from enaml.core.api import d_, Declarative
 from enaml.widgets.api import Container, RawWidget
-from qtpy.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QHeaderView, QInputDialog, QFileDialog, QAbstractItemView, QStyle
-from qtpy.QtGui import QColor, QBrush, QDrag, QIcon
-from qtpy.QtCore import Qt, QMimeData
+from qtpy.QtWidgets import (
+    QAbstractItemView, QApplication, QFileDialog, QHeaderView, QInputDialog,
+    QMenu, QMessageBox, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
+    QTreeWidget, QTreeWidgetItem,
+)
+from qtpy.QtGui import QColor, QBrush, QDrag, QIcon, QPainter, QPen, QPixmap, QPolygonF
+from qtpy.QtCore import Qt, QMimeData, QPointF, QRect
 import shutil
 
 from psi.core.enaml.api import make_color
 
 from cftscal.plugins.export import export_calibration
 from cftscal.plugins.object_collection import ObjectGroup, ObjectNode
+
+
+#: Item data role holding a leaf's note (see CFTSFileCalibration.set_note),
+#: so _apply_problem can rebuild the row tooltip without re-reading the
+#: calibration's metadata.json.
+NOTE_ROLE = Qt.UserRole + 1
+
+#: Item data role holding the list of icons drawn right after a row's
+#: name -- the problem warning and/or the note icon (see _apply_problem).
+MARKS_ROLE = Qt.UserRole + 2
+
+#: Size of, and space before, each icon in MARKS_ROLE, in pixels.
+MARK_SIZE = 16
+MARK_GAP = 4
+
+
+class _MarkDelegate(QStyledItemDelegate):
+    '''
+    Draws a row's MARKS_ROLE icons immediately after its name.
+
+    Qt only places an item's icon *before* its text, so the icons are
+    kept out of Qt's own icon slot and painted here instead. If the column
+    is too narrow, the name is shortened with "…" so the icons stay
+    visible.
+    '''
+
+    def _marks(self, index):
+        return index.data(MARKS_ROLE) or []
+
+    def _marks_width(self, marks):
+        return len(marks) * (MARK_GAP + MARK_SIZE)
+
+    def sizeHint(self, option, index):
+        # Lets the column's ResizeToContents leave room for the icons.
+        size = super().sizeHint(option, index)
+        marks = self._marks(index)
+        if marks:
+            size.setWidth(size.width() + self._marks_width(marks))
+            size.setHeight(max(size.height(), MARK_SIZE))
+        return size
+
+    def paint(self, painter, option, index):
+        marks = self._marks(index)
+        if not marks:
+            super().paint(painter, option, index)
+            return
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        widget = opt.widget
+        style = widget.style() if widget is not None else QApplication.style()
+        text_rect = style.subElementRect(QStyle.SE_ItemViewItemText, opt, widget)
+        # The style pads the text this much inside text_rect.
+        margin = style.pixelMetric(QStyle.PM_FocusFrameHMargin, None, widget) + 1
+        available = text_rect.width() - 2 * margin - self._marks_width(marks)
+        opt.text = opt.fontMetrics.elidedText(opt.text, Qt.ElideRight, max(available, 0))
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, widget)
+
+        x = text_rect.left() + margin + opt.fontMetrics.horizontalAdvance(opt.text)
+        y = opt.rect.top() + (opt.rect.height() - MARK_SIZE) // 2
+        for icon in marks:
+            x += MARK_GAP
+            icon.paint(painter, QRect(x, y, MARK_SIZE, MARK_SIZE))
+            x += MARK_SIZE
+
+
+_note_icon = None
+
+
+def note_icon():
+    '''
+    Sticky-note icon shown on a leaf that has a note.
+
+    Drawn here rather than taken from the style or an emoji: Qt's
+    standard icons have no note, and emoji rendering in a tree item
+    depends on the platform's fonts. Built on first use (it needs a
+    running QApplication) and cached after that.
+
+    Returns
+    -------
+    icon : QIcon
+        A yellow square with a folded bottom-right corner and a few
+        "lines of text", at 16 and 32 px so it stays crisp on HiDPI
+        screens.
+    '''
+    global _note_icon
+    if _note_icon is None:
+        _note_icon = QIcon()
+        for size in (16, 32):
+            _note_icon.addPixmap(_draw_note(size))
+    return _note_icon
+
+
+def _draw_note(size):
+    s = size / 16
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    # Note body: a square with its bottom-right corner cut off.
+    body = QPolygonF([
+        QPointF(1.5 * s, 1.5 * s), QPointF(14.5 * s, 1.5 * s),
+        QPointF(14.5 * s, 10.5 * s), QPointF(10.5 * s, 14.5 * s),
+        QPointF(1.5 * s, 14.5 * s),
+    ])
+    painter.setPen(QPen(QColor('#b8930a'), s))
+    painter.setBrush(QColor('#ffd94a'))
+    painter.drawPolygon(body)
+    # The folded-over corner.
+    fold = QPolygonF([
+        QPointF(14.5 * s, 10.5 * s), QPointF(10.5 * s, 10.5 * s),
+        QPointF(10.5 * s, 14.5 * s),
+    ])
+    painter.setBrush(QColor('#e0b520'))
+    painter.drawPolygon(fold)
+    # "Writing".
+    painter.setPen(QPen(QColor('#8a6d00'), s))
+    for y, x_end in ((5, 12), (8, 12), (11, 8.5)):
+        painter.drawLine(QPointF(4 * s, y * s), QPointF(x_end * s, y * s))
+    painter.end()
+    return pixmap
+
+
+def _note_for(node):
+    '''
+    The note attached to ``node``'s calibration, or ``''``.
+
+    ``''`` too for calibrations that can't hold one (no metadata.json,
+    e.g. unity) or whose metadata.json can't be read -- a damaged
+    calibration is already reported through its problem instead.
+    '''
+    try:
+        return getattr(node.item, 'note', '')
+    except Exception:
+        return ''
 
 
 class FastTreeWidget(QTreeWidget):
@@ -38,6 +176,11 @@ class FastTreeWidget(QTreeWidget):
         # Configure the TreeWidget
         self.setHeaderLabels([''] + self.attrs)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
+        # Problem/note icons go after the name, not before (see
+        # _MarkDelegate). Kept as an attribute: Qt doesn't take ownership
+        # of a delegate.
+        self._mark_delegate = _MarkDelegate(self)
+        self.setItemDelegateForColumn(0, self._mark_delegate)
         # Drag and drop moves data on disk — we override dropEvent to do the
         # actual move, refresh from the filesystem, and never let Qt's
         # default item-reorder run.
@@ -197,6 +340,8 @@ class FastTreeWidget(QTreeWidget):
                 if pinned is not None and sub.item.filename == pinned.filename:
                     leaf_name = f'{leaf_name} ★'
                 s_item.setText(0, leaf_name)
+                # Shown by _apply_problem below, as an icon and tooltip.
+                s_item.setData(0, NOTE_ROLE, _note_for(sub))
                 # Leaves can be dragged (to file the calibration under a
                 # different folder) but not dropped onto.
                 s_item.setFlags(
@@ -226,20 +371,29 @@ class FastTreeWidget(QTreeWidget):
         '''
         Mark a row as having a problem (warning icon, red text, and the
         problem as a tooltip), or clear the mark if ``problem`` is empty.
+
+        A row with a note (see NOTE_ROLE) also gets the sticky-note icon,
+        and the note in its tooltip (after the problem, if there is one).
+        Both icons are drawn after the row's name by _MarkDelegate, not
+        in Qt's usual icon spot before it.
         '''
         # Restore the previous state rather than unblocking, since
         # populate_tree calls this while it has signals blocked.
         blocked = self.blockSignals(True)
+        note = item.data(0, NOTE_ROLE)
+        marks = []
         if problem:
-            icon = self.style().standardIcon(QStyle.SP_MessageBoxWarning)
+            marks.append(self.style().standardIcon(QStyle.SP_MessageBoxWarning))
             brush = QBrush(QColor('firebrick'))
         else:
-            icon = QIcon()
             brush = QBrush()
-        item.setIcon(0, icon)
+        if note:
+            marks.append(note_icon())
+        tooltip = '\n\n'.join(t for t in (problem, note) if t)
+        item.setData(0, MARKS_ROLE, marks)
         for i in range(self.columnCount()):
             item.setForeground(i, brush)
-            item.setToolTip(i, problem or '')
+            item.setToolTip(i, tooltip)
         self.blockSignals(blocked)
 
     def _apply_group_problem(self, g_item, group):
@@ -594,7 +748,8 @@ class FastTreeWidget(QTreeWidget):
         """
         Right-click menu.  The available actions depend on what was clicked:
 
-        - Leaf (calibration): Delete
+        - Leaf (calibration): Show problem (if any), Edit note, Export as
+          WAV, Set/Clear current (if enabled), Delete
         - Object group: Rename, Delete (if empty)
         - Folder node: New subfolder, Rename, Delete (if empty)
         - Empty area: New folder at root
@@ -619,6 +774,11 @@ class FastTreeWidget(QTreeWidget):
         if sub.problem:
             problem_action = menu.addAction('Show problem…')
             menu.addSeparator()
+        note_action = None
+        # Any calibration with a metadata.json can hold a note; the
+        # few without one (e.g. unity) simply don't get the item.
+        if hasattr(sub.item, 'set_note'):
+            note_action = menu.addAction('Edit note…')
         export_action = menu.addAction('Export as WAV…')
         current_action = None
         if self.enable_current:
@@ -635,6 +795,8 @@ class FastTreeWidget(QTreeWidget):
                 self, 'Problem with calibration',
                 f'{sub.item.filename}\n\n{sub.problem}',
             )
+        elif note_action is not None and action == note_action:
+            self._edit_note(sub)
         elif action == export_action:
             # sort_datetime rather than datetime, which a damaged calibration
             # may not have.
@@ -809,6 +971,37 @@ class FastTreeWidget(QTreeWidget):
             dir_.rmdir()
         except OSError as e:
             QMessageBox.critical(self, dialog_title, str(e))
+            return
+        self.collection.update_groups()
+
+    def _edit_note(self, sub):
+        '''
+        Ask for a note (pre-filled with the current one) and save it into
+        the calibration's metadata. Cancel leaves the note unchanged;
+        clearing the text and pressing OK removes it.
+        '''
+        try:
+            current = sub.item.note
+        except Exception as e:
+            # Unreadable/missing metadata.json -- there's nothing safe to
+            # write the note into (see Calibration.problem).
+            QMessageBox.critical(
+                self, 'Cannot edit note',
+                f'Could not read {sub.item.filename.name}: {e}',
+            )
+            return
+        note, ok = QInputDialog.getMultiLineText(
+            self, 'Edit note', f'Note for {sub.item.filename.name}:', current,
+        )
+        if not ok:
+            return
+        try:
+            sub.item.set_note(note)
+        except Exception as e:
+            QMessageBox.critical(
+                self, 'Cannot edit note',
+                f'Could not save the note for {sub.item.filename.name}: {e}',
+            )
             return
         self.collection.update_groups()
 

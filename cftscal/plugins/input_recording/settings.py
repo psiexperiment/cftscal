@@ -1,5 +1,7 @@
 from atom.api import Dict, Int, set_default, List, Str, Typed
 
+from cftscal.util import slugify
+
 from ..settings import (
     CalibrationSettings, GeneratorSettings, InputSettings,
     MultiTypeSensorReference,
@@ -9,7 +11,13 @@ from ..settings import (
 class InputRecordingSettings(CalibrationSettings):
 
     available_inputs = List(Typed(InputSettings, ())).tag(persist=True)
-    generator = Typed(GeneratorSettings, ()).tag(persist=True)
+    #: What produced the sound being recorded. Free text, typed fresh each
+    #: session -- it's only written to the recording's metadata, and the
+    #: values are too lab-specific to be worth remembering, so it is
+    #: deliberately NOT persisted (unlike the other plugins' generator
+    #: pickers). Only ``generator.name`` is used; ``available_generators``
+    #: stays empty.
+    generator = Typed(GeneratorSettings, ())
     #: Session-level target folder -- one recording run now activates
     #: multiple channels at once, so there's a single shared destination
     #: rather than a per-channel one (contrast InputSettings.group_path,
@@ -119,7 +127,10 @@ class InputRecordingSettings(CalibrationSettings):
         active = self.active_channels()
         if not active:
             return False
-        if not self.generator.name:
+        # Not just a non-empty name: with no target folder picked, the
+        # recording's folder is created from the slugified generator, so
+        # the name needs at least one letter or digit to survive that.
+        if not slugify(self.generator.name):
             return False
         names = [c.input_name for c in active]
         if len(set(names)) != len(names):
@@ -149,9 +160,17 @@ class InputRecordingSettings(CalibrationSettings):
         missing = [c.input_label for c in active if not c.sensor.is_configured()]
         if missing:
             raise ValueError(f'Select a sensor for: {", ".join(missing)}')
+        # The generator is free text, so it can contain characters that
+        # aren't allowed in folder names (e.g. ':' on Windows) or that
+        # would create extra subfolders ('/'). Only the folder name is
+        # slugified -- the metadata below keeps the text exactly as typed.
+        generator_folder = slugify(self.generator.name)
+        if not generator_folder:
+            raise ValueError('Enter a generator name containing at least '
+                             'one letter or digit.')
 
         pathname = self._make_path(
-            'input-recording', self.group_path, self.generator.name, '{date_time}',
+            'input-recording', self.group_path, generator_folder, '{date_time}',
         )
         env = {'CFTSCAL_INPUT_CHANNELS': ','.join(c.input_name for c in active)}
         sensors = {}

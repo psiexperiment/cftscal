@@ -23,7 +23,7 @@ from psiaudio.calibration import FlatCalibration
 from cftscal.objects import input_recording_manager
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, TimePSDPlotManager,
-    ObjectCollection, GeneratorView, SensorView,
+    ObjectCollection, SensorView,
 )
 
 
@@ -397,26 +397,55 @@ enamldef InputRecordingView(Container):
                             padding = 0
                             spacing = 5
 
+                            # `settings.slot_channels` is read (not used)
+                            # in both bindings below only so Enaml's
+                            # dependency tracer -- which can't see the read
+                            # inside channel_for_slot() -- re-evaluates them
+                            # when this slot is reassigned. Without it the
+                            # sensor picker kept showing the previous
+                            # channel's sensor, so the newly picked channel
+                            # never got one and Record stayed disabled (see
+                            # InputRecordingSettings._readiness_tick).
                             ObjectCombo:
                                 items << settings.available_inputs
-                                selected << settings.channel_for_slot(loop_item)
+                                selected << (
+                                    settings.slot_channels is not None
+                                    and settings.channel_for_slot(loop_item)
+                                )
                                 selected ::
                                     settings.assign_slot(loop_item, selected)
                                 to_string = lambda m: m.input_label
 
                             SensorView:
-                                sensor << settings.channel_for_slot(loop_item).sensor
+                                sensor << (
+                                    settings.slot_channels is not None
+                                    and settings.channel_for_slot(loop_item).sensor
+                                )
                                 collection << input_tree.collection
                                 show_label = False
 
                     GroupPathPicker:
                         plugin_settings = settings
                         subfolder = 'input-recording'
+                        auto_source = 'Generator'
                         collection << input_tree.collection
 
-                    GeneratorView:
-                        generator << settings.generator
-                        mode = 'add'
+                    HGroup:
+                        share_layout = True
+                        align_widths = False
+                        padding = 0
+                        spacing = 5
+
+                        Label:
+                            text = 'Generator'
+
+                        Field:
+                            text := settings.generator.name
+                            placeholder = 'e.g. pistonphone, speaker'
+                            # Sync to the model shortly after typing stops, not only on
+                            # Enter/focus loss, so Record enables as soon as
+                            # something has been typed.
+                            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
                     PushButton: start:
                         text = 'Record'

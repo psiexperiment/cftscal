@@ -2,6 +2,8 @@ import logging
 log = logging.getLogger(__name__)
 
 import os
+import re
+import unicodedata
 from functools import partial
 
 from psi import get_config
@@ -21,6 +23,44 @@ IO_DEFAULT = 'default'
 #: PSI_SOUND_DEVICE_* environment variables.
 SOUND_CARD_MANIFEST = \
     'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest'
+
+
+def slugify(text):
+    '''
+    Turn free-form text into a string that is safe to use as a folder name.
+
+    Accented letters are converted to their plain ASCII equivalent (or
+    dropped if they have none), everything is lowercased, and every run of
+    characters other than letters and digits -- spaces, slashes, colons,
+    and so on -- becomes a single hyphen. Leading and trailing hyphens are
+    removed.
+
+    Lowercasing is deliberate: Windows folder names are case-insensitive,
+    so "Lab B" and "lab b" are the same folder there anyway. Lowercasing
+    makes that explicit, so the folder's name doesn't depend on whichever
+    spelling happened to be typed first.
+
+    Parameters
+    ----------
+    text : str
+        Text to convert, e.g. what the user typed into a field.
+
+    Returns
+    -------
+    slug : str
+        The converted text. Empty if ``text`` contained no letters or
+        digits at all, so callers should be ready to supply a fallback.
+
+    Examples
+    --------
+    >>> slugify('Bench speaker #3 (Lab B)')
+    'bench-speaker-3-lab-b'
+    >>> slugify('Café/Left: 1 kHz')
+    'cafe-left-1-khz'
+    '''
+    text = unicodedata.normalize('NFKD', text)
+    text = text.encode('ascii', 'ignore').decode('ascii').lower()
+    return re.sub(r'[^a-z0-9]+', '-', text).strip('-')
 
 
 def device_query(name, hostapi):

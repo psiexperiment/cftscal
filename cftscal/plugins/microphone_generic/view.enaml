@@ -200,6 +200,7 @@ enamldef MicrophoneComparisonView(Container): view:
                     GroupPathPicker: target_row:
                         plugin_settings = settings
                         subfolder = 'microphone_generic'
+                        auto_source = 'Test Device'
                         collection << device_tree.collection
                         path_target << settings.generic_input
                         show_label = True

@@ -211,18 +211,24 @@ class TestTreeIndicator:
         return {group.child(i).text(0).split('_', 1)[1]: group.child(i)
                 for i in range(group.childCount())}
 
+    def _has_marks(self, item):
+        # Drawn after the name, by _MarkDelegate (see MARKS_ROLE).
+        with enaml.imports():
+            from cftscal.plugins.fast_tree_view import MARKS_ROLE
+        return bool(item.data(0, MARKS_ROLE))
+
     def test_damaged_leaves_are_marked(self, tree):
         leaves = self._leaves(tree)
         good = leaves.pop('good')
-        assert good.icon(0).isNull()
+        assert not self._has_marks(good)
         assert good.toolTip(0) == ''
         for key, item in leaves.items():
-            assert not item.icon(0).isNull()
+            assert self._has_marks(item)
             assert DAMAGED[key][1] in item.toolTip(0)
 
     def test_group_is_marked(self, tree):
         group = tree.topLevelItem(0)
-        assert not group.icon(0).isNull()
+        assert self._has_marks(group)
         assert group.toolTip(0).startswith(
             f'{len(DAMAGED)} calibrations with problems')
 
@@ -231,5 +237,5 @@ class TestTreeIndicator:
         node = [n for n in tree.collection.groups[0].subitems
                 if not n.problem][0]
         node.problem = 'Could not plot calibration: boom'
-        assert not good_item.icon(0).isNull()
+        assert self._has_marks(good_item)
         assert good_item.toolTip(0) == 'Could not plot calibration: boom'
