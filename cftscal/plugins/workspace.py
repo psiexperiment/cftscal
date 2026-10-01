@@ -279,6 +279,35 @@ class WorkspaceSettings(Atom):
         if self._on_save is not None:
             self._on_save()
 
+    def import_legacy_settings(self, replace=False):
+        '''
+        Import the settings older versions of cftscal kept in JSON files.
+
+        Imports even if they were imported or declined before. Afterwards
+        these settings are re-read so the view shows what was imported, and
+        the plugins are reloaded (see `save_config`) so they pick up their
+        own imported values too.
+
+        Parameters
+        ----------
+        replace : bool
+            If True, settings already in the configuration file are
+            replaced by the old values. Otherwise only missing ones are
+            filled in.
+
+        Returns
+        -------
+        updates : dict
+            The settings that were written.
+        '''
+        from cftscal.migrate_settings import migrate_legacy_settings
+        updates = migrate_legacy_settings(force=True, replace=replace)
+        if updates:
+            self.load_config()
+            if self._on_save is not None:
+                self._on_save()
+        return updates
+
     def overridden_settings(self):
         '''
         Members whose value is being forced by the environment.

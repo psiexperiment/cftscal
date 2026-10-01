@@ -10,9 +10,11 @@ from enaml.widgets.api import (
 
 from psi.core.enaml.api import ListDictTable
 
+from cftscal.migrate_settings import IMPORT, get_legacy_folder, has_legacy_files
 from cftscal.util import IO_DEFAULT, IO_SOUND_CARD
 
 from .branding import load_app_icon
+from .migrate_view import ImportSettingsDialog
 from .workspace import HW_MODE_LABELS, IO_CUSTOM
 
 
@@ -171,6 +173,18 @@ enamldef WorkspaceSettingsView(Window): win:
 
         HGroup:
             leading_spacer = spacer(0)
+            Conditional:
+                # Only on a machine that ran an older version of cftscal.
+                condition = has_legacy_files()
+                PushButton:
+                    text = 'Import old settings...'
+                    tool_tip = (f'Import the settings older versions of '
+                                f'cftscal kept in {get_legacy_folder() / "cfts"}')
+                    clicked ::
+                        dlg = ImportSettingsDialog(win, manual=True)
+                        dlg.exec_()
+                        if dlg.answer == IMPORT:
+                            settings.import_legacy_settings(replace=dlg.replace)
             PushButton:
                 text = 'Save'
                 clicked ::

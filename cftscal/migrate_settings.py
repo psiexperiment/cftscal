@@ -9,31 +9,31 @@ cftscal used to keep its own settings in the psi configuration folder
 - ``cfts/calibration/<plugin>.json`` for each plugin's last-used values.
 
 They are ordinary psi settings in ``config.toml`` now (see
-``docs/reference/configuration.md``). ``psi-config migrate`` converts them,
-but only as part of converting a ``config.py`` (it calls
-`collect_legacy_settings` through cftscal's ``psi.migrations`` entry
-point), and a machine that only ever ran cftscal has no ``config.py``. So
-cftscal converts them itself the first time it starts, by calling
-`migrate_legacy_settings`.
+``docs/reference/configuration.md``). ``psi-config migrate`` converts them
+(it calls `collect_legacy_settings` through cftscal's ``psi.migrations``
+entry point), with or without a ``config.py`` beside them. So that nobody
+has to know to run it, cftscal also offers to import them when it starts
+(`startup_check`), and from Workspace > Settings at any time.
 
-The conversion only fills in settings that ``config.toml`` does not have
-yet, so it never overwrites anything set since. Once it has run, it writes
-a note (``cfts/MIGRATED.txt``) beside the old files saying what was moved
-where. The note also stops the conversion from running again, which
-matters if someone later removes a setting from ``config.toml`` on
-purpose: the old value must not quietly come back. The old files are left
-in place, untouched.
+Nothing is written to ``config.toml`` without asking. The startup import
+only fills in settings that ``config.toml`` does not have yet, so it never
+overwrites anything set since. Once the old settings have been imported or
+declined, a note (``cfts/MIGRATED.txt``) is written beside them saying what
+happened. The note also stops cftscal from asking again, which matters if
+someone later removes a setting from ``config.toml`` on purpose: the old
+value must not quietly come back. The old files are left in place,
+untouched.
 
-Run ``python -m cftscal.migrate_settings`` to see what would be moved
+Run ``python -m cftscal.migrate_settings`` to see what would be imported
 without changing anything.
 '''
 import datetime as dt
 import json
 import logging
-import os
 from pathlib import Path
 
 from psi.config import get_config_file, load_config, save_config
+from psi.config_migrate import default_legacy_folder
 
 
 log = logging.getLogger(__name__)
@@ -51,10 +51,11 @@ def get_legacy_folder():
     -------
     folder : pathlib.Path
         The folder named by the ``PSI_CONFIG`` environment variable, or
-        ``~/psi`` if it is not set -- the same rule psi used to find its
-        configuration folder before ``config.toml``.
+        ``~/psi`` if it is not set. This is psi's legacy configuration
+        folder (`psi.config_migrate.default_legacy_folder`), so cftscal and
+        ``psi-config migrate`` always look in the same place.
     '''
-    return Path(os.environ.get('PSI_CONFIG') or '~/psi').expanduser()
+    return default_legacy_folder()
 
 
 def collect_legacy_settings(folder):
@@ -250,7 +251,35 @@ def _sound_card_notes():
             f'{default}. Set CFTSCAL_IO to default to keep using that.']
 
 
-def plan_migration(folder=None):
+def has_legacy_files(folder=None):
+    '''
+    Whether the legacy folder holds any of cftscal's old settings files.
+
+    Parameters
+    ----------
+    folder : {None, path-like}
+        Legacy configuration folder. Defaults to `get_legacy_folder`.
+    '''
+    folder = get_legacy_folder() if folder is None else Path(folder)
+    cfts = folder / 'cfts'
+    return (cfts / 'workspace.json').exists() \
+        or any((cfts / 'calibration').glob('*.json'))
+
+
+def is_migrated(folder=None):
+    '''
+    Whether the old settings have been dealt with: imported, or declined.
+
+    Parameters
+    ----------
+    folder : {None, path-like}
+        Legacy configuration folder. Defaults to `get_legacy_folder`.
+    '''
+    folder = get_legacy_folder() if folder is None else Path(folder)
+    return (folder / 'cfts' / MARKER_FILENAME).exists()
+
+
+def plan_migration(folder=None, force=False, replace=False):
     '''
     Work out what `migrate_legacy_settings` would write, without writing it.
 
@@ -258,6 +287,12 @@ def plan_migration(folder=None):
     ----------
     folder : {None, path-like}
         Legacy configuration folder. Defaults to `get_legacy_folder`.
+    force : bool
+        If True, plan the import even if it was already done or declined
+        (see `is_migrated`).
+    replace : bool
+        If True, settings already in ``config.toml`` are replaced by the old
+        values. Otherwise they are kept, and only missing ones are filled in.
 
     Returns
     -------
@@ -270,42 +305,127 @@ def plan_migration(folder=None):
         migrated.
     '''
     folder = get_legacy_folder() if folder is None else Path(folder)
-    if (folder / 'cfts' / MARKER_FILENAME).exists():
+    if not force and is_migrated(folder):
         return {}, []
 
     collected, notes = collect_legacy_settings(folder)
     existing = load_config()
     config_file = get_config_file()
+    kept = 'replaced it' if replace else 'kept it'
 
     updates = {}
     for name, value in collected.items():
         if name == 'CFTSCAL_PLUGIN':
             # One table per plugin. Carry over the plugins that do not have
-            # a table yet, and keep the ones that do.
+            # a table yet; the ones that do are kept, unless replacing.
             current = existing.get(name, {})
             for plugin in sorted(set(value) & set(current)):
                 notes.append(f'CFTSCAL_PLUGIN."{plugin}" is already in '
-                             f'{config_file}; kept it')
-            if set(value) - set(current):
+                             f'{config_file}; {kept}')
+            if replace:
+                updates[name] = {**current, **value}
+            elif set(value) - set(current):
                 updates[name] = {**value, **current}
         elif name in existing:
-            notes.append(f'{name} is already in {config_file}; kept it')
+            notes.append(f'{name} is already in {config_file}; {kept}')
+            if replace:
+                updates[name] = value
         else:
             updates[name] = value
     return updates, notes
 
 
-def migrate_legacy_settings(folder=None):
-    '''
-    Move cftscal's old JSON settings into ``config.toml``, once.
+def prompt_text(folder=None):
+    r'''
+    The question asked before importing the old settings.
 
-    Does nothing if there are no old settings files, or if they have
-    already been migrated. See the module docstring for details.
+    Built here rather than in the dialog: an enaml file shows the escape
+    sequences in an f-string (such as ``\n``) literally rather than
+    turning them into line breaks.
 
     Parameters
     ----------
     folder : {None, path-like}
         Legacy configuration folder. Defaults to `get_legacy_folder`.
+    '''
+    folder = get_legacy_folder() if folder is None else Path(folder)
+    return '\n'.join([
+        'Settings from an older version of cftscal were found in',
+        f'    {folder / "cfts"}',
+        '',
+        'Import them into',
+        f'    {get_config_file()}?',
+    ])
+
+
+def describe_plan(updates, notes):
+    '''
+    Describe a plan from `plan_migration` for someone deciding whether to
+    import it.
+
+    Returns
+    -------
+    text : str
+        The settings that will be written, then the notes.
+    '''
+    lines = []
+    if updates:
+        lines.append('These settings will be written:')
+        for name in sorted(updates):
+            value = updates[name]
+            if name == 'CFTSCAL_PLUGIN':
+                # The tables are long and only the GUI reads them; which
+                # plugins they belong to is what matters here.
+                value = ', '.join(sorted(value))
+                lines.append(f'    {name}: saved values for {value}')
+            else:
+                lines.append(f'    {name} = {value!r}')
+    else:
+        lines.append('Nothing new to import: every setting is already in '
+                     f'{get_config_file()}.')
+    if notes:
+        lines += ['', 'Details:'] + [f'    {note}' for note in notes]
+    return '\n'.join(lines)
+
+
+def _write_marker(folder, notes, imported):
+    now = dt.datetime.now().isoformat(timespec='seconds')
+    config_file = get_config_file()
+    if imported:
+        lines = [f'On {now}, cftscal moved the settings in this folder into',
+                 f'    {config_file}']
+    else:
+        lines = [f'On {now}, cftscal was told not to import the settings in',
+                 'this folder, so they were not copied into',
+                 f'    {config_file}',
+                 '',
+                 'To import them after all, use "Import old settings..." in',
+                 "cftscal's Workspace > Settings."]
+    lines += [
+        '',
+        'cftscal no longer reads the files in this folder. They were left',
+        'in place in case they are needed; they can be deleted.',
+    ]
+    if notes:
+        lines += ['', 'Details:'] + [f'    {note}' for note in notes]
+    marker = folder / 'cfts' / MARKER_FILENAME
+    marker.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def migrate_legacy_settings(folder=None, force=False, replace=False):
+    '''
+    Move cftscal's old JSON settings into ``config.toml``.
+
+    Does nothing if there are no old settings files, or (unless `force`)
+    if they have already been migrated or declined. Writes ``MIGRATED.txt``
+    beside them once done. See the module docstring for details.
+
+    Parameters
+    ----------
+    folder : {None, path-like}
+        Legacy configuration folder. Defaults to `get_legacy_folder`.
+    force, replace : bool
+        See `plan_migration`.
 
     Returns
     -------
@@ -313,63 +433,120 @@ def migrate_legacy_settings(folder=None):
         The settings that were written to ``config.toml``.
     '''
     folder = get_legacy_folder() if folder is None else Path(folder)
-    updates, notes = plan_migration(folder)
+    updates, notes = plan_migration(folder, force=force, replace=replace)
     if not updates and not notes:
         return {}
 
-    config_file = get_config_file()
     if updates:
         save_config(updates)
-
-    now = dt.datetime.now().isoformat(timespec='seconds')
-    lines = [
-        f'On {now}, cftscal moved the settings in this folder into',
-        f'    {config_file}',
-        '',
-        'cftscal no longer reads the files in this folder. They were left',
-        'in place in case they are needed; they can be deleted.',
-        '',
-        'Details:',
-    ] + [f'    {note}' for note in notes]
-    marker = folder / 'cfts' / MARKER_FILENAME
-    marker.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    _write_marker(folder, notes, imported=True)
 
     log.info('Migrated %d cftscal setting(s) from %s to %s',
-             len(updates), marker.parent, config_file)
+             len(updates), folder / 'cfts', get_config_file())
     for note in notes:
         log.info('  %s', note)
     return updates
+
+
+def decline_migration(folder=None):
+    '''
+    Record that the old settings are not to be imported, so cftscal stops
+    asking. They can still be imported later with ``force=True``.
+
+    Parameters
+    ----------
+    folder : {None, path-like}
+        Legacy configuration folder. Defaults to `get_legacy_folder`.
+    '''
+    folder = get_legacy_folder() if folder is None else Path(folder)
+    _write_marker(folder, [], imported=False)
+    log.info('Old cftscal settings in %s will not be imported',
+             folder / 'cfts')
+
+
+#: Answers to the question `startup_check` asks.
+IMPORT, LATER, NEVER = 'import', 'later', 'never'
+
+
+def startup_check(ask, folder=None):
+    '''
+    Offer to import the old settings, if there are any not yet dealt with.
+
+    Called by cftscal once its main window is up. Nothing is written to
+    ``config.toml`` without asking first.
+
+    Parameters
+    ----------
+    ask : callable
+        Called as ``ask(updates, notes)`` with the plan from
+        `plan_migration`, and returns `IMPORT` (import them now), `LATER`
+        (ask again next time) or `NEVER` (do not ask again).
+    folder : {None, path-like}
+        Legacy configuration folder. Defaults to `get_legacy_folder`.
+
+    Returns
+    -------
+    imported : bool
+        True if settings were written to ``config.toml``, in which case
+        anything that already read them needs to read them again.
+    '''
+    folder = get_legacy_folder() if folder is None else Path(folder)
+    updates, notes = plan_migration(folder)
+    if not updates:
+        if notes:
+            # Old files, but nothing in them that config.toml lacks (or
+            # nothing readable). There is no decision to ask for; record
+            # what was found and stop looking.
+            _write_marker(folder, notes, imported=True)
+        return False
+
+    answer = ask(updates, notes)
+    if answer == IMPORT:
+        return bool(migrate_legacy_settings(folder))
+    if answer == NEVER:
+        decline_migration(folder)
+    return False
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(
         'cftscal-migrate-settings',
-        description='Show what cftscal would move from its old JSON '
-                    'settings files into config.toml. cftscal does this by '
-                    'itself when it starts; use --apply to do it now.',
+        description='Show what cftscal would import from its old JSON '
+                    'settings files into config.toml. cftscal offers to do '
+                    'this when it starts; use --apply to do it now.',
     )
     parser.add_argument('--folder', type=Path, default=None,
                         help='Legacy configuration folder (default: '
                              '$PSI_CONFIG, or ~/psi).')
+    parser.add_argument('--force', action='store_true',
+                        help='Plan the import even if it was already done '
+                             'or declined.')
+    parser.add_argument('--replace', action='store_true',
+                        help='Replace settings already in config.toml '
+                             'instead of keeping them.')
     parser.add_argument('--apply', action='store_true',
                         help='Write the settings instead of only showing '
                              'them.')
     args = parser.parse_args()
 
     folder = get_legacy_folder() if args.folder is None else args.folder
-    updates, notes = plan_migration(folder)
+    updates, notes = plan_migration(folder, force=args.force,
+                                    replace=args.replace)
     if not updates and not notes:
-        print(f'Nothing to migrate in {folder}.')
+        if is_migrated(folder):
+            print(f'Already imported (or declined); see '
+                  f'{folder / "cfts" / MARKER_FILENAME}. Use --force to '
+                  'import again.')
+        else:
+            print(f'Nothing to migrate in {folder}.')
         return
     print(f'Reading {folder / "cfts"}')
     print(f'Writing {get_config_file()}')
-    for note in notes:
-        print(f'  {note}')
-    for name in sorted(updates):
-        print(f'  {name} = {updates[name]!r}')
+    print(describe_plan(updates, notes))
     if args.apply:
-        migrate_legacy_settings(folder)
+        migrate_legacy_settings(folder, force=args.force,
+                                replace=args.replace)
         print('Done.')
     else:
         print('Nothing written. Run again with --apply to write it.')

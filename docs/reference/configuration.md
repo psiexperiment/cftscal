@@ -64,26 +64,39 @@ the psi configuration folder (`~/psi`, or the folder named by the
 `PSI_CONFIG` environment variable): `cfts/workspace.json` and one
 `cfts/calibration/<plugin>.json` per plugin.
 
-cftscal moves them into `config.toml` the first time it starts, so there is
-nothing to do. In detail:
+When cftscal starts and finds these files, it shows what they contain and
+asks whether to import them into `config.toml`:
 
-- Only settings that `config.toml` does not have yet are written, so
-  nothing set since is overwritten.
-- The old files are left untouched. A note, `cfts/MIGRATED.txt`, is
-  written beside them saying what was moved where. It also stops the move
-  from happening again, so a setting you later remove from `config.toml`
-  does not come back.
-- It works without a `config.py`. On a machine that also has one,
-  `psi-config migrate` converts both at once.
+- **Import** fills in the settings `config.toml` does not have yet. Nothing
+  already there is overwritten.
+- **Not now** imports nothing and asks again at the next start.
+- **Don't ask again** imports nothing and stops asking.
 
-To preview what would be moved without changing anything:
+If `config.toml` already has everything the files contain, cftscal does not
+ask. Either way, once the files have been imported or declined, a note,
+`cfts/MIGRATED.txt`, is written beside them saying what happened, and that
+note is what stops cftscal from asking again. The old files are left
+untouched.
+
+To import them later, or again, use **Import old settings...** in
+**Workspace → Settings** (shown only when the old files exist). It imports
+even if they were imported or declined before, and can replace the
+settings already in `config.toml` with the old values.
+
+`psi-config migrate` converts the same files, with or without a
+`config.py` beside them (on a machine that has one, it converts both at
+once). Unlike cftscal, it does not ask: it writes everything it finds,
+replacing what `config.toml` already has, and does not write
+`MIGRATED.txt`.
+
+To preview the import without changing anything:
 
 ```bash
 python -m cftscal.migrate_settings
 ```
 
-Add `--apply` to do it now rather than at the next start. To redo it,
-delete `MIGRATED.txt`.
+`--apply` writes it, `--force` ignores `MIGRATED.txt` and `--replace`
+replaces settings already in `config.toml`.
 
 ## The handoff contract
 

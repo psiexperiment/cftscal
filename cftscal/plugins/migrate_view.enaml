@@ -1,0 +1,94 @@
+'''
+Dialog asking whether to import the settings older versions of cftscal kept
+in JSON files. See `cftscal.migrate_settings`.
+'''
+from enaml.core.api import Conditional
+from enaml.layout.api import spacer
+from enaml.widgets.api import (
+    CheckBox, Container, Dialog, HGroup, Label, MultilineField, PushButton
+)
+
+from cftscal.migrate_settings import (
+    IMPORT, LATER, NEVER, describe_plan, get_legacy_folder, plan_migration,
+    prompt_text,
+)
+
+from .branding import load_app_icon
+
+
+enamldef ImportSettingsDialog(Dialog): dlg:
+    '''
+    Shows what would be imported and records the answer in `answer`; the
+    caller does the importing.
+    '''
+    title = 'Import old settings'
+    icon = load_app_icon()
+    modality = 'application_modal'
+
+    attr folder = get_legacy_folder()
+
+    #: False when cftscal asks at startup, which offers "Don't ask again".
+    #: True from Workspace > Settings, which imports even if the settings
+    #: were imported or declined before, and can replace current settings.
+    attr manual = False
+
+    #: Replace settings already in config.toml with the old values.
+    attr replace = False
+
+    attr plan << plan_migration(dlg.folder, force=dlg.manual,
+                                replace=dlg.replace)
+
+    #: IMPORT, LATER or NEVER. Closing the dialog any other way is LATER.
+    attr answer = LATER
+
+    Container:
+        Label:
+            text = prompt_text(dlg.folder)
+        MultilineField:
+            text << describe_plan(*dlg.plan)
+            read_only = True
+            font = '9pt "Consolas"'
+            constraints = [height == 220, width == 600]
+        Conditional:
+            condition = dlg.manual
+            CheckBox:
+                text = 'Replace settings already in config.toml'
+                checked := dlg.replace
+        HGroup:
+            leading_spacer = spacer(0)
+            padding = 0
+            spacing = 5
+            Conditional:
+                condition = not dlg.manual
+                PushButton:
+                    text = "Don't ask again"
+                    tool_tip = ('Do not import them, and do not ask again. '
+                                'They can still be imported from Workspace '
+                                '> Settings.')
+                    clicked ::
+                        dlg.answer = NEVER
+                        dlg.close()
+            PushButton:
+                text = 'Cancel' if dlg.manual else 'Not now'
+                clicked ::
+                    dlg.answer = LATER
+                    dlg.close()
+            PushButton:
+                text = 'Import'
+                enabled << bool(dlg.plan[0])
+                clicked ::
+                    dlg.answer = IMPORT
+                    dlg.close()
+
+
+def ask_to_import(updates, notes, parent=None):
+    '''
+    Ask whether to import the old settings, for
+    `cftscal.migrate_settings.startup_check`.
+
+    The plan is worked out again by the dialog itself, so `updates` and
+    `notes` are not needed here.
+    '''
+    dlg = ImportSettingsDialog(parent)
+    dlg.exec_()
+    return dlg.answer

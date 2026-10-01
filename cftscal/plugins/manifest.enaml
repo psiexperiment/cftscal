@@ -92,6 +92,27 @@ def reload_plugins(workbench):
         )
 
 
+def check_legacy_settings(workbench):
+    '''
+    Offer to import the settings an older version of cftscal kept in JSON
+    files, if there are any not yet imported or declined.
+
+    Called once the main window is up, since it may show a dialog. The
+    plugins were registered from the settings as they were before the
+    import, so they are reloaded if anything was imported, the same as
+    after saving Workspace > Settings.
+    '''
+    from cftscal.migrate_settings import startup_check
+    from .migrate_view import ask_to_import
+    try:
+        if startup_check(ask_to_import):
+            reload_plugins(workbench)
+    except Exception:
+        # The worst case is cftscal running on its defaults, which the user
+        # can correct in Workspace > Settings (or import from there).
+        log.exception('Could not import the old cftscal settings files')
+
+
 def list_plugin_info():
     '''
     Instantiate every TO_REGISTER entry just far enough to read its
