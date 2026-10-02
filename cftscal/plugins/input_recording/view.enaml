@@ -9,9 +9,9 @@ from atom.api import Dict, Enum, Float, Int
 from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField, IntField
-from enaml.stdlib.message_box import warning
+from enaml.stdlib.message_box import information, question, warning
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, HGroup, Label, ObjectCombo,
+    Container, DockArea, DockItem, Field, FileDialogEx, HGroup, Label, ObjectCombo,
     PushButton,
 )
 
@@ -21,6 +21,9 @@ from psiaudio import util
 from psiaudio.calibration import FlatCalibration
 
 from cftscal.objects import input_recording_manager
+from cftscal.plugins.input_recording.region import (
+    PLAYBACK_FULL_SCALE_PA, Player, clipping_peak, export_region, peak_db,
+)
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, TimePSDPlotManager,
     ObjectCollection, SensorView,
@@ -47,7 +50,9 @@ def a_weighting_sos(fs):
     Returns
     -------
     sos : np.ndarray
-        Second-order sections suitable for `scipy.signal.sosfiltfilt`.
+        Second-order sections, for a single forward pass (see
+        filter_once) -- not `scipy.signal.sosfiltfilt`, which would apply
+        the weighting twice.
     '''
     f1, f2, f3, f4 = 20.598997, 107.65265, 737.86223, 12194.217
     zeros = np.array([0, 0, 0, 0])
@@ -59,6 +64,124 @@ def a_weighting_sos(fs):
     k = 1 / abs(h[0])
     z_d, p_d, k_d = signal.bilinear_zpk(zeros, poles, k, fs)
     return signal.zpk2sos(z_d, p_d, k_d)
+
+
+def filter_once(sos, y):
+    '''
+    Filter ``y`` in one forward pass, the way an analog filter would.
+
+    For filters whose response is defined as a magnitude curve -- the
+    A-weighting curve, the 12AQ's high-pass -- unlike the zero-phase
+    ``sosfiltfilt`` the other filters use, which runs the filter forwards
+    and then backwards and so applies its magnitude response twice (A-
+    weighting at 50 Hz would be -60.4 dB instead of -30.2 dB). Starts from
+    the steady state for the first sample, so a DC offset doesn't show up
+    as a step at t=0.
+    '''
+    zi = signal.sosfilt_zi(sos) * y[0]
+    return signal.sosfilt(sos, y, zi=zi)[0]
+
+
+def region_levels(y, y_unfiltered, fs):
+    '''
+    The Analysis table's measurements for one channel's selected region.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        The region in pascals, after the Filter setting.
+    y_unfiltered : np.ndarray
+        The same region in pascals, before any filtering -- what dBA is
+        measured from, so it doesn't depend on the Filter setting.
+    fs : float
+        Sampling rate, in Hz.
+
+    Returns
+    -------
+    levels : dict
+        ``peak``: half the peak-to-peak, in dB SPL (labelled "Peak SPL");
+        ``pe``: peak-equivalent SPL, the RMS of a sine with the same
+        peak-to-peak -- equal to the RMS level for a pure tone; ``rms``:
+        RMS level, dB SPL; ``dba``: A-weighted RMS level; ``max_pa`` /
+        ``min_pa``: most positive and most negative sample, in Pa.
+    '''
+    half_ptp = np.ptp(y) * 0.5
+    y_a = filter_once(a_weighting_sos(fs), y_unfiltered)
+    return {
+        'peak': util.patodb(half_ptp),
+        'pe': util.patodb(half_ptp / np.sqrt(2)),
+        'rms': util.patodb(util.rms(y)),
+        'dba': util.patodb(util.rms(y_a)),
+        'max_pa': np.max(y),
+        'min_pa': np.min(y),
+    }
+
+
+#: Keys of region_levels(), for an empty region's row.
+_LEVEL_KEYS = ('peak', 'pe', 'rms', 'dba', 'max_pa', 'min_pa')
+
+#: Rows of the Analysis table, top to bottom: (key in a manager.analysis
+#: entry, row label, format). The first row is a strip of each recording's
+#: plot color, with no text.
+ANALYSIS_ROWS = [
+    ('color', '', None),
+    ('duration', 'Dur (s)', '{:.2f}'),
+    ('rms', 'dB SPL', '{:.1f}'),
+    ('dba', 'dBA', '{:.1f}'),
+    ('pe', 'peSPL', '{:.1f}'),
+    ('peak', 'Peak SPL', '{:.1f}'),
+    ('max_pa', 'Max (Pa)', '{:.3f}'),
+    ('min_pa', 'Min (Pa)', '{:.3f}'),
+]
+
+
+def transpose_analysis(analysis):
+    '''
+    Lay out the Analysis table with one row per measurement and one column
+    per recorded channel, so channels being compared sit side by side and
+    the table fits the panel's height rather than overflowing its width.
+
+    Parameters
+    ----------
+    analysis : list of dict
+        InputRecordingPlotManager.analysis: one entry per recorded channel,
+        with 'recording', 'channel' and the ANALYSIS_ROWS keys.
+
+    Returns
+    -------
+    rows : list of dict
+        One dict per ANALYSIS_ROWS entry, mapping each column's key
+        ('c0', 'c1', ...) to its text. Empty when nothing is plotted.
+    column_info : dict
+        Each column's header ("<channel>", newline, "<recording time>").
+    '''
+    if not analysis:
+        return [], {}
+    keys = [f'c{i}' for i in range(len(analysis))]
+    rows = []
+    for name, label, fmt in ANALYSIS_ROWS:
+        row = {}
+        for key, entry in zip(keys, analysis):
+            value = entry.get(name)
+            if fmt is None:
+                row[key] = ''
+            elif value is None or np.isnan(value):
+                row[key] = '\u2013'
+            else:
+                row[key] = fmt.format(value)
+        rows.append(row)
+    column_info = {
+        # Concatenation: enaml keeps a backslash escape in an f-string
+        # literally (see CLAUDE.md).
+        key: {'label': entry['channel'] + '\n' + entry['recording'],
+              }
+        for key, entry in zip(keys, analysis)
+    }
+    return rows, column_info
+
+
+#: Bandwidths offered for 'Band-pass' mode, in octaves, with their labels.
+BANDWIDTHS = {1/3: '1/3', 1/2: '1/2', 1: '1', 2: '2', 3: '3', 4: '4'}
 
 
 #: Line styles create_plot() can resolve (its `f'{line.capitalize()}Line'`
@@ -75,14 +198,15 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: response over a defined range (nominally 10 Hz-20 kHz per IEC
     #: 61672-1), and this mode makes no such claim: it's whatever
     #: bandwidth the raw recording happens to have, unfiltered. 'dBA'
-    #: applies the standard A-weighting curve. '1/3 Octave' is a steep
-    #: bandpass centered on `filter_fc`, for pulling a single low-level
-    #: test tone out of broadband noise (e.g. building rumble below 20 Hz)
-    #: that would otherwise swamp it. 'High-pass' (the default) removes
+    #: applies the standard A-weighting curve. 'Band-pass' keeps the band
+    #: `filter_bw` octaves wide centered on `filter_fc` -- at its default
+    #: of 1/3 octave, steep enough to pull a single low-level test tone
+    #: out of broadband noise (e.g. building rumble below 20 Hz) that
+    #: would otherwise swamp it. 'High-pass' (the default) removes
     #: everything below `highpass_fc` -- like the high-pass switch on a
     #: microphone power module such as the GRAS 12AQ -- so building rumble
     #: and handling noise don't inflate the level.
-    filter_mode = Enum('High-pass', 'Unfiltered', 'dBA', '1/3 Octave')
+    filter_mode = Enum('High-pass', 'Unfiltered', 'dBA', 'Band-pass')
 
     #: One shared color per recording (item), keyed by item -- assigned
     #: lazily from the same color_cycle create_plot() draws from, but
@@ -93,15 +217,25 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: by line style (_CHANNEL_LINE_STYLES) instead of by color.
     item_colors = Dict()
 
-    #: Center frequency for '1/3 Octave' mode, in Hz.
+    #: Center frequency for 'Band-pass' mode, in Hz.
     filter_fc = Float(1000)
 
-    #: Filter order ("steepness") for '1/3 Octave' mode -- higher orders
+    #: Bandwidth for 'Band-pass' mode, in octaves (one of BANDWIDTHS).
+    #: 1000 Hz and 4 octaves (250 Hz to 4 kHz) is the band-pass in the
+    #: lab's older MATLAB tool, measure_sound.
+    filter_bw = Float(1/3)
+
+    #: Filter order ("steepness") for 'Band-pass' mode -- higher orders
     #: roll off more steeply outside the passband.
     filter_order = Int(4)
 
     #: Cutoff for 'High-pass' mode, in Hz.
     highpass_fc = Float(20)
+
+    #: Longest stretch of the time plot shown when recordings are plotted,
+    #: in seconds -- like the lab's older MATLAB tool, measure_sound, which
+    #: opens on the first 90 s. Pan or zoom out to see the rest.
+    initial_window = Float(90)
 
     #: Butterworth order for 'High-pass' mode. The default matches the
     #: GRAS 12AQ's HP filter: 3-pole Butterworth, -3 dB at 20 Hz (18 dB
@@ -112,6 +246,9 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         self._update_all()
 
     def _observe_filter_fc(self, event):
+        self._update_all()
+
+    def _observe_filter_bw(self, event):
         self._update_all()
 
     def _observe_filter_order(self, event):
@@ -144,19 +281,19 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         if self.filter_mode == 'Unfiltered':
             return y
         if self.filter_mode == 'dBA':
-            sos = a_weighting_sos(fs)
+            # One pass (see filter_once): forwards and backwards would
+            # square the A-weighting curve.
+            return filter_once(a_weighting_sos(fs), y)
         elif self.filter_mode == 'High-pass':
-            # One forward pass, unlike the other filters: run forwards and
-            # backwards it would be -6 dB at the cutoff with twice the
-            # slope, not the 12AQ's -3 dB. Like the 12AQ's analog filter,
-            # it therefore shifts phase. Starting from the steady state for
-            # the first sample stops a DC offset showing as a spike at t=0.
+            # One pass, unlike the band-pass: forwards and backwards it
+            # would be -6 dB at the cutoff with twice the slope, not the
+            # 12AQ's -3 dB. Like the 12AQ's analog filter, it therefore
+            # shifts phase.
             sos = signal.butter(self.highpass_order, self.highpass_fc,
                                 btype='highpass', fs=fs, output='sos')
-            zi = signal.sosfilt_zi(sos) * y[0]
-            return signal.sosfilt(sos, y, zi=zi)[0]
+            return filter_once(sos, y)
         else:
-            fl, fh = util.octave_band_freqs(self.filter_fc, 1 / 3)
+            fl, fh = util.octave_band_freqs(self.filter_fc, self.filter_bw)
             sos = signal.iirfilter(self.filter_order, (fl, fh), btype='bandpass',
                                    fs=fs, output='sos')
         return signal.sosfiltfilt(sos, y)
@@ -188,6 +325,7 @@ class InputRecordingPlotManager(TimePSDPlotManager):
                 self.remove_plots(key, self.psd_vb)
                 self.data.pop(key, None)
             self.item_colors.pop(item, None)
+            self._show_initial_window()
             self._update_analysis()
             return
 
@@ -209,6 +347,7 @@ class InputRecordingPlotManager(TimePSDPlotManager):
                 # channel resolves to the same RGBA anyway since they all
                 # share item_color as their input.
                 resolved_color = color
+        self._show_initial_window()
         self._update_analysis()
         # One color per recording (item), shared by every channel it
         # fans out to -- this is what the tree node's highlight, every
@@ -246,33 +385,98 @@ class InputRecordingPlotManager(TimePSDPlotManager):
                 channel_label = item.sensors[channel]['label']
                 x, y, fs, cal = d['x'], d['y'], d['fs'], d['calibration']
                 m = (x >= xlb) & (x < xub)
+                row = {
+                    'color': d['color'],
+                    'recording': str(item.datetime),
+                    'channel': channel_label,
+                    # What Play region plays when this column is selected.
+                    'source': (item, channel),
+                }
                 if m.any():
                     # Drop the DC component since this cannot be shown on
                     # log scales and affects the autorange.
-                    y = self._y_transform(y[m], fs)
+                    y_region = y[m]
+                    y = self._y_transform(y_region, fs)
                     pa = cal.get_level(util.psd_df(y, fs=fs)).iloc[1:]
                     db = util.patodb(pa)
                     d['psd_plot'][0].setData(np.log10(db.index.values), db.values)
-                    y_cal = cal.get_level(y)
-                    info.append({
-                        'color': d['color'],
-                        'recording': str(item.datetime),
-                        'channel': channel_label,
-                        'pe': util.patodb(np.ptp(y_cal) * 0.5),
-                        'rms': util.patodb(util.rms(y_cal)),
-                        'duration': x[m].max() - x[m].min(),
-                    })
+                    row['duration'] = x[m].max() - x[m].min()
+                    row.update(region_levels(
+                        cal.get_level(y), cal.get_level(y_region), fs))
                 else:
                     d['psd_plot'][0].setData([], [])
-                    info.append({
-                        'color': d['color'],
-                        'recording': str(item.datetime),
-                        'channel': channel_label,
-                        'pe': np.nan,
-                        'rms': np.nan,
-                        'duration': 0,
-                    })
+                    row['duration'] = 0
+                    row.update(dict.fromkeys(_LEVEL_KEYS, np.nan))
+                info.append(row)
         self.analysis = info
+
+    def _show_initial_window(self):
+        '''
+        Show at most the first `initial_window` seconds of the time plot.
+
+        Recordings no longer than that still fill the plot (pyqtgraph's
+        auto-range); a longer one starts on its first `initial_window`
+        seconds rather than squeezing every second into the plot. Done
+        whenever a recording is ticked or unticked, so it overrides any
+        zooming done before.
+        '''
+        lengths = [d['x'][-1] for d in self.data.values() if len(d['x'])]
+        if lengths and max(lengths) > self.initial_window:
+            self.time_vb.setXRange(0, self.initial_window, padding=0)
+        else:
+            self.time_vb.enableAutoRange(x=True)
+
+    def region_signals(self):
+        '''
+        The selected region of every plotted recording, as plotted: in
+        pascals, after the Filter. What Export region and Play region use.
+
+        Returns
+        -------
+        regions : list of dict
+            One per recording that the region overlaps: 'item' (the
+            recording), 'channels' (list of (channel, samples)), 'fs' and
+            'region' ((start, end) in seconds).
+        '''
+        if self.region_select is None or not self.data:
+            return []
+        xlb, xub = sorted(self.region_select.getRegion())
+        regions = {}
+        for (item, channel), d in self.data.items():
+            m = (d['x'] >= xlb) & (d['x'] < xub)
+            if not m.any():
+                continue
+            y = d['calibration'].get_level(self._y_transform(d['y'][m], d['fs']))
+            entry = regions.setdefault(item, {
+                'item': item, 'channels': [], 'fs': d['fs'],
+                'region': (float(xlb), float(xub)),
+            })
+            entry['channels'].append((channel, y))
+        return list(regions.values())
+
+    def channel_region(self, source):
+        '''
+        One channel's region, as for region_signals: ``(samples, fs)``, or
+        None if the region doesn't overlap it. ``source`` is an analysis
+        entry's 'source', (recording, channel).
+        '''
+        item, channel = source
+        for entry in self.region_signals():
+            if entry['item'] is item:
+                for name, y in entry['channels']:
+                    if name == channel:
+                        return y, entry['fs']
+        return None
+
+    def filter_settings(self):
+        '''The current Filter, as saved in an exported region's metadata.'''
+        settings = {'mode': self.filter_mode}
+        if self.filter_mode == 'High-pass':
+            settings.update(cutoff_hz=self.highpass_fc, order=self.highpass_order)
+        elif self.filter_mode == 'Band-pass':
+            settings.update(center_hz=self.filter_fc, width_octaves=self.filter_bw,
+                            order=self.filter_order)
+        return settings
 
     def _plot(self, channel, fh, time_plot, psd_plot):
         sig = getattr(fh, channel)
@@ -297,9 +501,103 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         return data
 
 
+def has_region(analysis):
+    '''Whether the selected region overlaps any plotted recording.'''
+    return any(entry['duration'] > 0 for entry in analysis)
+
+
+def region_metadata(entry, filter_settings):
+    '''
+    Metadata embedded in an exported region's WAV file.
+
+    Parameters
+    ----------
+    entry : dict
+        One of InputRecordingPlotManager.region_signals().
+    filter_settings : dict
+        InputRecordingPlotManager.filter_settings().
+    '''
+    item = entry['item']
+    channels = [channel for channel, _ in entry['channels']]
+    return {
+        'region': list(entry['region']),
+        'filter': filter_settings,
+        'units': 'Pa',
+        'channels': channels,
+        'sensors': {c: item.sensors[c] for c in channels},
+        'generator': item.generator,
+        'datetime': item.datetime.isoformat(),
+        'recording': str(item.filename),
+    }
+
+
+def export_regions(folder, regions, filter_settings):
+    '''
+    Export each recording's region (InputRecordingPlotManager.
+    region_signals()) to its own WAV file in ``folder``; return the paths.
+    Plain Python: enaml func blocks can't hold generator expressions.
+    '''
+    return [
+        export_region(folder, entry['item'].filename.name,
+                      [y for _, y in entry['channels']], entry['fs'],
+                      region_metadata(entry, filter_settings))
+        for entry in regions
+    ]
+
+
 enamldef InputRecordingView(Container):
 
     attr settings
+
+    #: Plays the selected region (see region.Player).
+    attr player = Player()
+
+    func export_selected_region():
+        regions = input_recording_plot.manager.region_signals()
+        if not regions:
+            return
+        folder = FileDialogEx.get_existing_directory(
+            self, current_path=str(input_recording_manager.loaders[0].base_path)
+            if input_recording_manager.loaders else '')
+        if not folder:
+            return
+        paths = export_regions(
+            folder, regions, input_recording_plot.manager.filter_settings())
+        information(self, 'Region exported',
+                    f'Saved {len(paths)} file(s) to {folder}: '
+                    + ', '.join([path.name for path in paths]))
+
+    func play_selected_region():
+        if player.playing:
+            player.stop()
+            return
+        analysis = input_recording_plot.manager.analysis
+        coords = analysis_table.selected_coords
+        column = coords[0][1] if coords else 0
+        if not 0 <= column < len(analysis):
+            return
+        found = input_recording_plot.manager.channel_region(analysis[column]['source'])
+        if found is None:
+            warning(self, 'Cannot play',
+                    'The selected region does not overlap that recording.')
+            return
+        y, fs = found
+        peak = clipping_peak(y)
+        if peak is not None:
+            answer = question(
+                self, 'Playback will clip',
+                f'This region peaks at {peak:.1f} Pa ({peak_db(peak):.1f} dB SPL), '
+                f'above the {PLAYBACK_FULL_SCALE_PA:g} Pa that plays at full '
+                f'volume, so it will be distorted. Play it anyway?')
+            if answer is None or answer.action != 'accept':
+                return
+        try:
+            player.play(y, fs)
+        except ImportError:
+            warning(self, 'Cannot play',
+                    'Playback needs the sounddevice package (pip install sounddevice).')
+        except Exception as e:
+            warning(self, 'Cannot play', f'The sound output could not play it: {e}')
 
     DockArea: area:
         layout = AreaLayout(
@@ -513,38 +811,65 @@ enamldef InputRecordingView(Container):
             stretch = 10
 
             Container:
-                HGroup:
-                    align_widths = False
-                    trailing_spacer = spacer(0)
-                    Label:
-                        text = 'Filter'
-                    ObjectCombo:
-                        items = ['High-pass', 'Unfiltered', 'dBA', '1/3 Octave']
-                        selected := input_recording_plot.manager.filter_mode
+                Container: toolbar:
+                    padding = 0
+                    # Filter settings on the left; the region's Play and
+                    # Export buttons at the right end.
+                    constraints = [
+                        hbox(filter_row, spacer, play_button, export_button),
+                        align('v_center', filter_row, play_button, export_button),
+                    ]
 
-                    Conditional:
-                        condition << input_recording_plot.manager.filter_mode == 'High-pass'
+                    PushButton: play_button:
+                        text << 'Stop' if player.playing else 'Play region'
+                        enabled << player.playing or has_region(
+                            input_recording_plot.manager.analysis)
+                        clicked ::
+                            play_selected_region()
 
-                        Label:
-                            text = 'Cutoff'
-                        FloatField:
-                            value := input_recording_plot.manager.highpass_fc
-                        Label:
-                            text = 'Hz, order'
-                        IntField:
-                            value := input_recording_plot.manager.highpass_order
+                    PushButton: export_button:
+                        text = 'Export region\u2026'
+                        enabled << has_region(input_recording_plot.manager.analysis)
+                        clicked ::
+                            export_selected_region()
 
-                    Conditional:
-                        condition << input_recording_plot.manager.filter_mode == '1/3 Octave'
+                    HGroup: filter_row:
+                        align_widths = False
+                        Label:
+                            text = 'Filter'
+                        ObjectCombo:
+                            items = ['High-pass', 'Unfiltered', 'dBA', 'Band-pass']
+                            selected := input_recording_plot.manager.filter_mode
 
-                        Label:
-                            text = 'Center freq.'
-                        FloatField:
-                            value := input_recording_plot.manager.filter_fc
-                        Label:
-                            text = 'Hz, order'
-                        IntField:
-                            value := input_recording_plot.manager.filter_order
+                        Conditional:
+                            condition << input_recording_plot.manager.filter_mode == 'High-pass'
+
+                            Label:
+                                text = 'Cutoff'
+                            FloatField:
+                                value := input_recording_plot.manager.highpass_fc
+                            Label:
+                                text = 'Hz, order'
+                            IntField:
+                                value := input_recording_plot.manager.highpass_order
+
+                        Conditional:
+                            condition << input_recording_plot.manager.filter_mode == 'Band-pass'
+
+                            Label:
+                                text = 'Center freq.'
+                            FloatField:
+                                value := input_recording_plot.manager.filter_fc
+                            Label:
+                                text = 'Hz, width'
+                            ObjectCombo:
+                                items = list(BANDWIDTHS)
+                                to_string = lambda octaves: BANDWIDTHS[octaves]
+                                selected := input_recording_plot.manager.filter_bw
+                            Label:
+                                text = 'octaves, order'
+                            IntField:
+                                value := input_recording_plot.manager.filter_order
 
                 PGCanvas: input_recording_plot:
                     attr manager = InputRecordingPlotManager(apply_calibration=True)
@@ -600,39 +925,24 @@ enamldef InputRecordingView(Container):
             closable = False
 
             Container:
-                ListDictTable:
+                ListDictTable: analysis_table:
+                    # Transposed: a row per measurement, a column per
+                    # recorded channel (see transpose_analysis).
+                    attr layout << transpose_analysis(
+                        input_recording_plot.manager.analysis)
                     stretch_last_section = False
-                    data << input_recording_plot.manager.analysis
-                    columns = ['recording', 'channel', 'duration', 'pe', 'rms']
-                    column_info = {
-                        'recording': {
-                            'label': 'Recording',
-                            'to_string': lambda x: str(x),
-                            'width': 40,
-                        },
-                        'channel': {
-                            'label': 'Channel',
-                            'to_string': lambda x: str(x),
-                            'width': 20,
-                        },
-                        'duration': {
-                            'label': 'Dur (s)',
-                            'to_string': lambda x: '{:.2f}'.format(x),
-                            'width': 20,
-                        },
-                        'pe': {
-                            'label': 'pe SPL',
-                            'to_string': lambda x: '{:.1f}'.format(x),
-                            'width': 20,
-                        },
-                        'rms': {
-                            'label': 'dB SPL',
-                            'to_string': lambda x: '{:.1f}'.format(x),
-                            'width': 20,
-                        },
-                    }
+                    # The columns change as recordings are ticked, so
+                    # there's no fixed order to drag them into.
+                    columns_movable = False
+                    # Wide enough for each header's channel and date.
+                    header_resize_mode = 'contents'
+                    data << layout[0]
+                    column_info << layout[1]
+
+                    get_row_label => (row_index):
+                        return ANALYSIS_ROWS[row_index][1]
 
                     get_cell_color => (row, column):
-                        if column != 0:
+                        if row != 0:
                             return 'white'
-                        return data[row]['color']
+                        return input_recording_plot.manager.analysis[column]['color']

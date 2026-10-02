@@ -39,7 +39,7 @@ If that state is somehow reached anyway, clicking *Record* shows a warning expla
 
 ## Reviewing the results
 
-Select one or more recordings in the *Recordings* list to plot them. The *Input Recording* plot shows the calibrated time-domain waveform; the region you select drives both the PSD plot and the *Analysis* table below.
+Select one or more recordings in the *Recordings* list to plot them. The *Input Recording* plot shows the calibrated time-domain waveform; the region you select drives both the PSD plot and the *Analysis* table below. If a recording is longer than 90 seconds, the plot opens on its first 90 seconds; drag the plot to move along it, or zoom out (scroll, or right-click > *View All*) to see all of it.
 
 **Recordings** (the list) shows every recording ever made for this workspace, with the following columns:
 
@@ -54,7 +54,18 @@ Select one or more recordings in the *Recordings* list to plot them. The *Input 
 
 A warning icon after a recording's name means it couldn't be read properly (hover for why); a sticky-note icon means it has a note. To add or change a note, right-click the recording and choose *Edit note…* — the note is saved inside the recording's folder, and hovering over the row shows it.
 
-Each recording gets its own color, matching its highlight in the *Recordings* list. If a recording has more than one channel, all of its channels share that color but are distinguished from each other by line style (solid, dash, dot). The *Analysis* table groups its rows by recording for the same reason — each recording's channels appear as consecutive rows sharing one color swatch, with a *Channel* column distinguishing the rows within a group — alongside *Duration*, peak-equivalent SPL, and RMS dB SPL for whatever's inside the currently selected region.
+Each recording gets its own color, matching its highlight in the *Recordings* list. If a recording has more than one channel, all of its channels share that color but are distinguished from each other by line style (solid, dash, dot). The *Analysis* table has a column for each recorded channel, headed by the channel and the date and time of its recording, so channels you're comparing (say, the left and right ears) sit side by side. The strip of color at the top of each column matches that recording's color, and a recording's channels appear as neighboring columns. Each row is one measurement of whatever's inside the currently selected region:
+
+| Row | What it shows |
+| --- | --- |
+| **Dur (s)** | Length of the selected region. |
+| **dB SPL** | RMS level, after the *Filter*. |
+| **dBA** | A-weighted RMS level. Always measured from the unfiltered recording, whatever the *Filter* is set to, so it's there without switching the filter to dBA. |
+| **peSPL** | Peak-equivalent SPL: the RMS level of a sine wave with the same peak-to-peak amplitude. For a pure tone it equals dB SPL; for clicks and other brief sounds it's the usual way to state their level. |
+| **Peak SPL** | Half the peak-to-peak amplitude, in dB SPL — 3 dB above peSPL. (This was called "pe SPL" before peSPL was added.) |
+| **Max (Pa)**, **Min (Pa)** | The most positive and most negative pressure. A lopsided pair shows the waveform isn't symmetric, which the peak-to-peak rows can't. |
+
+Every row except dBA is measured after the *Filter*. A dash means the selected region doesn't overlap that recording.
 
 ### Selecting a region
 
@@ -73,8 +84,17 @@ The *Filter* dropdown controls the filtering that gets applied to the signal bef
 | --- | --- | 
 | **High-pass** *(default)* | Removes everything below a *Cutoff* frequency (20 Hz unless you change it). With the default *order* of 3 it matches the HP filter on a GRAS 12AQ power module: a 3-pole Butterworth, 3 dB down at the cutoff and falling 18 dB per octave below it. Use it to keep building rumble and handling noise out of the level. A higher order cuts off more steeply. Like the 12AQ's own filter, it shifts the phase of low frequencies slightly. |
 | **Unfiltered** | No filtering at all — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
-| **dBA** | Standard A-weighting (IEC 61672-1) |
-| **1/3 Octave** | A steep band-pass filter centered on a frequency you choose (*Center freq.*), with an adjustable *order* (higher orders roll off more sharply outside the band). | 
+| **dBA** | Standard A-weighting (IEC 61672-1). |
+| **Band-pass** | Keeps only a band of frequencies: centered on *Center freq.*, *width* octaves wide (1/3 octave unless you change it), with an adjustable *order* (higher orders roll off more sharply outside the band). It's run forwards and backwards, so it shifts no phase and the band edges are 6 dB down. A center of 1000 Hz and a width of 4 octaves (250 Hz to 4 kHz) is the band-pass filter in the lab's older MATLAB tool, measure_sound. | 
+
+### Listening to and exporting a region
+
+The *Play region* and *Export region…* buttons, at the right end of the *Filter* row, work on the selected region exactly as it's plotted and measured — after the *Filter* — so what you hear and save is what the *Analysis* table describes.
+
+- **Play region** plays one channel through the computer's default sound output. Click a cell in that channel's column of the *Analysis* table to choose it (otherwise the first column plays). Click the button again (it now reads *Stop*) to stop early. Playback uses a fixed scale, 20 Pa (120 dB SPL peak) at full volume, so recordings can be compared by ear: a 94 dB SPL calibrator tone plays fairly quietly, and very quiet recordings may be hard to hear. If the region peaks above 20 Pa you're warned that it will be distorted, and can choose whether to play it anyway.
+- **Export region…** asks for a folder and saves the region of every ticked recording there as a WAV file, one per recording, named after the recording and the region (e.g. `20260616-101544_18.000-22.000s.wav`). The files use the same calibrated format as *Export as WAV…* — see [Exporting a calibrated WAV](#exporting-a-calibrated-wav) — and also record the region and the *Filter* settings. An existing file is never overwritten; `_2`, `_3`, … is added to the name instead.
+
+Both buttons are greyed out until the region overlaps a ticked recording.
 
 ## Interpreting the levels
 
