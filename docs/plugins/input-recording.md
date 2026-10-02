@@ -67,11 +67,12 @@ Only the samples inside the selected region are used for the Analysis table and 
 
 ### Choosing a filter
 
-The *Filter* dropdown controls the filtering that gets applied to the signal before it's plotted and the level is computed.
+The *Filter* dropdown controls the filtering that gets applied to the signal before it's plotted and the level is computed. It only changes what's shown and measured; the saved recording is never altered.
 
 | Mode | What it does |
 | --- | --- | 
-| **Unfiltered** | No filtering — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
+| **High-pass** *(default)* | Removes everything below a *Cutoff* frequency (20 Hz unless you change it). With the default *order* of 3 it matches the HP filter on a GRAS 12AQ power module: a 3-pole Butterworth, 3 dB down at the cutoff and falling 18 dB per octave below it. Use it to keep building rumble and handling noise out of the level. A higher order cuts off more steeply. Like the 12AQ's own filter, it shifts the phase of low frequencies slightly. |
+| **Unfiltered** | No filtering at all — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
 | **dBA** | Standard A-weighting (IEC 61672-1) |
 | **1/3 Octave** | A steep band-pass filter centered on a frequency you choose (*Center freq.*), with an adjustable *order* (higher orders roll off more sharply outside the band). | 
 

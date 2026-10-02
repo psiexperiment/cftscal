@@ -78,8 +78,11 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: applies the standard A-weighting curve. '1/3 Octave' is a steep
     #: bandpass centered on `filter_fc`, for pulling a single low-level
     #: test tone out of broadband noise (e.g. building rumble below 20 Hz)
-    #: that would otherwise swamp it.
-    filter_mode = Enum('Unfiltered', 'dBA', '1/3 Octave')
+    #: that would otherwise swamp it. 'High-pass' (the default) removes
+    #: everything below `highpass_fc` -- like the high-pass switch on a
+    #: microphone power module such as the GRAS 12AQ -- so building rumble
+    #: and handling noise don't inflate the level.
+    filter_mode = Enum('High-pass', 'Unfiltered', 'dBA', '1/3 Octave')
 
     #: One shared color per recording (item), keyed by item -- assigned
     #: lazily from the same color_cycle create_plot() draws from, but
@@ -97,6 +100,14 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: roll off more steeply outside the passband.
     filter_order = Int(4)
 
+    #: Cutoff for 'High-pass' mode, in Hz.
+    highpass_fc = Float(20)
+
+    #: Butterworth order for 'High-pass' mode. The default matches the
+    #: GRAS 12AQ's HP filter: 3-pole Butterworth, -3 dB at 20 Hz (18 dB
+    #: per octave below it).
+    highpass_order = Int(3)
+
     def _observe_filter_mode(self, event):
         self._update_all()
 
@@ -104,6 +115,12 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         self._update_all()
 
     def _observe_filter_order(self, event):
+        self._update_all()
+
+    def _observe_highpass_fc(self, event):
+        self._update_all()
+
+    def _observe_highpass_order(self, event):
         self._update_all()
 
     def _update_all(self):
@@ -128,6 +145,16 @@ class InputRecordingPlotManager(TimePSDPlotManager):
             return y
         if self.filter_mode == 'dBA':
             sos = a_weighting_sos(fs)
+        elif self.filter_mode == 'High-pass':
+            # One forward pass, unlike the other filters: run forwards and
+            # backwards it would be -6 dB at the cutoff with twice the
+            # slope, not the 12AQ's -3 dB. Like the 12AQ's analog filter,
+            # it therefore shifts phase. Starting from the steady state for
+            # the first sample stops a DC offset showing as a spike at t=0.
+            sos = signal.butter(self.highpass_order, self.highpass_fc,
+                                btype='highpass', fs=fs, output='sos')
+            zi = signal.sosfilt_zi(sos) * y[0]
+            return signal.sosfilt(sos, y, zi=zi)[0]
         else:
             fl, fh = util.octave_band_freqs(self.filter_fc, 1 / 3)
             sos = signal.iirfilter(self.filter_order, (fl, fh), btype='bandpass',
@@ -492,8 +519,20 @@ enamldef InputRecordingView(Container):
                     Label:
                         text = 'Filter'
                     ObjectCombo:
-                        items = ['Unfiltered', 'dBA', '1/3 Octave']
+                        items = ['High-pass', 'Unfiltered', 'dBA', '1/3 Octave']
                         selected := input_recording_plot.manager.filter_mode
+
+                    Conditional:
+                        condition << input_recording_plot.manager.filter_mode == 'High-pass'
+
+                        Label:
+                            text = 'Cutoff'
+                        FloatField:
+                            value := input_recording_plot.manager.highpass_fc
+                        Label:
+                            text = 'Hz, order'
+                        IntField:
+                            value := input_recording_plot.manager.highpass_order
 
                     Conditional:
                         condition << input_recording_plot.manager.filter_mode == '1/3 Octave'
