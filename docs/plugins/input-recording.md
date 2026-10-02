@@ -58,7 +58,7 @@ Each recording gets its own color, matching its highlight in the *Recordings* li
 
 ### Selecting a region
 
-- *Ctrl+drag* anywhere on the time plot to draw a new region from scratch.
+- *Ctrl+drag* anywhere on the time plot to draw a new region from scratch — including inside the current region, so you can select a smaller part of it.
 - *Drag an edge* of the existing region to resize it.
 - *Drag the middle* of the region to move it without resizing.
 - A plain drag (no Ctrl) pans the plot as usual.

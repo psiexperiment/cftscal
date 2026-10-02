@@ -271,27 +271,38 @@ class SinglePlotManager(BasePlotManager):
         return super().get_plots(plot, vb)
 
 
+def _is_ctrl_drag(ev):
+    '''Whether a drag is a Ctrl+left-button drag (draw a new region).'''
+    return (
+        ev.button() == QtCore.Qt.MouseButton.LeftButton
+        and bool(ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier)
+    )
+
+
 class RegionSelectViewBox(pg.ViewBox):
     '''
     A ViewBox where Ctrl+drag draws/redefines `region_select` (a
-    LinearRegionItem the owning plot manager attaches after construction),
+    RegionSelectItem the owning plot manager attaches after construction),
     while a plain drag still pans as usual.  Grabbing the region's own
     edge or middle handles (no modifier needed) still resizes/moves it,
     since pyqtgraph dispatches to the item under the cursor before this
-    ViewBox ever sees the drag.
+    ViewBox ever sees the drag -- which is also why a Ctrl+drag starting
+    inside the region reaches draw_region() via RegionSelectItem rather
+    than through mouseDragEvent here.
     '''
     region_select = None
 
     def mouseDragEvent(self, ev, axis=None):
-        is_region_drag = (
-            self.region_select is not None
-            and ev.button() == QtCore.Qt.MouseButton.LeftButton
-            and bool(ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier)
-        )
-        if not is_region_drag:
+        if self.region_select is None or not _is_ctrl_drag(ev):
             super().mouseDragEvent(ev, axis=axis)
             return
+        self.draw_region(ev)
 
+    def draw_region(self, ev):
+        '''
+        Redefine the region from where the drag started to where the
+        mouse is now. Called for every event of a Ctrl+drag.
+        '''
         ev.accept()
         region = self.region_select
         start = self.mapSceneToView(ev.buttonDownScenePos()).x()
@@ -308,6 +319,46 @@ class RegionSelectViewBox(pg.ViewBox):
         region.sigRegionChanged.emit(region)
         if ev.isFinish():
             region.sigRegionChangeFinished.emit(region)
+
+
+class RegionSelectItem(pg.LinearRegionItem):
+    '''
+    The analysis region on a RegionSelectViewBox. A plain drag on its
+    middle moves it and on an edge resizes it, as usual; a Ctrl+drag
+    starting anywhere on it draws a new region instead, the same as a
+    Ctrl+drag elsewhere on the plot. Otherwise a new region could never be
+    drawn inside the current one.
+
+    pyqtgraph gives a drag to the item under the mouse (assigned while
+    hovering, before the button is even pressed), so the region can't just
+    decline Ctrl+drags; it hands them to the view box instead. Whether a
+    drag draws a new region is decided when it starts, so letting go of
+    Ctrl part-way through doesn't turn it into a move.
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._drawing = False
+        # The edges are separate items that take their own drags.
+        for line in self.lines:
+            line.mouseDragEvent = self._redirect(line.mouseDragEvent)
+
+    def _redirect(self, handler):
+        def mouseDragEvent(ev):
+            vb = self.getViewBox()
+            if ev.isStart():
+                self._drawing = (_is_ctrl_drag(ev)
+                                 and hasattr(vb, 'draw_region'))
+            if not self._drawing:
+                handler(ev)
+                return
+            vb.draw_region(ev)
+            if ev.isFinish():
+                self._drawing = False
+        return mouseDragEvent
+
+    def mouseDragEvent(self, ev):
+        self._redirect(super().mouseDragEvent)(ev)
 
 
 class TimePSDPlotManager(BasePlotManager):
@@ -407,13 +458,14 @@ class TimePSDPlotManager(BasePlotManager):
 
     def _default_region_select(self):
         # Ctrl+drag on the time plot (see RegionSelectViewBox) draws or
-        # redefines the region from scratch; grabbing an existing edge or
+        # redefines the region from scratch, even starting inside the
+        # current region (see RegionSelectItem); grabbing an existing edge or
         # the middle (no modifier needed) resizes/moves it. PSD/analysis
         # only recomputes once a drag finishes (sigRegionChangeFinished),
         # not on every intermediate position during the drag -- pyqtgraph
         # handles the live visual update of the region itself efficiently
         # on its own.
-        region = pg.LinearRegionItem(values=(0, 0), movable=True)
+        region = RegionSelectItem(values=(0, 0), movable=True)
         region.setZValue(10)
         # sigRegionChangeFinished emits the region item itself as an arg;
         # _update_analysis reads the current bounds via self.region_select
