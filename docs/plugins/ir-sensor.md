@@ -11,20 +11,20 @@ Launch CFTSCal and select the IR Sensor Calibration workspace.
 | Field | What it means |
 | --- | --- |
 | **Output Channel** | Which physical output drives the IR emitter. |
-| **Generator** | A free-form label for the physical IR emitter connected to this output. Click + to add a new one. |
+| **Generator** | A label for the physical IR emitter connected to this output. Click **+** to add a new one; **-** removes the selected one from the list. |
 | **Input Channel** | Which physical input the IR detector is wired to. |
-| **Sensor** | A free-form label for the physical IR detector connected to this input. Click + to add a new one. |
-| **Target folder** | Organizes recordings into folders, same as every other workspace. |
+| **Target folder** | The folder the recording is saved in. Pick an existing folder, or leave it at *(auto create from input channel)* to have one made for you. Note the auto-created folder is named after the input's *hardware* name (e.g. `ai2`), not the label shown in the **Input Channel** dropdown (e.g. `Ch 2`). To create, rename or delete folders, right-click in the *Recordings* list. |
+| **Sensor** | A label for the physical IR detector connected to this input. Click **+** to add a new one; **-** removes the selected one from the list. |
 
 ## Running the recording
 
-Click **Record**. A new window will open; once ready to acquire, click **Start**.
+Click **Record**. It stays greyed out until both a **Generator** and a **Sensor** are picked. A new window will open; once ready to acquire, click **Start**.
 
 ## Reviewing the results
 
 *Input Recording* shows the detector's raw signal over time.
 
-**Recordings** (the list) shows every recording ever made for this workspace, with the following columns:
+**Recordings** (the list) shows every recording ever made for this workspace. Tick a recording to plot it. Right-click it to export or delete it; double-click to rename it, or drag it onto a folder to move it. A warning icon after a name means it couldn't be read properly; hover for why. The columns are:
 
 | Column | Meaning |
 | --- | --- |

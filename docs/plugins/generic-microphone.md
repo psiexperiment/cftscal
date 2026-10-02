@@ -15,18 +15,20 @@ Launch CFTSCal and select the Generic Microphone Calibration workspace.
 
 ## Settings
 
+The Settings panel is laid out as a small grid: one row per device (**Test**, **Ref.**, **Speaker**), with a **Channel** column and a **Device** column.
+
 | Field | What it means |
 | --- | --- |
-| **Test → Input** | Which input channel the generic microphone under test is wired to. |
-| **Test → Device / Ref.** | A free-form label for identifying the generic microphone you're calibrating (e.g., product ID, serial number, asset tag, etc.). Click + to add a new one to the drop-down list. |
-| **Test → Target folder** | Organizes calibrations into folders. |
-| **Ref. → Input** | Which input channel the reference measurement microphone is wired to. |
-| **Ref. → Device / Ref.** | Which calibrated measurement microphone to use as the reference, and its gain. To add a new reference microphone, use [Measurement Microphone Calibration](measurement-microphone.md) — it can't be added from here. |
-| **Speaker** | Which output the speaker playing the stimulus is wired to. |
+| **Test → Channel** | Which input channel the generic microphone under test is wired to. |
+| **Test → Device** | A free-form label for identifying the generic microphone you're calibrating (e.g., product ID, serial number, asset tag, etc.). Click + to add a new one to the drop-down list, or - to remove the selected one from the list (no calibrations are deleted). The drop-down after it is the generic microphone's preamp gain, in dB. |
+| **Ref. → Channel** | Which input channel the reference measurement microphone is wired to. |
+| **Ref. → Device** | Which calibrated measurement microphone to use as the reference, and its preamp gain. Its calibration must be set as current (right-click > *Set as current* in [Measurement Microphone Calibration](measurement-microphone.md#working-with-the-list)); a new reference microphone can't be added from here. |
+| **Speaker → Channel** | Which output the speaker playing the stimulus is wired to. |
+| **Target folder** | Which folder the new calibration is saved in. Leave it at *(auto create from test device)* to have a folder named after the **Test → Device** label. To create a new folder, right-click the *Calibrations* list. Each test channel remembers its own target folder. |
 
 ## Running the calibration
 
-Click **Golay** or **Chirp** — both are always available once a generic microphone, a reference microphone, and a speaker output are selected.
+Click **Golay** or **Chirp** once a test device, a reference microphone and a speaker output are selected. The buttons don't check this for you, so make sure each is set first.
 
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. More robust to background noise, at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. Much faster, but somewhat more sensitive to noise.
@@ -52,9 +54,9 @@ Unlike a measurement microphone, the result is a *curve* rather than a single nu
 
 ## Reviewing the results
 
-*Generic Microphone Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently selected in the list below.
+*Generic Microphone Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently ticked in the list below.
 
-**Generic Microphone Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
+**Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
 
 | Column | Meaning |
 | --- | --- |
@@ -68,6 +70,8 @@ Unlike a measurement microphone, the result is a *curve* rather than a single nu
 | Speaker | Which speaker played the stimulus. |
 | Speaker Channel | Which output channel the speaker was wired to. |
 | Max. Freq. | The highest frequency the calibration covers. |
+
+The list works the same way as in [Measurement Microphone Calibration](measurement-microphone.md#working-with-the-list): tick to plot; right-click for *Edit note…*, *Export as WAV…*, *Set as current* and *Delete*; double-click to rename; drag onto a folder to move. A **sticky note** after a calibration's name means it has a note and a **warning sign** means its files have a problem — hover over the row to read either. Set the calibration you want experiments to use as current (★); nothing falls back to the newest one automatically.
 
 ## Sanity-checking a calibration
 

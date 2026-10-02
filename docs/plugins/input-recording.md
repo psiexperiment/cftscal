@@ -6,14 +6,18 @@ Input Recording isn't tied to a specific calibration procedure. It's a general-p
 
 Run CFTSCal and select the **Input Recording** workspace.
 
+![The Input Recording workspace: the Settings panel at top left, the list of recordings and the Analysis table below it, and the waveform and spectrum plots on the right.](../images/input-recording/workspace.png)
+
+*Two recordings plotted, one from each ear's microphone. The shaded band on the waveform is the selected region; the Analysis table and the spectrum below it are computed from that part of each recording only (see [Selecting a region](#selecting-a-region)).*
+
 | Field | What it means |
 | --- | --- |
-| **Number of inputs** | How many channels to record at once, from 1 up to the total number your hardware exposes. |
-| **Input** *(one row per active channel)* | A dropdown listing every available physical input — this doubles as the row's label, so there's no separate "Input 0"/"Input 1" text. Pick any channel here; the same physical channel can't be assigned to two active rows at once. |
-| **Sensor** *(per row)* | A dropdown picking what kind of sensor is attached, plus (for most types) a second dropdown picking which specific one. |
-| **Gain** *(per row)* | The preamp gain, in dB, currently applied to that row's channel. |
-| **Target folder** | Organizes recordings into folders, same as every other workspace. Shared across all active channels, since they're saved together as a single recording. |
-| **Generator** | A free-form label that can be used to record the details of the test stimulus. Click *+* to add a new one. |
+| **Number of inputs** | How many channels to record at once, from 1 up to the total number your hardware exposes. One row appears below for each. |
+| **Input** *(first dropdown on each row)* | Which physical input this row records. The dropdown doubles as the row's label, so there's no separate "Input 0"/"Input 1" text. Pick any channel here; the same physical channel can't be assigned to two rows at once. |
+| **Sensor type and calibration** *(next one or two dropdowns)* | What kind of sensor is attached (see [Sensor types](#sensor-types) below), plus — for most types — a second dropdown picking which specific calibration to use. |
+| **dB gain** *(last dropdown on each row)* | The preamp gain, in dB, currently applied to that row's channel. It must match the amplifier's actual setting. |
+| **Target folder** | Which folder the recording is saved in. Shared across all rows, since they're saved together as a single recording. Leave it at *(auto create from generator)* to have a folder made for you, named after the **Generator** text (lowercased, with spaces and punctuation turned into hyphens). |
+| **Generator** | Free text describing what produced the sound — e.g. *pistonphone*, *speaker 3*. It's saved with the recording exactly as you type it, but isn't remembered between sessions. |
 
 ### Sensor types
 
@@ -25,7 +29,13 @@ Run CFTSCal and select the **Input Recording** workspace.
 
 ## Running the recording
 
-To run the recording, click the *Record* button — this captures every active channel simultaneously, saved together as one recording. The button stays disabled until every active channel has a sensor selected and no two channels point at the same physical input; if that state is somehow reached anyway, clicking *Record* shows a warning explaining why rather than failing silently.
+To run the recording, click the *Record* button — this captures every active channel simultaneously, saved together as one recording. The button stays disabled until:
+
+- every row has a sensor selected,
+- no two rows point at the same physical input, and
+- the **Generator** contains at least one letter or digit.
+
+If that state is somehow reached anyway, clicking *Record* shows a warning explaining why rather than failing silently.
 
 ## Reviewing the results
 
@@ -35,12 +45,14 @@ Select one or more recordings in the *Recordings* list to plot them. The *Input 
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which folder the recording is filed under (usually the generator label). |
+| Name | Which folder the recording is filed under (with *auto create*, named after the generator). |
 | Date | When the recording was made. |
 | Generator | Which stimulus/generator label was used. |
 | Channel | Which input channel(s) were recorded — comma-separated if more than one. |
 | Sensor | Which sensor was attached to each channel — comma-separated in the same order as Channel. |
 | Gain | The preamp gain, in dB, that was in effect for each channel — comma-separated in the same order as Channel. |
+
+A warning icon after a recording's name means it couldn't be read properly (hover for why); a sticky-note icon means it has a note. To add or change a note, right-click the recording and choose *Edit note…* — the note is saved inside the recording's folder, and hovering over the row shows it.
 
 Each recording gets its own color, matching its highlight in the *Recordings* list. If a recording has more than one channel, all of its channels share that color but are distinguished from each other by line style (solid, dash, dot). The *Analysis* table groups its rows by recording for the same reason — each recording's channels appear as consecutive rows sharing one color swatch, with a *Channel* column distinguishing the rows within a group — alongside *Duration*, peak-equivalent SPL, and RMS dB SPL for whatever's inside the currently selected region.
 

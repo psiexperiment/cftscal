@@ -14,21 +14,28 @@ Launch CFTSCal and select the Speaker Calibration workspace.
 
 ## Settings
 
+The **Microphone** row is read left to right:
+
 | Field | What it means |
 | --- | --- |
-| **Microphone → Input** | Which physical input the reference measurement microphone is wired to. |
-| **Microphone → Mic.** | Which calibrated measurement microphone to use as the reference (drawn from [Measurement Microphone Calibration](measurement-microphone.md)). |
-| **Microphone → Gain** | The preamp gain, in dB, currently applied to that channel. |
-| **Speaker → Output Channel** | Which physical output you're calibrating, if your system has more than one. |
-| **Speaker → Speaker** | A free-form label for identifying the speaker connected to the selected output channel (e.g., product ID, serial number, asset tag, etc.). Click + to add a new one to the drop-down list. |
-| **Target folder** | Organizes calibrations into folders (e.g. by lab, by study). To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
+| **Microphone** (first drop-down) | Which sound-card input the reference measurement microphone is plugged into. |
+| **Microphone** (second drop-down) | Which calibration of the measurement microphone to use as the reference (made in [Measurement Microphone Calibration](measurement-microphone.md)). |
+| **dB gain** | The gain, in dB, set on the measurement microphone's amplifier. |
+
+The **Speaker** row:
+
+| Field | What it means |
+| --- | --- |
+| **Speaker** (first drop-down) | Which sound-card output drives the speaker you're calibrating, if your system has more than one. |
+| **Speaker** (second drop-down) | A free-form name identifying the speaker on that output (e.g. product ID, serial number, asset tag). Click **+** to add a new one to the drop-down list, or **−** to remove the selected name from the list (no calibrations are deleted). |
+| **Target folder** | Which folder the new calibration is saved in (e.g. by lab, by study). Leave it on **(auto create from speaker)** to have a folder named after the speaker. To create a new folder, right-click in the *Calibrations* list. |
 
 !!! warning "The microphone gain field doesn't control your hardware!"
     You are responsible for verifying that this value matches what is set on the preamp, since cftscal has no way of setting or reading it. If it's wrong, the calibration will be wrong.
 
 ## Running the calibration
 
-To run the calibration, click **Golay** or **Chirp**. Both buttons stay disabled until a reference microphone and a speaker have both been selected for the currently-chosen output channel.
+To run the calibration, click **Golay** or **Chirp**. Both buttons stay disabled until a reference microphone calibration and a speaker have both been selected for the currently-chosen output.
 
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. This averages out uncorrelated noise, so it's the more robust choice in a noisy environment — at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. It's much faster than Golay, but slightly more sensitive to background noise.
@@ -70,11 +77,11 @@ $$ V_{DAC}(f) = 10^{\frac{O_{dBSPL} - O_{dBSPL\ at\ 1V}(f)}{20}} $$
 
 **Worked example.** If the curve reads 100 dB SPL at some frequency and you want 80 dB SPL there, you need \(10^{(80-100)/20} = 0.1\) V<sub>rms</sub>. This is exactly the calculation psiexperiment performs when you request a level in an experiment. See [Generating a tone at a specific level](../reference/calibration-math.md#generating-a-tone-at-a-specific-level) for the general form and for how this relates to sensitivity expressed in V/Pa.
 
-**Speaker Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
+**Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which physical speaker was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the device). |
+| Name | Which folder the calibration is filed under — by default, one folder per speaker (see Device below if you've filed calibrations into folders that don't match the device). |
 | Date | When the calibration was run. |
 | Device | The speaker label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
 | Output | Which output channel was calibrated. |
@@ -83,6 +90,16 @@ $$ V_{DAC}(f) = 10^{\frac{O_{dBSPL} - O_{dBSPL\ at\ 1V}(f)}{20}} $$
 | Gain | The reference microphone's preamp gain, in dB, that was in effect. |
 | Method | Whether Golay or Chirp was used. |
 | Max. Freq. | The highest frequency the calibration covers. |
+
+### Working with the list
+
+- **Tick** a calibration to plot it; tick a speaker to plot all of its calibrations.
+- **Right-click** a calibration for more:
+    - **Edit note…** attaches a free-text note (e.g. "re-seated coupler first"). A calibration with a note shows a sticky-note icon after its name; hover over the row to read the note. Clear the text to remove it.
+    - **Set as current** chooses which of the speaker's calibrations is used from now on, marked ★; without one, the most recent is used. **Clear current** goes back to the most recent.
+    - **Export as WAV…** and **Delete**.
+- **Double-click** a calibration to rename it, and **drag** it onto a folder to move it. Right-click a folder (or an empty part of the list) to create, rename or delete folders.
+- A calibration whose files can't be read is shown in red with a warning icon after its name. Hover over it, or right-click → **Show problem…**, to see what is wrong.
 
 ## Sanity-checking a calibration
 

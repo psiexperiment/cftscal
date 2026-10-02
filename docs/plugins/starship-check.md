@@ -20,19 +20,19 @@ Launch CFTSCal and select the Starship Check workspace.
 
 ## Settings
 
-Each row corresponds to one physical starship connection on your system.
+Each block of controls corresponds to one physical starship connection on your system, labeled with the connection's name (e.g. *Starship A*).
 
 | Field | What it means |
 | --- | --- |
-| **Starship** | Which calibrated starship is plugged into this connection. Click + to add a new one to the drop-down list. |
-| **dB gain** | The preamp gain, in dB, currently applied to the starship's microphone. |
-| **Coupler** | A free-form label identifying the coupler or test fixture the starship is checked in (e.g. `C1`) — some labs instead use this to track a subject/ear per session (e.g. subject ID plus left/right). Click + to add a new one. |
-| **Output** | Whether this check is of the coupler's primary or secondary output. |
-| **Target folder** | Organizes checks into folders, same as every other workspace. |
+| **Starship** (the drop-down beside the connection's name) | Which calibrated starship is plugged into this connection. Its current calibration from [Starship Calibration](starship.md) is used for the check, so the starship must have one. Starships are added in Starship Calibration, not here. |
+| **dB gain** | The gain, in dB, set on the amplifier for the starship's microphone (20 or 40). |
+| **Coupler** (second row) | A free-form label identifying the coupler or test fixture the starship is checked in (e.g. `C1`) — some labs instead use this to track a subject/ear per session (e.g. subject ID plus left/right). Click **+** to add a new one, or **−** to remove the selected label from the list. |
+| **primary / secondary** (end of the second row) | Which output of the coupler this check is for. It's saved with the check as a label only; it doesn't change what is played. |
+| **Target folder** (third row) | Which folder the check is saved in. Leave it on **(auto create from starship)** to have a folder named after the starship. To create a new folder, right-click in the *Calibrations* list. |
 
 ## Running a check
 
-Click **Calibrate** next to a connection once both a Starship and a Coupler have been selected.
+Click **Calibrate** under a connection once both a Starship and a Coupler have been selected.
 
 ## Reviewing the results
 
@@ -42,7 +42,7 @@ Click **Calibrate** next to a connection once both a Starship and a Coupler have
 
 Check **Show noise floor?** to overlay a dashed noise-floor trace on the sensitivity plot.
 
-**In-Ear Calibrations** (the list) groups checks by folder, same as every other workspace — by default that's one folder per starship, but a lab can reorganize checks into different folders (e.g. by study) via the right-click context menu, independent of which starship was actually checked. Columns:
+**Calibrations** (the list) groups checks by folder, same as every other workspace — by default that's one folder per starship, but a lab can reorganize checks into different folders (e.g. by study) via the right-click context menu, independent of which starship was actually checked. Columns:
 
 | Column | Meaning |
 | --- | --- |
@@ -52,6 +52,15 @@ Check **Show noise floor?** to overlay a dashed noise-floor trace on the sensiti
 | Starship Channel | Which physical connection the starship was plugged into (e.g. Connection A/B). |
 | Output | Whether the coupler's primary or secondary output was checked. |
 | Gain | The preamp gain, in dB, applied to the starship's microphone. |
+
+### Working with the list
+
+- **Tick** a check to plot it; tick a starship to plot all of its checks.
+- **Right-click** a check for more:
+    - **Edit note…** attaches a free-text note (e.g. "left ear, re-inserted twice"). A check with a note shows a sticky-note icon after its name; hover over the row to read the note. Clear the text to remove it.
+    - **Export as WAV…** and **Delete**.
+- **Double-click** a check to rename it, and **drag** it onto a folder to move it. Right-click a folder (or an empty part of the list) to create, rename or delete folders.
+- A check whose files can't be read is shown in red with a warning icon after its name. Hover over it, or right-click → **Show problem…**, to see what is wrong.
 
 ## Sanity-checking a check
 

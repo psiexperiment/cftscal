@@ -12,25 +12,31 @@ This is the first link in the calibration chain — every other calibration in c
 
 ## Opening the workspace
 
-Launch CFTSCal and select Measurement Microphone Calibration workspace.
+Launch CFTSCal and select the Measurement Microphone Calibration workspace.
+
+![The Measurement Microphone Calibration workspace: the Settings panel at top left, the list of calibrations below it, and the plot of the selected calibrations' recorded voltage on the right.](../images/measurement-microphone/workspace.png)
+
+*Two calibrations plotted, one for each ear's microphone. The narrow peak at 1 kHz is the pistonphone tone; its height is what the sensitivity is computed from.*
 
 ## Settings
 
 | Field | What it means |
 | --- | --- |
-| **Pistonphone** | A free-form label for identifying the pistonphone you used (e.g., product ID, serial number, asset tag, etc.). This is useful if you have more than one so you can trace a calibration back to the specific calibrator used.
-| **Pistonphone frequency / level** | Must match the pistonphone's actual rated output (e.g. `1000` Hz, `114` dB SPL). These values are used by cftscal to calculate the sensitivity of the microphone.
+| **Pistonphone** | A free-form label for identifying the pistonphone you used (e.g., product ID, serial number, asset tag, etc.). This is useful if you have more than one so you can trace a calibration back to the specific calibrator used. |
+| **Hz @ … dB SPL** *(the two numbers after Pistonphone)* | The pistonphone's rated frequency and level (e.g. `1000` Hz @ `114` dB SPL). Must match its actual rated output; cftscal uses them to calculate the sensitivity of the microphone. |
 | **Input Channel** | Which physical input the microphone is wired to. |
-| **Target folder** | Organizes calibrations into folders (e.g. by lab, by study). To create a new target folder, use the right-click context menu under the *Calibrations* dock item.
-| **Sensor ID** | A free-form label for identifying the microphone you used (e.g., product ID, serial number, asset tag, etc.). This is separate from the input channel since the same channel might have different microphones connected to it over time. Click + to add a new one to the drop-down list. Whenever adding a new Sensor ID, be sure to select the *Set Defaults* option under the *Workspace* menu so that this addition to the list persists across sessions.
-| **Gain** | The preamp gain, in dB, currently applied to this channel. |
+| **Target folder** | Which folder the new calibration is saved in (e.g. by lab, by study). Leave it at *(auto create from sensor id)* to have a folder named after the **Sensor ID**. To create a new folder, right-click the *Calibrations* list. Each input channel remembers its own target folder. |
+| **Sensor ID** | A free-form label for identifying the microphone you used (e.g., product ID, serial number, asset tag, etc.). This is separate from the input channel since the same channel might have different microphones connected to it over time. Click + to add a new one to the drop-down list, or - to remove the selected one from the list (no calibrations are deleted). Whenever adding a new Sensor ID, be sure to select the *Set Defaults* option under the *Workspace* menu so that this addition to the list persists across sessions. |
+| **dB gain** *(the drop-down after Sensor ID)* | The preamp gain, in dB, currently applied to this channel. |
 
 !!! warning "The pistonphone frequency, pistonphone level, and gain fields don't control your hardware!"
     You are responsible for verifying that these values match what is set on the hardware since cftsfcal does not have a way of setting these values or reading them. If incorrect values are entered, the calibration will not be accurate.
 
 ## Running the calibration
 
-To run the calibration, click the *Calibrate* button. The only setting that will be available for you to modify is the *Sample Duration* which adjusts the duration of the recording used to calculate the sensitivity of the microphone. To change the default value of this parameter, use the *Configuration -> Preferences -> Set Default* option in the menu.
+To run the calibration, click the *Calibrate* button. It stays disabled until a **Sensor ID** is selected.
+
+Once the calibration window opens, the only setting that will be available for you to modify is the *Sample Duration* which adjusts the duration of the recording used to calculate the sensitivity of the microphone. To change the default value of this parameter, use the *Configuration -> Preferences -> Set Default* option in the menu.
 
 Click *Start* to run the calibration.
 
@@ -65,11 +71,13 @@ Comparing these three is a useful diagnostic. They should agree closely. *Overal
 
 The PSD plot draws **two traces**, labeled in its legend: one computed with a Hann window (black) and one with a flattop window (red). They're two views of the same recording, and the difference between them is the windowing trade-off in action — the flattop trace gets the peak's *height* right but spreads it over a wider span of frequencies, while the Hann trace resolves frequency more sharply but can under-read the peak's amplitude if the tone falls between FFT bins. For judging the peak's level, read the flattop trace; for judging how clean and narrow the tone is, read the Hann trace. See [Choosing a window](../reference/signal-analysis.md#choosing-a-window) for details.
 
-**Microphone Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
+The *Microphone Voltage* plot shows the spectrum of every calibration ticked in the list.
+
+**Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which physical microphone was calibrated (same value as Sensor ID — this column groups/organizes the list). |
+| Name | The folder the calibration is filed under — by default, named after the Sensor ID. This column groups/organizes the list. |
 | Date | When the calibration was run. |
 | Input | Which input channel was used. |
 | Sensor ID | Which physical microphone was used. |
@@ -77,6 +85,17 @@ The PSD plot draws **two traces**, labeled in its legend: one computed with a Ha
 | Sens | Computed sensitivity, in mV/Pa. |
 | Sens (dB) | The same sensitivity, in dB re 1 mV/Pa. Typically more convenient for comparing units or spotting drift at a glance. |
 | Pistonphone | Which pistonphone was used for this calibration. |
+
+### Working with the list
+
+- **Tick** a calibration to plot it; tick a group to plot all of its calibrations.
+- **Right-click** a calibration for more:
+    - *Edit note…* attaches a free-text note (e.g. "pistonphone battery low"). The note is saved with the calibration, so it moves with the folder.
+    - *Export as WAV…* saves the recording as a WAV file.
+    - *Set as current* / *Clear current* picks which calibration of this microphone other workspaces use (marked ★). There is no automatic fallback to the newest one: until a calibration is set as current, workspaces that use this microphone as a reference refuse to start and say so.
+    - *Delete* removes the calibration from disk.
+- **Double-click** a calibration to rename its folder, or **drag** it onto another folder to move it.
+- Icons after a calibration's name: a **sticky note** means it has a note, and a **warning sign** means its files have a problem. Hover over the row to read the note or the problem.
 
 ## Sanity-checking a calibration
 

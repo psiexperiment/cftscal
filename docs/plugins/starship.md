@@ -17,20 +17,21 @@ Launch CFTSCal and select the Starship Calibration workspace.
 
 | Field | What it means |
 | --- | --- |
-| **Cal. Mic. → Input** | Which physical input the reference measurement microphone is wired to. |
-| **Cal. Mic. → Sensor** | Which calibrated measurement microphone to use as the reference, and the preamp gain (dB) currently applied to that channel. |
-| **Coupler** | Which physical coupler you're calibrating into. Recorded in the calibration's metadata; cftscal doesn't otherwise act on it. A free-form, user-managed list — starts empty, so click + to add your coupler labels (e.g. `tube-2mm`, `tube-0mm`, `3D-basic`) before first use. |
-| **Starship → Connection** | Which physical starship connection you're calibrating into, if your system has more than one (e.g. Connection A/B). |
-| **Starship → Starship** | Which starship is plugged into the selected connection. Click + to add a new one to the drop-down list. |
-| **dB gain** | The preamp gain, in dB, currently applied to the starship's own microphone. |
-| **Target folder** | Organizes calibrations into folders. To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
+| **Cal. Mic.** (first drop-down) | Which sound-card input the reference measurement microphone is plugged into. |
+| **Cal. Mic.** (second drop-down) | Which calibration of the measurement microphone to use as the reference (made in [Measurement Microphone Calibration](measurement-microphone.md)). |
+| **Cal. Mic.** → **dB gain** | The gain, in dB, set on the measurement microphone's amplifier. |
+| **Coupler** | Which physical coupler you're calibrating into. Recorded in the calibration's metadata; cftscal doesn't otherwise act on it. A free-form, user-managed list — starts empty, so click **+** to add your coupler labels (e.g. `tube-2mm`, `tube-0mm`, `3D-basic`) before first use. **−** removes the selected label from the list. |
+| **Starship** (first drop-down) | Which starship connection you're calibrating, if your system has more than one (e.g. Connection A/B). |
+| **Starship** (second drop-down) | Which starship is plugged into that connection. Click **+** to add a new one to the drop-down list, or **−** to remove the selected name from the list (no calibrations are deleted). |
+| **Starship** → **dB gain** | The gain, in dB, set on the amplifier for the starship's own microphone (20 or 40). |
+| **Target folder** | Which folder the new calibration is saved in. Leave it on **(auto create from starship)** to have a folder named after the selected starship — Golay and Chirp both name it this way. To create a new folder, right-click in the *Calibrations* list. |
 
 !!! note "Entries suffixed \"(EPL)\""
-    Some starship names in the drop-down end in `(EPL)` — these are calibrations imported from the legacy EPL CFTS program. They're read-only reference entries; you can't run a new calibration into one directly.
+    Some starship names in the drop-down end in `(EPL)` — these are calibrations imported from the legacy EPL CFTS program. They're read-only reference entries; you can't run a new calibration into one directly. With one selected, Golay and Chirp stay disabled.
 
 ## Running the calibration
 
-To run the calibration, click **Golay** or **Chirp** next to the starship you want to calibrate. Both buttons stay disabled until a reference microphone and a starship have both been selected.
+To run the calibration, click **Golay** or **Chirp** below the starship you want to calibrate. Both buttons stay disabled until a reference microphone calibration and a starship have both been selected.
 
 - **Golay** plays a pair of complementary Golay-code sequences, several times each, and cross-correlates the recorded response against them. More robust to background noise, at the cost of taking longer.
 - **Chirp** plays a single frequency sweep. Much faster, but somewhat more sensitive to noise.
@@ -54,11 +55,11 @@ $$ S_{s}(f) = \frac{V_{DAC}(f) \times S_{PT}(f)}{V_{PT}(f)} $$
 
 *Starship Sensitivity* plots the frequency response (in dB re 1 V<sub>rms</sub>) of every calibration currently selected in the list below. As with the speaker workspace, the plotted value is the dB SPL produced at a 1 V<sub>rms</sub> drive, so you can read the voltage needed for a target level straight off the curve — see [Reading cftscal's reported numbers](../reference/calibration-math.md#reading-cftscals-reported-numbers).
 
-**Starship Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
+**Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
 
 | Column | Meaning |
 | --- | --- |
-| Name | Which starship was calibrated (organizes the list; see Device below if you've filed calibrations into folders that don't match the device). |
+| Name | Which folder the calibration is filed under — by default, one folder per starship (see Device below if you've filed calibrations into folders that don't match the device). |
 | Device | The starship label recorded at calibration time, independent of which folder the calibration is filed under. Usually matches Name — compare the two if you've reorganized calibrations into folders. |
 | Microphone | Which reference measurement microphone was used. |
 | Mic. Channel | Which input channel the reference microphone was wired to. |
@@ -67,6 +68,16 @@ $$ S_{s}(f) = \frac{V_{DAC}(f) \times S_{PT}(f)}{V_{PT}(f)} $$
 | Mic. Gain | The preamp gain, in dB, applied to the reference microphone's channel. |
 | Coupler | Which coupler was selected at the time. |
 | Stimulus | Whether Golay or Chirp was used. |
+
+### Working with the list
+
+- **Tick** a calibration to plot it; tick a starship to plot all of its calibrations.
+- **Right-click** a calibration for more:
+    - **Edit note…** attaches a free-text note (e.g. "probe tube replaced"). A calibration with a note shows a sticky-note icon after its name; hover over the row to read the note. Clear the text to remove it.
+    - **Set as current** chooses which of the starship's calibrations is used from now on, marked ★; without one, the most recent is used. **Clear current** goes back to the most recent.
+    - **Export as WAV…** and **Delete**.
+- **Double-click** a calibration to rename it, and **drag** it onto a folder to move it. Right-click a folder (or an empty part of the list) to create, rename or delete folders.
+- A calibration whose files can't be read is shown in red with a warning icon after its name. Hover over it, or right-click → **Show problem…**, to see what is wrong.
 
 ## Sanity-checking a calibration
 

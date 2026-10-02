@@ -40,7 +40,18 @@ is the one place it is interpreted.
 | `CFTSCAL_PLUGIN` | `{}` | Per-plugin GUI state, one `[CFTSCAL_PLUGIN.<name>]` table each. Written by the GUI; there is no reason to edit it by hand. |
 
 Everything except `CFTSCAL_PLUGIN` is editable through **Workspace →
-Settings**, which writes the configuration file when you save.
+Settings**, which writes the configuration file when you save:
+
+| In Workspace → Settings | Setting |
+| --- | --- |
+| **Data folder** | `CFTSCAL_ROOT` |
+| **Hardware**: *This computer's IO manifest* | `CFTSCAL_IO` = `default` |
+| **Hardware**: *Sound card*, with **Audio device** and **Sample rate (Hz)** | `CFTSCAL_IO` = `sound-card`, plus `CFTSCAL_DEVICE_NAME`, `CFTSCAL_DEVICE_HOSTAPI` and `CFTSCAL_SAMPLE_RATE` |
+| **Hardware**: *Other IO manifest*, with **IO manifest file** and **Manifest class** | `CFTSCAL_IO` = the file, as `path::Class` |
+| **Always load these plugins** | `CFTSCAL_ENABLED_PLUGINS` |
+
+[Workspace Settings](../getting-started.md#workspace-settings) describes
+each of these in more detail.
 
 ### When the environment wins
 
@@ -48,8 +59,8 @@ Because the environment outranks the configuration file, a `CFTSCAL_*`
 variable set in your environment cannot be changed from the GUI: the save
 would succeed and change nothing the application then reads. Rather than
 accept a write that does nothing, the settings view disables the affected
-control and names the variable responsible. Clear the variable to edit the
-setting normally.
+control, and hovering over it names the variable responsible. Clear the
+variable to edit the setting normally.
 
 To see which layer supplied a value:
 

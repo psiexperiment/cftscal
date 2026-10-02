@@ -16,25 +16,24 @@ Launch CFTSCal and select the Input Amplifier Calibration workspace.
 
 | Field | What it means |
 | --- | --- |
-| **Input** | Which physical input the amplifier's output is wired to. |
-| **Sensor** | A label identifying the physical amplifier being calibrated, picked from previously-used amplifiers or added via +. |
-| **Gain** | The amplifier's total gain, as currently set on the physical hardware — a single combined value (e.g. accounting for both a coarse multiplier switch and a finer gain dial, if your amplifier has both). This describes your hardware's current setting — cftscal doesn't set it, only records it. |
-| **Filter → Hz to … kHz** | The amplifier's configured high-pass and low-pass corner frequencies. |
-| **Filter → 60 Hz notch** | Whether the amplifier's 60 Hz notch filter (if it has one) is on or off. |
-| **Target folder** | Organizes calibrations into folders. To create a new target folder, use the right-click context menu under the *Calibrations* dock item. |
+| **Input** | Two dropdowns on one row. The first picks which physical input the amplifier's output is wired to. The second names the physical amplifier being calibrated — pick a previously-used one, or click **+** to add a new name (**-** removes the selected name from the list; no calibrations are deleted). |
+| **Gain** | The amplifier's total gain, as currently set on the physical hardware — a single combined value (the gain dial times the x10/x1000 multiplier switch, if your amplifier has both). This describes your hardware's current setting — cftscal doesn't set it, only records it. |
+| **Filter** … **Hz to** … **kHz** | The amplifier's configured high-pass (low cutoff, in Hz) and low-pass (high cutoff, in kHz) corner frequencies. |
+| **60 Hz notch** | Whether the amplifier's 60 Hz notch filter (if it has one) is on or off. |
+| **Target folder** | The folder the new calibration is saved in. Pick an existing folder, or leave it at *(auto create from amplifier)* to have a folder made for you, named after the amplifier picked in the **Input** row. To create, rename or delete folders, right-click in the *Calibrations* list. |
 
 !!! warning "These fields don't control your hardware!"
     Gain, corner frequencies, and the 60 Hz filter setting are all read from what you enter here, not from the amplifier itself. Make sure they match the physical switches/dials on the amplifier — the frequency and filter settings aren't verified by the calibration, only recorded alongside it.
 
 ## Running the calibration
 
-Click **Calibrate**. Before it launches, you'll be asked for the calibrator's amplitude (e.g. `100 µV`) — this must match your calibrator's actual rated output. The run feeds that known signal through the amplifier and measures its output amplitude to compute the amplifier's actual gain.
+Click **Calibrate**. It stays greyed out until an amplifier is picked in the **Input** row. A new window opens — set **Calibrator amplitude** there (e.g. `100 µV`) to match your calibrator's actual rated output, then click **Start**. The run feeds that known signal through the amplifier and measures its output amplitude to compute the amplifier's actual gain.
 
 ## Reviewing the results
 
 The plot shows the measured calibration signal waveform.
 
-**Calibrations** (the list) shows every calibration ever run for this workspace, with the following columns:
+**Calibrations** (the list) shows every calibration ever run for this workspace. Tick a calibration to plot it. Right-click it to add a note, export it, or delete it; double-click to rename it, or drag it onto a folder to move it. A sticky-note icon after a name means the calibration has a note — hover over the row to read it. A warning icon after a name means it couldn't be read properly; hover for why. The columns are:
 
 | Column | Meaning |
 | --- | --- |
