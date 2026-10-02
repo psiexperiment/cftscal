@@ -36,6 +36,12 @@ enamldef WorkspaceSettingsView(Window): win:
 
     initial_size = (400, 400)
     title = 'Workspace Settings'
+    #: The main window can't be used until this is closed: saving reloads
+    #: the plugins and workspaces, which must not happen underneath a
+    #: calibration started from the main window in the meantime.
+    #: Application- rather than window-modal because this window has no
+    #: parent (see icon below).
+    modality = 'application_modal'
     #: Standalone Window (not parented to the main workbench window), so
     #: it doesn't inherit branding from the `enaml.workbench.ui.branding`
     #: extension point (manifest.enaml's Branding) the way the main

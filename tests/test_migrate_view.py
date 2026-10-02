@@ -172,6 +172,22 @@ class TestWorkspaceSettingsButton:
         assert 'Import old settings...' not in self._labels(qt_app)
 
 
+def test_workspace_settings_blocks_main_window(qt_app):
+    # Saving reloads the plugins and workspaces, so the main window must
+    # stay out of reach until the dialog is closed.
+    from qtpy.QtCore import Qt
+    with enaml.imports():
+        from cftscal.plugins.workspace_view import WorkspaceSettingsView
+    from cftscal.plugins.workspace import WorkspaceSettings
+
+    view = WorkspaceSettingsView(settings=WorkspaceSettings())
+    view.show()
+    try:
+        assert view.proxy.widget.windowModality() == Qt.ApplicationModal
+    finally:
+        view.destroy()
+
+
 def _close_modal_soon():
     '''
     Close whichever modal dialog is up once its event loop is running, so a
