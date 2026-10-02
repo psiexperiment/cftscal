@@ -1,0 +1,72 @@
+'''
+The Help tab on the left edge of every calibration workspace: that
+workspace's page of the user guide (see guide_view.py), sliding out over
+the workspace when the tab is clicked. Added to each workspace by
+`add_help_tab`, called from manifest.workspace_factory, so the views
+themselves don't need to know about it.
+'''
+from enaml.layout.api import AreaLayout, DockBarLayout, DockLayout
+from enaml.widgets.api import Container, DockArea, DockItem
+
+from .guide_view import GuideBrowser
+
+
+#: Width of the Help panel when it slides out, in pixels.
+HELP_WIDTH = 520
+
+
+enamldef HelpDockItem(DockItem):
+    #: The workspace's page of the guide (see guide_view.guide_url).
+    attr page = ''
+
+    name = 'help'
+    title = 'Help'
+    closable = False
+
+    Container:
+        padding = 0
+        GuideBrowser:
+            page << parent.parent.page
+            constraints = [width >= HELP_WIDTH]
+
+
+def add_help_tab(view, page):
+    '''
+    Add a Help tab, open at ``page``, to the left edge of a workspace's
+    view.
+
+    The tab is a dock bar: the panel stays hidden until the tab is
+    clicked, then slides out over the workspace, so it takes no room from
+    the workspace's own panels. Each view has a single DockArea, whose
+    initial layout gains the tab. Call before the view is shown.
+
+    Parameters
+    ----------
+    view : Container
+        The plugin's view (the workspace content).
+    page : str
+        The plugin's page of the guide (its manifest's help_page).
+
+    Returns
+    -------
+    item : HelpDockItem or None
+        The panel, or None if the view has no DockArea to put it in.
+    '''
+    area = next((w for w in view.traverse() if isinstance(w, DockArea)), None)
+    if area is None:
+        return None
+    item = HelpDockItem(area, page=page)
+    # DockArea keeps its layout as a DockLayout: the main AreaLayout the
+    # view gave it, plus any floating ones. Rebuild the main one with the
+    # Help tab added to its dock bars.
+    items = []
+    for layout in area.layout.items:
+        if isinstance(layout, AreaLayout) and not layout.floating:
+            layout = AreaLayout(
+                layout.item,
+                dock_bars=list(layout.dock_bars) + [
+                    DockBarLayout('help', position='left')],
+            )
+        items.append(layout)
+    area.layout = DockLayout(*items)
+    return item

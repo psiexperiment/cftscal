@@ -11,6 +11,7 @@ enamldef MeasurementMicrophoneManifest(CalibrationPluginManifest): manifest:
     title = 'Measurement Microphone Calibration'
     description = "Find a measurement microphone's sensitivity with a pistonphone."
     icon = 'microphone'
+    help_page = 'plugins/measurement-microphone'
 
     view_class = MicrophoneView
     settings_class = MicrophoneCalibrationSettings

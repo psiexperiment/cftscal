@@ -13,6 +13,7 @@ enamldef IRSensorManifest(CalibrationPluginManifest):
     title = 'IR Sensor Calibration'
     description = 'Record an IR emitter and detector pair to check its response.'
     icon = 'motion-sensor'
+    help_page = 'plugins/ir-sensor'
 
     view_class = IRSensorView
     settings_class = IRSensorSettings

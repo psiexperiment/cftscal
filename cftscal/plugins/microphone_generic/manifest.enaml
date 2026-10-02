@@ -11,6 +11,7 @@ enamldef GenericMicrophoneManifest(CalibrationPluginManifest): manifest:
     title = 'Generic Microphone Calibration'
     description = "Measure a microphone's frequency response against a measurement microphone."
     icon = 'microphone-settings'
+    help_page = 'plugins/generic-microphone'
 
     view_class = MicrophoneComparisonView
     settings_class = MicrophoneComparisonSettings

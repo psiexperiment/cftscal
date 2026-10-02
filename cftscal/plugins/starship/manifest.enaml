@@ -13,6 +13,7 @@ enamldef StarshipManifest(CalibrationPluginManifest): manifest:
     title = 'Starship Calibration'
     description = "Calibrate a starship's output in a coupler with a probe-tube microphone."
     icon = 'rocket-launch-outline'
+    help_page = 'plugins/starship'
     shortcut = 'Ctrl+s'
 
     view_class = StarshipView

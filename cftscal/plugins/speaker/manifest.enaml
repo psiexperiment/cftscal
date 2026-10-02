@@ -12,6 +12,7 @@ enamldef SpeakerManifest(CalibrationPluginManifest):
     title = 'Speaker Calibration'
     description = "Measure a speaker's output across frequency with a measurement microphone."
     icon = 'speaker'
+    help_page = 'plugins/speaker'
     shortcut = 'Ctrl+p'
 
     view_class = SpeakerView

@@ -10,6 +10,7 @@ enamldef InEarManifest(CalibrationPluginManifest): manifest:
     title = 'Starship Check'
     description = 'Check a calibrated starship in the ear before testing.'
     icon = 'clipboard-check-outline'
+    help_page = 'plugins/starship-check'
 
     view_class = InEarView
     settings_class = InEarCalibrationSettings

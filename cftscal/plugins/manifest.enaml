@@ -12,6 +12,7 @@ from enaml.workbench.ui.api import (Branding, ActionItem, MenuItem, ItemGroup,
 from .calibration_window import CalibrationWindow
 
 from .branding import load_app_icon
+from .help_tab import add_help_tab
 from .home_view import HomeView
 from .workspace import WorkspaceSettings
 from .workspace_view import WorkspaceSettingsView
@@ -251,9 +252,13 @@ def workspace_factory(window, manifest):
         kwargs = {k: v() for k, v in manifest.settings_config.items()}
         settings = manifest.settings_class(**kwargs)
         settings.load_config()
-        space.content = manifest.view_class(settings=settings)
+        content = manifest.view_class(settings=settings)
     except ValueError:
-        space.content = manifest.view_class()
+        content = manifest.view_class()
+    # Every workspace gets a Help panel on its left, open at its own page
+    # of the user guide -- added here rather than in each view.
+    add_help_tab(content, manifest.help_page)
+    space.content = content
     return space
 
 
@@ -265,6 +270,9 @@ class _CalibrationPluginManifest(PluginManifest):
     #: Its Home tile's icon: a file name in cftscal/icons/workspaces,
     #: without .svg -- the icon the user guide's Plugins page shows for it.
     icon = d_(Str())
+    #: Its page of the user guide, shown in its Help panel: the page's path
+    #: in docs/ without .md (see guide_view.guide_url).
+    help_page = d_(Str())
     shortcut = d_(Str())
     view_class = d_(Value())
     settings_class = d_(Value())
