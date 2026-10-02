@@ -14,7 +14,8 @@ so the screenshots don't depend on (or change) this computer's settings.
 
 Rerun it whenever a workspace's layout changes. The device names, folders
 and notes in the data appear in the images, which are published on the
-website.
+website. The Home and Help shots show the bundled user guide, so run
+tools/build_guide.py first (otherwise they show the website).
 '''
 import argparse
 import os
@@ -22,6 +23,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
 
 #: Window size the screenshots are taken at, in pixels.
 SIZE = (1200, 760)
@@ -119,6 +121,32 @@ def expand(tree, scroll_to=()):
         widget.scrollToItem(widget._item_map[id(node)])
 
 
+def wait(app, seconds):
+    '''Keep Qt running for a while, e.g. while a guide page loads.'''
+    end = time.time() + seconds
+    while time.time() < end:
+        app.processEvents()
+        time.sleep(0.05)
+
+
+def with_help_tab(view, page):
+    '''Add the Help tab every workspace gets in the app (see help_tab).'''
+    import enaml
+    with enaml.imports():
+        from cftscal.plugins.help_tab import add_help_tab
+    add_help_tab(view, page)
+    return view
+
+
+def open_help_tab(window, app):
+    '''Slide the Help tab open, as clicking it does, and let it load.'''
+    from qtpy.QtWidgets import QAbstractButton
+    tab, = [b for b in window.proxy.widget.findChildren(QAbstractButton)
+            if b.text() == 'Help' and b.isVisible()]
+    tab.click()
+    wait(app, 5)
+
+
 def save(window, app, path):
     settle(app)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,13 +169,17 @@ def measurement_microphone(app, out):
     sensor.available_devices = ['HATS-Left', 'HATS-Right']
     sensor.name = 'HATS-Left'
 
-    view = MicrophoneView(settings=settings)
+    view = with_help_tab(MicrophoneView(settings=settings),
+                         'plugins/measurement-microphone')
     window = show(view, 'Measurement Microphone Calibration')
     tree = only(view, 'CalibratedObjects')
     tick(tree, 'HATS-Left')
     tick(tree, 'HATS-Right')
     expand(tree)
     save(window, app, out / 'measurement-microphone' / 'workspace.png')
+    # The same workspace with its Help tab open.
+    open_help_tab(window, app)
+    save(window, app, out / 'help-tab.png')
     window.close()
 
 
@@ -165,7 +197,8 @@ def input_recording(app, out):
         channel.sensor.name = mic
     settings.generator.name = 'BK-4123'
 
-    view = InputRecordingView(settings=settings)
+    view = with_help_tab(InputRecordingView(settings=settings),
+                         'plugins/input-recording')
     window = show(view, 'Input Recording')
     tree = only(view, 'CalibratedObjects')
     # The newest recording through each ear's microphone (top of the list).
@@ -179,16 +212,42 @@ def input_recording(app, out):
     window.close()
 
 
+def home(app, out):
+    '''Home, with a tile for every calibration workspace.'''
+    import importlib
+    import enaml
+    from enaml.workbench.api import Workbench
+    with enaml.imports():
+        from enaml.workbench.core.core_manifest import CoreManifest
+        from enaml.workbench.ui.ui_manifest import UIManifest
+        from cftscal.plugins.home_view import HomeView
+        from cftscal.plugins.manifest import CalibrationManifest, TO_REGISTER
+        workbench = Workbench()
+        workbench.register(CoreManifest())
+        workbench.register(UIManifest())
+        workbench.register(CalibrationManifest())
+        for rank, (module_name, class_name) in enumerate(TO_REGISTER):
+            cls = getattr(importlib.import_module(module_name), class_name)
+            workbench.register(cls(rank=rank))
+    window = show(HomeView(workbench=workbench), 'Home')
+    wait(app, 15)  # the User Guide panel loading (the first web view starts the engine)
+    save(window, app, out / 'home.png')
+    window.close()
+
+
 def main():
     args = parse_args()
     if not args.data.is_dir():
         sys.exit(f'{args.data} is not a folder')
     tmp = isolate(args.data)
     try:
+        from cftscal.plugins.guide_view import prepare_web_engine
+        prepare_web_engine()  # before the Qt application, as in cfts-cal
         from enaml.qt.qt_application import QtApplication
         app = QtApplication()
         from qtpy.QtWidgets import QApplication
         qapp = QApplication.instance()
+        home(qapp, args.out)
         measurement_microphone(qapp, args.out)
         input_recording(qapp, args.out)
     finally:

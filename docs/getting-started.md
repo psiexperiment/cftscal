@@ -15,7 +15,24 @@ In a console:
 cfts-cal
 ```
 
-By default, a workspace tab only shows up if cftscal detects the matching hardware channel. If a workspace you expect doesn't show up, see [Workspace Settings](#workspace-settings) below — both for how hardware detection is configured, and for how to load a workspace anyway without its hardware present.
+cftscal opens on **Home**: a tile for each calibration workspace available on this computer, and this user guide beside them.
+
+![Home: a tile for each calibration workspace on the left, and the user guide on the right.](images/home.png)
+
+Click a tile to open that workspace; *Workspace > Home* brings you back. To skip Home and go straight to a workspace, name it when you launch cftscal, e.g. `cfts-cal microphone-measurement`.
+
+By default, a workspace only shows up — on Home and in the *Workspace* menu — if cftscal detects the matching hardware channel. If a workspace you expect doesn't show up, see [Workspace Settings](#workspace-settings) below — both for how hardware detection is configured, and for how to load a workspace anyway without its hardware present.
+
+## Help inside cftscal
+
+This guide is built into cftscal, so it's there even on a computer with no network connection:
+
+- On **Home**, the *User Guide* panel shows it, starting at this guide's home page.
+- In **every workspace**, the narrow *Help* tab on the left edge slides out that workspace's own page of the guide. Click it to open it; click back in the workspace to put it away.
+
+![The Measurement Microphone workspace with its Help tab open on the left, showing the Measurement Microphone page of this guide.](images/help-tab.png)
+
+Links between pages work as they do here, the search box at the top of each page searches the whole guide, and right-clicking a page gives *Back*, *Forward* and *Reload*.
 
 ## Workspace Settings
 
@@ -30,6 +47,7 @@ Before calibrating anything, cftscal needs to know:
 
 Every calibration workspace in cftscal (microphone, speaker, starship, input recording, ...) follows the same basic layout:
 
+- A **Help** tab on the left edge, which slides out this guide's page for the workspace (see [Help inside cftscal](#help-inside-cftscal)).
 - A **Settings** panel (usually top-left) — pick an input/output channel, a target folder, a sensor/device label, and any other parameters, then click a button to run the calibration or recording.
 - A **plot** area showing the result of the currently selected calibration from the list below.
 - A **list/tree** of everything previously recorded for this workspace, organized into folders (by default, one per device — see [Calibration Concepts](concepts.md) for why you might reorganize this). Tick an entry to plot it. **Right-click an entry** for actions like adding a note, exporting or deleting it; double-click to rename it, or drag it onto a folder to move it. A sticky-note icon after a name means it has a note (hover to read it); a warning icon means it couldn't be read properly (hover for why).

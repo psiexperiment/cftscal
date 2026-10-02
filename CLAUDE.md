@@ -12,16 +12,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install in development mode (from repo root)
 pip install -e .
 
-# Launch the app (shows all available calibration workspaces based on detected hardware)
+# Launch the app (opens on Home: a tile per workspace available on this hardware)
 cfts-cal
 
-# Launch targeting a specific workspace tab directly
-cfts-cal microphone
+# Launch straight into a workspace, by its plugin id
+cfts-cal microphone-measurement
 cfts-cal speaker
 cfts-cal starship
 
-# Run the test suite (tests/test_objects.py, test_settings.py, test_migrate_metadata.py)
+# Run the test suite
 python -m pytest
+
+# Build the user guide bundled into the package (cftscal/guide; needs
+# mkdocs-material and a network connection; rerun when docs/ changes)
+python tools/build_guide.py
+
+# Regenerate the screenshots in docs/images from real calibration data
+python tools/make_screenshots.py C:/path/to/cftscal-data
 ```
 
 To load a plugin without its hardware present (e.g. for development, or reviewing calibrations on a machine without the relevant hardware), check it under Workspace > Settings > "Always load these plugins" and Save — this persists to `WorkspaceSettings.enabled_plugins` and takes effect immediately via `reload_plugins()`, no restart needed. There is no `--load-all` CLI flag; it was replaced by this per-plugin setting.
@@ -85,6 +92,14 @@ Functions like `list_outputs()`, `list_inputs()`, `list_starship_connections()` 
 
 `cftscal.io.dummy_fireface.IOManifest` declares, on a single ASIO Fireface USB, every channel cftscal, cfts, abts and noise-exp look for (starships A/B, speakers, calibration and generic microphones, EEG amplifier, and the channels paradigms hard-code by name: `loopback_1`, `output_monitor`, `temperature`, `ir_emitter`, `np_contact`, `resp_contact_{1,2}`). Its engine, `DummyFirefaceEngine`, also accepts abts's software digital outputs (`pellet_{1,2}`, `cue_light`, `room_light`) and logs them. That engine is a plain Python class on purpose: an Enaml `func` called from `fire_sw_do`'s timer thread segfaulted the interpreter. The module docstring has the channel map and how to select it; `tests/test_dummy_io.py` pins the channels (and streams on the real device when one is attached).
 
+### Home, the Help tab and the bundled user guide
+
+- **Home** (`plugins/home_view.enaml`, registered as the `calibration.home` workspace by `CalibrationManifest`): opened at startup unless `cfts-cal` is given a workspace, from Workspace > Home, and by `reload_plugins()` when the open workspace's plugin is removed. A tile per registered calibration workspace (its manifest's `title`, `description` and `icon`), rebuilt when the workspaces extension point changes. Its `refresh` reaches everything through `self`, because enaml clears a view's names once it is destroyed and the observer can still fire after that; it unsubscribes itself then. Beside the tiles, a User Guide panel.
+- **Help tab** (`plugins/help_tab.enaml`): `workspace_factory` calls `add_help_tab(view, manifest.help_page)`, which adds a dock item to the view's single DockArea and puts it in the main AreaLayout's dock bars (left edge), so it slides out over the workspace and the views themselves don't know about it. A fixed column was tried first; the panels' minimum widths squeezed it to ~100 px.
+- **The guide itself** (`plugins/guide_view.py`): `GuideBrowser` is a plain QWebEngineView -- no toolbar or rendering of its own (an earlier custom QTextBrowser-based help viewer was removed as too complicated). `guide_url(page)` points at the copy bundled in the package (`cftscal/guide/<page>.html`), else the website (`GUIDE_URL`). Without QtWebEngine it shows a link instead. `main()` calls `prepare_web_engine()` before the Qt application exists, which some Qt versions require.
+- **Bundled copy**: `tools/build_guide.py` builds `cftscal/guide` with `mkdocs-offline.yml` (inherits `mkdocs.yml`; Material's `offline` plugin for .html links and file:// search, `privacy` plugin to download Roboto/MathJax/Mermaid). Its `site_url` is blank: with the real one, the privacy plugin points Mermaid at the website and diagrams don't render offline. `cftscal/guide` is git-ignored; the release workflow builds it before `python -m build`, `MANIFEST.in` grafts it into the sdist (setuptools_scm would otherwise drop the untracked files), and `build_guide.py --check dist` fails the release if either package lacks it. A PyInstaller build must run `build_guide.py` itself.
+- **Plugin icons** are the Material Design Icons the guide's Plugins page uses, copied with their license into `cftscal/icons/workspaces/` and drawn in navy at 96 px by `branding.load_workspace_icon()`. The taskbar icon is set application-wide (`main.set_application_icon`) before the window shows; the window's own icon alone reached the taskbar only once a workspace loaded.
+
 ### Workspace Settings (`cftscal/plugins/workspace.py`)
 
 Manages global settings (data path, hardware configuration, audio device, sample rate). The `WorkspaceSettings` Atom class is shared across all plugins.
@@ -103,8 +118,9 @@ Enaml-based experiment definitions consumed by `psi` (the psiexperiment runner).
 
 1. Create `cftscal/plugins/<name>/` with `__init__.py`, `manifest.enaml`, `settings.py`, `view.enaml`.
 2. In `settings.py`, subclass `CalibrationSettings`; tag persisted members with `.tag(persist=True)` and set `settings_filename`.
-3. In `manifest.enaml`, use `CalibrationPluginManifest` template, providing `title`, `workspace_id`, `view_class`, `settings_class`, and an `available` computed property that checks hardware via `util.py` functions.
-4. Register the new manifest in `main.py`'s `to_register` list.
+3. In `manifest.enaml`, use `CalibrationPluginManifest` template, providing `title`, `description` (one line, for its Home tile), `icon` (an SVG in `cftscal/icons/workspaces`, without `.svg`), `help_page` (its page in `docs/`, without `.md`), `view_class`, `settings_class`, and an `available` computed property that checks hardware via `util.py` functions.
+4. Register the new manifest in `TO_REGISTER` (`plugins/manifest.enaml`).
+5. Write its page of the user guide in `docs/plugins/` and add it to `nav` in `mkdocs.yml`. The view needs a single DockArea for the Help tab to be added to.
 
 ## Key Conventions
 
@@ -128,6 +144,7 @@ These are lessons from real bugs/design discussions, not just architecture descr
 - **Never update a drop-down-backed context item straight from an init handler** — `plugins_started` handlers run on psi's *control dispatcher* thread (`ControllerPlugin.invoke_actions` in psiexperiment), not the GUI thread. Writing `expression`, `editable`, or a plain `Parameter`'s value from there is fine (enaml calls `QLineEdit.setText`/`setEnabled` directly — verified, no Qt warnings), but changing an `EnumParameter`'s **choices** makes enaml call `ObjectCombo.request_items_refresh()`, which does `QTimer.start()` — and Qt refuses to start a timer on a thread with no event loop (`QObject::startTimer: current thread's event dispatcher has already been destroyed`). psi's Qt message handler escalates any Qt warning into a real exception, so this aborts the experiment the moment the handler runs. `calibration_status.gui_call` marshals such updates with `enaml.application.deferred_call` (calling directly when there is no app, i.e. in tests, or when already on the GUI thread); the deferred call is serviced promptly because the GUI thread pumps its event loop while waiting for dispatched `plugins_started` work. The full stack is in the psi log under `[QT MESSAGE]` — always read that rather than the `RuntimeError: Qt error: ...` the dialog shows, which is only where the escalation happened.
 - **A damaged calibration folder must never stop a workspace from opening** (`cftscal/objects.py`, `cftscal/plugins/object_collection.py`, `cftscal/plugins/fast_tree_view.enaml`): one unreadable `metadata.json` used to crash `sorted()` in `ObjectGroup.update_subitems`, taking the whole tree (and workspace) down. Now `Calibration.problem` describes what is wrong (unreadable/non-object JSON, a missing `REQUIRED_METADATA` field, an invalid datetime) or is None; ordering uses `sort_datetime`, which falls back to the `YYYYMMDD-HHMMSS` folder-name prefix instead of raising; `CalibrationManager.get_property` skips calibrations that raise. `ObjectNode.problem` carries it to the tree, which marks the row (warning icon, red text, tooltip, "Show problem…" in the context menu) and its group. `ObjectCollection.notify` also catches plot-manager errors and records them as the node's problem. When adding a calibration property that reads `self.metadata[...]` without a default, add that key to the class's `REQUIRED_METADATA`, and never call `.datetime` on a tree path without handling failure. `tests/test_corrupt_calibrations.py` covers this.
 - **No backslash escapes inside f-strings in `.enaml` files** — Enaml's compiler keeps them literally, so `f'Note:\n{note}'` renders as `Note:\n…` with a visible backslash-n rather than a line break (plain string literals like `'\n'` are fine). Use concatenation (`'Line one:\n' + text`) instead. Likewise, a lambda in an Enaml binding loses its default arguments, so capture values with a module-level factory function (see `_group_path_to_string` in `widgets.enaml`), and a `func` block in an enamldef can't contain a generator expression (a SyntaxError on import) -- put such logic in a plain module-level function (see `export_regions` in `input_recording/view.enaml`).
+- **Building packages locally**: `python -m build` run from the repo root finds the repo's own `build/` folder instead of the `build` tool (it isn't installed in the `psi` env either) -- run it from elsewhere, e.g. a throwaway venv. And setuptools reuses stale copies in that `build/` folder, so a local package can contain files that are no longer in the tree (it kept including `cftscal/guide` after it was removed); delete `build/` first. CI builds from a fresh checkout and isn't affected.
 - **ASIO/soundcard engine bugs are almost always in psiexperiment, not cftscal** — see `psiexperiment`'s own `CLAUDE.md` for the ASIO+WASAPI+dispatcher-threading gotchas (a real, hard-won multi-session debugging story). If a calibration hangs specifically on "hit Start" with an ASIO device, read that first before re-deriving it.
 
 ## Project conventions
