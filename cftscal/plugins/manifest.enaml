@@ -12,9 +12,16 @@ from enaml.workbench.ui.api import (Branding, ActionItem, MenuItem, ItemGroup,
 from .calibration_window import CalibrationWindow
 
 from .branding import load_app_icon
+from .home_view import HomeView
 from .workspace import WorkspaceSettings
 from .workspace_view import WorkspaceSettingsView
 from enaml.widgets.api import Window
+
+
+#: The Home workspace (see home_view.enaml): shown at startup unless
+#: cfts-cal is given a workspace, and whenever the open workspace's plugin
+#: is removed.
+HOME_WORKSPACE = 'calibration.home'
 
 
 # Single source of truth for all calibration plugins.  Used both at startup
@@ -84,11 +91,17 @@ def reload_plugins(workbench):
                 log.exception('Error reloading %s.%s', module_name, class_name)
 
     # Reload the active workspace so workspace_factory runs again with the
-    # updated IO manifest and any new channel assignments.
+    # updated IO manifest and any new channel assignments. If it was closed
+    # because its plugin went away, show Home instead of an empty window.
+    # (Home itself needs nothing here: its tiles follow the plugins.)
     if active_plugin_id is not None:
         core.invoke_command(
             'enaml.workbench.ui.select_workspace',
             {'workspace': f'{active_plugin_id}.workspace'},
+        )
+    elif ui.workspace is None or ui.workspace.content is None:
+        core.invoke_command(
+            'enaml.workbench.ui.select_workspace', {'workspace': HOME_WORKSPACE},
         )
 
 
@@ -135,9 +148,25 @@ def list_plugin_info():
 
 def set_defaults(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    if ui.workspace is None or ui.workspace.content is None:
-        return
-    ui.workspace.content.settings.save_config()
+    settings = workspace_settings(ui.workspace)
+    if settings is not None:
+        settings.save_config()
+
+
+def workspace_settings(workspace):
+    '''
+    The settings of a calibration workspace, or None for one without any
+    (Home, a view-only workspace, or none open).
+    '''
+    content = getattr(workspace, 'content', None)
+    return getattr(content, 'settings', None)
+
+
+def home_factory(workbench):
+    space = Workspace()
+    space.window_title = 'Home'
+    space.content = HomeView(workbench=workbench)
+    return space
 
 
 def show_workspace_settings(event):
@@ -176,13 +205,27 @@ enamldef CalibrationManifest(PluginManifest): manifest:
         factory = lambda workbench: CalibrationWindow()
 
     Extension:
+        id = 'home'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = home_factory
+
+    Extension:
         id = 'calibration_actions'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/workspace'
             label = 'Workspace'
             ItemGroup:
+                id = 'home'
+            ItemGroup:
                 id = 'spaces'
+
+        ActionItem:
+            path = '/workspace/home'
+            label = 'Home'
+            group = 'home'
+            command = 'enaml.workbench.ui.select_workspace'
+            parameters = {'workspace': HOME_WORKSPACE}
 
         ActionItem:
             path = '/workspace/settings'
@@ -194,6 +237,10 @@ enamldef CalibrationManifest(PluginManifest): manifest:
             label = 'Set Defaults'
             shortcut = 'Ctrl+d'
             command = 'psical.set_defaults'
+            # Always enabled: the UI plugin's `workspace` doesn't notify
+            # when it changes, so a binding on it is evaluated only once.
+            # set_defaults does nothing where there are no settings (Home,
+            # a view-only workspace).
             enabled << manifest.workbench.get_plugin('enaml.workbench.ui').workspace is not None
 
 
@@ -213,6 +260,11 @@ def workspace_factory(window, manifest):
 class _CalibrationPluginManifest(PluginManifest):
 
     title = d_(Str())
+    #: One line saying what the workspace is for, shown on its Home tile.
+    description = d_(Str())
+    #: Its Home tile's icon: a file name in cftscal/icons/workspaces,
+    #: without .svg -- the icon the user guide's Plugins page shows for it.
+    icon = d_(Str())
     shortcut = d_(Str())
     view_class = d_(Value())
     settings_class = d_(Value())

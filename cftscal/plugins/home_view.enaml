@@ -1,0 +1,154 @@
+'''
+The Home workspace: a tile for each calibration workspace available on
+this computer, which opens that workspace when clicked. Shown at startup
+(unless cfts-cal was given a workspace) and from Workspace > Home.
+'''
+import textwrap
+
+from enaml.core.api import Looper
+from enaml.layout.api import AreaLayout, vbox
+from enaml.styling import StyleSheet, Style, Setter
+from enaml.widgets.api import (
+    Container, DockArea, DockItem, FlowArea, FlowItem, Label, PushButton,
+)
+
+from .branding import load_workspace_icon
+
+#: Extension point the calibration workspaces are contributed to.
+WORKSPACES_POINT = 'enaml.workbench.ui.workspaces'
+
+#: Width a tile's description is wrapped to, in characters.
+TILE_WRAP = 36
+
+#: Lines of description every tile has room for. Shorter descriptions are
+#: padded to this, so every tile is the same height and none sits out of
+#: line with its neighbors.
+TILE_LINES = 3
+
+
+def tile_text(title, description):
+    '''
+    A tile's label: the title, then the description wrapped to TILE_WRAP
+    characters and padded (or cut) to TILE_LINES lines.
+    '''
+    lines = textwrap.wrap(description, TILE_WRAP)[:TILE_LINES]
+    lines += [''] * (TILE_LINES - len(lines))
+    return '\n'.join([title] + lines)
+
+
+def list_tiles(workbench, home_plugin_id):
+    '''
+    One tile per calibration workspace currently registered, in
+    Workspace-menu order.
+
+    Parameters
+    ----------
+    workbench : Workbench
+    home_plugin_id : str
+        Id of the plugin contributing Home itself, which gets no tile.
+
+    Returns
+    -------
+    tiles : list of dict
+        'workspace' (the id select_workspace takes), 'title', 'text'
+        (what the tile shows; see tile_text) and 'icon' (an Enaml Icon,
+        or None if the workspace names none).
+    '''
+    point = workbench.get_extension_point(WORKSPACES_POINT)
+    tiles = []
+    for extension in point.extensions:
+        if extension.plugin_id == home_plugin_id:
+            continue
+        manifest = workbench.get_manifest(extension.plugin_id)
+        title = getattr(manifest, 'title', '') or extension.plugin_id
+        tiles.append({
+            'workspace': extension.qualified_id,
+            'title': title,
+            'text': tile_text(title, getattr(manifest, 'description', '')),
+            'icon': load_workspace_icon(getattr(manifest, 'icon', '') or '_'),
+            'rank': getattr(manifest, 'rank', 0),
+        })
+    tiles.sort(key=lambda tile: tile['rank'])
+    return tiles
+
+
+enamldef HomeStyleSheet(StyleSheet):
+    Style:
+        element = 'PushButton'
+        style_class = 'tile'
+        Setter:
+            field = 'text-align'
+            value = 'left'
+        Setter:
+            field = 'padding'
+            value = '12px'
+        Setter:
+            field = 'font-size'
+            value = '11pt'
+
+
+enamldef HomeView(Container):
+    attr workbench
+    attr home_plugin_id = 'calibration'
+    attr tiles = []
+
+    func refresh(change=None):
+        # Through self, not names from this enamldef: those are cleared
+        # once Home is closed, and this can still be called after that.
+        point = self.workbench.get_extension_point(WORKSPACES_POINT)
+        if point is None:
+            # The workbench is shutting down and the point is gone.
+            return
+        if self.is_destroyed:
+            # Home was closed (another workspace was opened) since this
+            # was subscribed: stop listening rather than keep it alive.
+            point.unobserve('extensions', self.refresh)
+            return
+        self.tiles = list_tiles(self.workbench, self.home_plugin_id)
+
+    initialized ::
+        self.refresh()
+        # New tiles appear (and old ones go) when Workspace Settings
+        # changes which plugins are loaded.
+        workbench.get_extension_point(WORKSPACES_POINT).observe(
+            'extensions', self.refresh)
+
+    HomeStyleSheet:
+        pass
+
+    # A single-panel dock area, so Home looks like every other workspace.
+    DockArea:
+        layout = AreaLayout('home')
+        DockItem:
+            name = 'home'
+            title = 'CFTS Calibration'
+            closable = False
+
+            Container:
+                constraints = [vbox(prompt, flow)]
+
+                Label: prompt:
+                    text << ('Choose what to calibrate or record:' if tiles else
+                             'No calibration workspaces are available on this computer. '
+                             'Use Workspace > Settings to choose the hardware, or to '
+                             'load workspaces anyway for browsing existing calibrations.')
+
+                FlowArea: flow:
+                    horizontal_spacing = 12
+                    vertical_spacing = 12
+                    Looper:
+                        iterable << tiles
+                        FlowItem:
+                            preferred_size = (360, 104)
+                            Container:
+                                padding = 0
+                                PushButton:
+                                    style_class = 'tile'
+                                    text = loop_item['text']
+                                    icon = loop_item['icon']
+                                    icon_size = (48, 48)
+                                    clicked ::
+                                        core = workbench.get_plugin('enaml.workbench.core')
+                                        core.invoke_command(
+                                            'enaml.workbench.ui.select_workspace',
+                                            {'workspace': loop_item['workspace']})

@@ -66,3 +66,52 @@ def load_app_qicon():
         pixmap.loadFromData(frame, 'PNG')
         icon.addPixmap(pixmap)
     return icon
+
+
+#: Color the workspace icons are drawn in: the navy of the cftscal logo.
+WORKSPACE_ICON_COLOR = '#1a1a6e'
+
+
+def load_workspace_icon(name, size=96):
+    '''
+    One of the workspace icons in cftscal/icons/workspaces, as an Enaml
+    `Icon` -- the icons the user guide's Plugins page shows for each
+    workspace (Material Design Icons; see the LICENSE file there).
+
+    Parameters
+    ----------
+    name : str
+        The icon's file name without ``.svg``, e.g. ``'microphone'``.
+    size : int
+        Pixels to draw it at. Drawn from the SVG at this size rather than
+        scaled up from the SVG's nominal 24 px, so it stays sharp.
+
+    Returns
+    -------
+    icon : enaml.icon.Icon or None
+        None if there's no such icon.
+    '''
+    from enaml.icon import Icon, IconImage
+    from enaml.image import Image
+    from qtpy.QtCore import QBuffer, QByteArray, QIODevice, Qt
+    from qtpy.QtGui import QImage, QPainter
+    from qtpy.QtSvg import QSvgRenderer
+
+    path = importlib.resources.files('cftscal').joinpath(
+        'icons', 'workspaces', f'{name}.svg')
+    if not path.is_file():
+        return None
+    svg = path.read_text(encoding='utf-8')
+    # The icons are single-color paths with no fill of their own, so a
+    # fill on the root element colors the whole icon.
+    svg = svg.replace('<svg ', f'<svg fill="{WORKSPACE_ICON_COLOR}" ', 1)
+    renderer = QSvgRenderer(QByteArray(svg.encode('utf-8')))
+    image = QImage(size, size, QImage.Format.Format_ARGB32)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    renderer.render(painter)
+    painter.end()
+    png = QBuffer()
+    png.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(png, 'PNG')
+    return Icon(images=[IconImage(image=Image(data=bytes(png.data()), format='png'))])

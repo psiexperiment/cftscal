@@ -47,6 +47,9 @@ cftscal = [
     "resources/preferences/*/*.preferences",
     "icons/*.ico",
     "icons/*.png",
+    # Workspace icons for the Home tiles, from Material Design Icons.
+    "icons/workspaces/*.svg",
+    "icons/workspaces/LICENSE",
 ]
 
 [tool.pytest.ini_options]

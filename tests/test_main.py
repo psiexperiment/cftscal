@@ -43,7 +43,8 @@ def test_application_icon_set_before_window_shows(monkeypatch):
     from types import SimpleNamespace
     calls = []
     ui = SimpleNamespace(show_window=lambda: calls.append('show'),
-                         start_application=lambda: None)
+                         start_application=lambda: None,
+                         invoke_command=lambda *args: None)
     monkeypatch.setattr(main_module, 'set_application_icon',
                         lambda: calls.append('icon'))
     monkeypatch.setattr(main_module, 'deferred_call', lambda *a, **k: None)

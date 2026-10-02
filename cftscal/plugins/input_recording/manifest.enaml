@@ -9,6 +9,8 @@ enamldef InputRecordingManifest(CalibrationPluginManifest):
 
     id = 'input-recording'
     title = 'Input Recording'
+    description = 'Record from one or more inputs, then measure and compare levels.'
+    icon = 'waveform'
     shortcut = 'Ctrl+i'
 
     view_class = InputRecordingView

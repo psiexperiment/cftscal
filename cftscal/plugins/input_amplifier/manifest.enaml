@@ -9,6 +9,8 @@ enamldef InputAmplifierManifest(CalibrationPluginManifest): manifest:
 
     id = 'input-amplifier'
     title = 'Input Amplifier Calibration'
+    description = "Measure an input amplifier's actual gain with a calibrator."
+    icon = 'amplifier'
     shortcut = 'Ctrl+a'
 
     view_class = InputAmplifierView

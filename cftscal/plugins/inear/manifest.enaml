@@ -8,6 +8,8 @@ enamldef InEarManifest(CalibrationPluginManifest): manifest:
 
     id = 'inear'
     title = 'Starship Check'
+    description = 'Check a calibrated starship in the ear before testing.'
+    icon = 'clipboard-check-outline'
 
     view_class = InEarView
     settings_class = InEarCalibrationSettings

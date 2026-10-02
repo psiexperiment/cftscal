@@ -62,7 +62,7 @@ class CalibrationWorkbench(UIWorkbench):
         with enaml.imports():
             from enaml.workbench.core.core_manifest import CoreManifest
             from enaml.workbench.ui.ui_manifest import UIManifest
-            from .plugins.manifest import check_legacy_settings
+            from .plugins.manifest import HOME_WORKSPACE, check_legacy_settings
 
         self.register(CoreManifest())
         self.register(UIManifest())
@@ -75,11 +75,11 @@ class CalibrationWorkbench(UIWorkbench):
         # something, and before the workspace below is selected, so that
         # workspace starts from the imported settings if there are any.
         deferred_call(check_legacy_settings, self)
-        if obj is not None:
-            deferred_call(core.invoke_command,
-                        'enaml.workbench.ui.select_workspace',
-                        {'workspace': f'{obj}.workspace'}
-                        )
+        # The workspace named on the command line, or Home.
+        workspace = f'{obj}.workspace' if obj is not None else HOME_WORKSPACE
+        deferred_call(core.invoke_command,
+                      'enaml.workbench.ui.select_workspace',
+                      {'workspace': workspace})
 
         ui.start_application()
         self.unregister(UI_PLUGIN)
