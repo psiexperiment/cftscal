@@ -35,6 +35,21 @@ CORE_PLUGIN = 'enaml.workbench.core'
 log = logging.getLogger(__name__)
 
 
+def set_application_icon():
+    '''
+    Give the whole application the cftscal icon, before any window shows.
+
+    The main window's own icon (Branding in plugins/manifest.enaml) wasn't
+    enough on its own: Windows drew the taskbar button before that icon
+    reached it, and only picked it up when a workspace was loaded. The
+    application icon is what Qt uses from the start, and for any window
+    that doesn't set its own.
+    '''
+    from qtpy.QtWidgets import QApplication
+    from .plugins.branding import load_app_qicon
+    QApplication.instance().setWindowIcon(load_app_qicon())
+
+
 class CalibrationWorkbench(UIWorkbench):
 
     def run(self, obj=None):
@@ -54,6 +69,7 @@ class CalibrationWorkbench(UIWorkbench):
         ui = self.get_plugin(UI_PLUGIN)
         core = self.get_plugin(CORE_PLUGIN)
 
+        set_application_icon()
         ui.show_window()
         # Once the event loop is running, since it may ask the user
         # something, and before the workspace below is selected, so that
