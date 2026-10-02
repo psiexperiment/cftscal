@@ -1,0 +1,4 @@
+# The bundled user guide (built by tools/build_guide.py) is not tracked by
+# git, so setuptools_scm leaves it out of the sdist unless it's grafted in
+# here -- and the wheel then goes without it too when built from the sdist.
+graft cftscal/guide

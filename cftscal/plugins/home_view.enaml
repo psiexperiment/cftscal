@@ -6,13 +6,14 @@ this computer, which opens that workspace when clicked. Shown at startup
 import textwrap
 
 from enaml.core.api import Looper
-from enaml.layout.api import AreaLayout, vbox
+from enaml.layout.api import AreaLayout, HSplitLayout, vbox
 from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import (
     Container, DockArea, DockItem, FlowArea, FlowItem, Label, PushButton,
 )
 
 from .branding import load_workspace_icon
+from .guide_view import GuideBrowser
 
 #: Extension point the calibration workspaces are contributed to.
 WORKSPACES_POINT = 'enaml.workbench.ui.workspaces'
@@ -116,9 +117,10 @@ enamldef HomeView(Container):
     HomeStyleSheet:
         pass
 
-    # A single-panel dock area, so Home looks like every other workspace.
+    # A dock area, so Home looks like every other workspace: the tiles on
+    # the left, the user guide on the right.
     DockArea:
-        layout = AreaLayout('home')
+        layout = AreaLayout(HSplitLayout('home', 'guide', sizes=[420, 780]))
         DockItem:
             name = 'home'
             title = 'CFTS Calibration'
@@ -152,3 +154,13 @@ enamldef HomeView(Container):
                                         core.invoke_command(
                                             'enaml.workbench.ui.select_workspace',
                                             {'workspace': loop_item['workspace']})
+
+        DockItem:
+            name = 'guide'
+            title = 'User Guide'
+            closable = False
+
+            Container:
+                padding = 0
+                GuideBrowser:
+                    pass

@@ -50,6 +50,9 @@ cftscal = [
     # Workspace icons for the Home tiles, from Material Design Icons.
     "icons/workspaces/*.svg",
     "icons/workspaces/LICENSE",
+    # The user guide for viewing without a network (Home's User Guide
+    # panel), built by tools/build_guide.py.
+    "guide/**/*",
 ]
 
 [tool.pytest.ini_options]

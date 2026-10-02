@@ -1,0 +1,15 @@
+# The user guide as bundled with cftscal, for viewing without a network
+# (Home's User Guide panel). Same content as the website (mkdocs.yml),
+# built so it works from disk: the offline plugin makes links point at
+# .html files and search work from file://, and the privacy plugin
+# downloads the fonts and scripts the site would otherwise fetch from the
+# internet. Build with tools/build_guide.py.
+INHERIT: mkdocs.yml
+# Blank, so the privacy plugin points the scripts it loads at runtime
+# (Mermaid, for diagrams) at the bundled copies rather than at the
+# website's address.
+site_url: ''
+plugins:
+  - search
+  - offline
+  - privacy

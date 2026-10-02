@@ -79,6 +79,9 @@ sandbox/
 
 # mkdocs build output
 site/
+# The user guide bundled into the package, built by tools/build_guide.py
+# (the release workflow builds it before packaging)
+cftscal/guide/
 
 # Claude Code: settings.json is shared/project config (tracked);
 # settings.local.json is per-user machine-specific overrides (not tracked)

@@ -99,6 +99,11 @@ def main():
 
     seed_all_default_state()
 
+    # Qt's web engine (Home's User Guide panel) must be loaded before
+    # the Qt application is created in `workbench.run`.
+    from .plugins.guide_view import prepare_web_engine
+    prepare_web_engine()
+
     with enaml.imports():
         from .plugins.manifest import CalibrationManifest, TO_REGISTER
     workbench = CalibrationWorkbench()
