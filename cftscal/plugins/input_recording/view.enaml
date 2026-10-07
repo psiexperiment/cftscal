@@ -5,14 +5,14 @@ import numpy as np
 import pyqtgraph as pg
 from scipy import signal
 
-from atom.api import Dict, Enum, Float, Int
+from atom.api import Bool, Dict, Enum, Float, Int
 from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, hbox, spacer, vbox, AreaLayout, HSplitLayout, VSplitLayout
 from enaml.stdlib.fields import FloatField, IntField
 from enaml.stdlib.message_box import information, question, warning
 from enaml.widgets.api import (
-    Container, DockArea, DockItem, Field, FileDialogEx, HGroup, Label, ObjectCombo,
-    PushButton,
+    CheckBox, Container, DockArea, DockItem, Field, FileDialogEx, HGroup, Label,
+    ObjectCombo, PushButton,
 )
 
 from psi.core.enaml.api import ListDictTable
@@ -21,6 +21,7 @@ from psiaudio import util
 from psiaudio.calibration import FlatCalibration
 
 from cftscal.objects import input_recording_manager
+from cftscal.plugins.input_recording.filters import a_weight, sos_filter
 from cftscal.plugins.input_recording.region import (
     PLAYBACK_FULL_SCALE_PA, Player, clipping_peak, export_region, peak_db,
 )
@@ -30,59 +31,7 @@ from cftscal.plugins.widgets import (
 )
 
 
-def a_weighting_sos(fs):
-    '''
-    Digital A-weighting filter, as second-order sections.
-
-    Implements the standard IEC 61672-1 A-weighting curve (the same
-    frequency weighting used by calibrated sound level meters) via the
-    analog pole/zero definition, converted to a digital filter with the
-    bilinear transform. Accuracy degrades somewhat above ~10 kHz at
-    lower sample rates (a known characteristic of the bilinear
-    transform near Nyquist); this is negligible at the low end, which
-    is what matters for filtering out sub-20 Hz rumble.
-
-    Parameters
-    ----------
-    fs : float
-        Sampling rate, in Hz.
-
-    Returns
-    -------
-    sos : np.ndarray
-        Second-order sections, for a single forward pass (see
-        filter_once) -- not `scipy.signal.sosfiltfilt`, which would apply
-        the weighting twice.
-    '''
-    f1, f2, f3, f4 = 20.598997, 107.65265, 737.86223, 12194.217
-    zeros = np.array([0, 0, 0, 0])
-    poles = -2 * np.pi * np.array([f1, f1, f4, f4, f2, f3])
-    # Normalize so the analog response is 0 dB (gain 1) at 1 kHz, per the
-    # standard.
-    b, a = signal.zpk2tf(zeros, poles, 1)
-    _, h = signal.freqs(b, a, [2 * np.pi * 1000])
-    k = 1 / abs(h[0])
-    z_d, p_d, k_d = signal.bilinear_zpk(zeros, poles, k, fs)
-    return signal.zpk2sos(z_d, p_d, k_d)
-
-
-def filter_once(sos, y):
-    '''
-    Filter ``y`` in one forward pass, the way an analog filter would.
-
-    For filters whose response is defined as a magnitude curve -- the
-    A-weighting curve, the 12AQ's high-pass -- unlike the zero-phase
-    ``sosfiltfilt`` the other filters use, which runs the filter forwards
-    and then backwards and so applies its magnitude response twice (A-
-    weighting at 50 Hz would be -60.4 dB instead of -30.2 dB). Starts from
-    the steady state for the first sample, so a DC offset doesn't show up
-    as a step at t=0.
-    '''
-    zi = signal.sosfilt_zi(sos) * y[0]
-    return signal.sosfilt(sos, y, zi=zi)[0]
-
-
-def region_levels(y, y_unfiltered, fs):
+def region_levels(y, y_a):
     '''
     The Analysis table's measurements for one channel's selected region.
 
@@ -90,11 +39,10 @@ def region_levels(y, y_unfiltered, fs):
     ----------
     y : np.ndarray
         The region in pascals, after the Filter setting.
-    y_unfiltered : np.ndarray
-        The same region in pascals, before any filtering -- what dBA is
-        measured from, so it doesn't depend on the Filter setting.
-    fs : float
-        Sampling rate, in Hz.
+    y_a : np.ndarray
+        The same region in pascals, A-weighted from the unfiltered region
+        (so dBA doesn't depend on the Filter setting) -- the same way the
+        'dBA' Filter would, so the dBA row matches that trace.
 
     Returns
     -------
@@ -106,7 +54,6 @@ def region_levels(y, y_unfiltered, fs):
         ``min_pa``: most positive and most negative sample, in Pa.
     '''
     half_ptp = np.ptp(y) * 0.5
-    y_a = filter_once(a_weighting_sos(fs), y_unfiltered)
     return {
         'peak': util.patodb(half_ptp),
         'pe': util.patodb(half_ptp / np.sqrt(2)),
@@ -221,8 +168,9 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     filter_fc = Float(1000)
 
     #: Bandwidth for 'Band-pass' mode, in octaves (one of BANDWIDTHS).
-    #: 1000 Hz and 4 octaves (250 Hz to 4 kHz) is the band-pass in the
-    #: lab's older MATLAB tool, measure_sound.
+    #: 1000 Hz and 4 octaves (250 Hz to 4 kHz) has the band edges of the
+    #: band-pass in the lab's older MATLAB tool, measure_sound -- not its
+    #: shape (order 1, run with filtfilt).
     filter_bw = Float(1/3)
 
     #: Filter order ("steepness") for 'Band-pass' mode -- higher orders
@@ -241,6 +189,27 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     #: GRAS 12AQ's HP filter: 3-pole Butterworth, -3 dB at 20 Hz (18 dB
     #: per octave below it).
     highpass_order = Int(3)
+
+    #: If False (the default), filter causally, as an analog filter (the
+    #: 12AQ's high-pass, a sound level meter's A-weighting) would, phase
+    #: shift and all. If True, apply the same magnitude response with no
+    #: phase shift: levels are unchanged, but the waveform isn't delayed
+    #: or reshaped (which can change peak values), at the cost of energy
+    #: appearing before an onset. Applies to every Filter and to the dBA row.
+    zero_phase = Bool(False)
+
+    #: If True, A-weight with the exact IEC 61672-1 curve applied in the
+    #: frequency domain; if False (the default), with the bilinear-transform
+    #: IIR filter, which is cheaper but falls short of the curve towards
+    #: Nyquist (6.4 dB low at 16 kHz when sampling at 48 kHz). Applies to
+    #: the dBA Filter and the dBA row.
+    exact_a_weighting = Bool(False)
+
+    def _observe_zero_phase(self, event):
+        self._update_all()
+
+    def _observe_exact_a_weighting(self, event):
+        self._update_all()
 
     def _observe_filter_mode(self, event):
         self._update_all()
@@ -277,26 +246,27 @@ class InputRecordingPlotManager(TimePSDPlotManager):
         y = calibration.get_level(y)
         time_plot[0].setData(x, y)
 
+    def _a_weight(self, y, fs):
+        '''A-weight ``y`` as the dBA Filter and the dBA row do.'''
+        return a_weight(y, fs, zero_phase=self.zero_phase,
+                        exact=self.exact_a_weighting)
+
     def _y_transform(self, y, fs):
+        # Whether causal or zero-phase, every filter applies its designed
+        # magnitude response once -- never sosfiltfilt, which applies it
+        # twice (see cftscal.plugins.input_recording.filters).
         if self.filter_mode == 'Unfiltered':
             return y
         if self.filter_mode == 'dBA':
-            # One pass (see filter_once): forwards and backwards would
-            # square the A-weighting curve.
-            return filter_once(a_weighting_sos(fs), y)
+            return self._a_weight(y, fs)
         elif self.filter_mode == 'High-pass':
-            # One pass, unlike the band-pass: forwards and backwards it
-            # would be -6 dB at the cutoff with twice the slope, not the
-            # 12AQ's -3 dB. Like the 12AQ's analog filter, it therefore
-            # shifts phase.
             sos = signal.butter(self.highpass_order, self.highpass_fc,
                                 btype='highpass', fs=fs, output='sos')
-            return filter_once(sos, y)
         else:
             fl, fh = util.octave_band_freqs(self.filter_fc, self.filter_bw)
             sos = signal.iirfilter(self.filter_order, (fl, fh), btype='bandpass',
                                    fs=fs, output='sos')
-        return signal.sosfiltfilt(sos, y)
+        return sos_filter(sos, y, fs, self.zero_phase)
 
     def _channels(self, item):
         # Authoritative list of what was actually recorded -- correct for
@@ -401,8 +371,11 @@ class InputRecordingPlotManager(TimePSDPlotManager):
                     db = util.patodb(pa)
                     d['psd_plot'][0].setData(np.log10(db.index.values), db.values)
                     row['duration'] = x[m].max() - x[m].min()
-                    row.update(region_levels(
-                        cal.get_level(y), cal.get_level(y_region), fs))
+                    if self.filter_mode == 'dBA':
+                        y_a = y
+                    else:
+                        y_a = self._a_weight(y_region, fs)
+                    row.update(region_levels(cal.get_level(y), cal.get_level(y_a)))
                 else:
                     d['psd_plot'][0].setData([], [])
                     row['duration'] = 0
@@ -471,7 +444,11 @@ class InputRecordingPlotManager(TimePSDPlotManager):
     def filter_settings(self):
         '''The current Filter, as saved in an exported region's metadata.'''
         settings = {'mode': self.filter_mode}
-        if self.filter_mode == 'High-pass':
+        if self.filter_mode != 'Unfiltered':
+            settings['zero_phase'] = self.zero_phase
+        if self.filter_mode == 'dBA':
+            settings['a_weighting'] = 'exact' if self.exact_a_weighting else 'bilinear'
+        elif self.filter_mode == 'High-pass':
             settings.update(cutoff_hz=self.highpass_fc, order=self.highpass_order)
         elif self.filter_mode == 'Band-pass':
             settings.update(center_hz=self.filter_fc, width_octaves=self.filter_bw,
@@ -870,6 +847,25 @@ enamldef InputRecordingView(Container):
                                 text = 'octaves, order'
                             IntField:
                                 value := input_recording_plot.manager.filter_order
+
+                        CheckBox:
+                            text = 'Zero-phase'
+                            checked := input_recording_plot.manager.zero_phase
+                            tool_tip = (
+                                'Apply the filter with no phase shift: same levels, '
+                                'but the waveform is not delayed or reshaped.\n'
+                                'Off: filter as an analog filter would (phase shift '
+                                'and all). Also applies to the dBA row.'
+                            )
+                        CheckBox:
+                            text = 'Exact A-weighting'
+                            checked := input_recording_plot.manager.exact_a_weighting
+                            tool_tip = (
+                                'A-weight with the exact IEC 61672-1 curve, applied '
+                                'in the frequency domain.\nOff: a digital (bilinear) '
+                                'approximation that falls short near Nyquist at '
+                                '44.1/48 kHz. Applies to the dBA filter and row.'
+                            )
 
                 PGCanvas: input_recording_plot:
                     attr manager = InputRecordingPlotManager(apply_calibration=True)

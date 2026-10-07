@@ -212,15 +212,25 @@ def test_channel_region(manager):
 
 
 @pytest.mark.parametrize('mode, expected', [
-    ('High-pass', {'mode': 'High-pass', 'cutoff_hz': 20, 'order': 3}),
+    ('High-pass', {'mode': 'High-pass', 'zero_phase': False, 'cutoff_hz': 20,
+                   'order': 3}),
     ('Unfiltered', {'mode': 'Unfiltered'}),
-    ('Band-pass', {'mode': 'Band-pass', 'center_hz': 1000,
+    ('dBA', {'mode': 'dBA', 'zero_phase': False, 'a_weighting': 'bilinear'}),
+    ('Band-pass', {'mode': 'Band-pass', 'zero_phase': False, 'center_hz': 1000,
                    'width_octaves': pytest.approx(1 / 3), 'order': 4}),
 ])
 def test_filter_settings(manager, mode, expected):
     manager, item = manager
     manager.filter_mode = mode
     assert manager.filter_settings() == expected
+
+
+def test_filter_settings_record_zero_phase_and_exact_a_weighting(manager):
+    manager, item = manager
+    manager.filter_mode = 'dBA'
+    manager.zero_phase = True
+    manager.exact_a_weighting = True
+    assert manager.filter_settings() ==         {'mode': 'dBA', 'zero_phase': True, 'a_weighting': 'exact'}
 
 
 def test_export_regions_with_metadata(manager, tmp_path):
@@ -233,7 +243,8 @@ def test_export_regions_with_metadata(manager, tmp_path):
     assert path.name == '20260616-101544_2.000-3.000s.wav'
     meta = read_calibration_wav_metadata(path)
     assert meta['region'] == [2, 3]
-    assert meta['filter'] == {'mode': 'High-pass', 'cutoff_hz': 20, 'order': 3}
+    assert meta['filter'] == {'mode': 'High-pass', 'zero_phase': False,
+                              'cutoff_hz': 20, 'order': 3}
     assert meta['channels'] == ['ai0', 'ai1']
     assert meta['sensors']['ai1']['label'] == 'Right Input'
     assert meta['units'] == 'Pa'

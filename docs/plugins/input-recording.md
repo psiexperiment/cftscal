@@ -60,7 +60,7 @@ Each recording gets its own color, matching its highlight in the *Recordings* li
 | --- | --- |
 | **Dur (s)** | Length of the selected region. |
 | **dB SPL** | RMS level, after the *Filter*. |
-| **dBA** | A-weighted RMS level. Always measured from the unfiltered recording, whatever the *Filter* is set to, so it's there without switching the filter to dBA. |
+| **dBA** | A-weighted RMS level. Always measured from the unfiltered recording, whatever the *Filter* is set to, so it's there without switching the filter to dBA. It's A-weighted exactly as the dBA *Filter* would be, following the *Zero-phase* and *Exact A-weighting* checkboxes. |
 | **peSPL** | Peak-equivalent SPL: the RMS level of a sine wave with the same peak-to-peak amplitude. For a pure tone it equals dB SPL; for clicks and other brief sounds it's the usual way to state their level. |
 | **Peak SPL** | Half the peak-to-peak amplitude, in dB SPL — 3 dB above peSPL. (This was called "pe SPL" before peSPL was added.) |
 | **Max (Pa)**, **Min (Pa)** | The most positive and most negative pressure. A lopsided pair shows the waveform isn't symmetric, which the peak-to-peak rows can't. |
@@ -82,10 +82,18 @@ The *Filter* dropdown controls the filtering that gets applied to the signal bef
 
 | Mode | What it does |
 | --- | --- | 
-| **High-pass** *(default)* | Removes everything below a *Cutoff* frequency (20 Hz unless you change it). With the default *order* of 3 it matches the HP filter on a GRAS 12AQ power module: a 3-pole Butterworth, 3 dB down at the cutoff and falling 18 dB per octave below it. Use it to keep building rumble and handling noise out of the level. A higher order cuts off more steeply. Like the 12AQ's own filter, it shifts the phase of low frequencies slightly. |
+| **High-pass** *(default)* | Removes everything below a *Cutoff* frequency (20 Hz unless you change it). With the default *order* of 3 it matches the HP filter on a GRAS 12AQ power module: a 3-pole Butterworth, 3 dB down at the cutoff and falling 18 dB per octave below it. Use it to keep building rumble and handling noise out of the level. A higher order cuts off more steeply. Like the 12AQ's own filter, it shifts the phase of low frequencies slightly, unless *Zero-phase* is ticked. |
 | **Unfiltered** | No filtering at all — deliberately not labeled "dBZ", since that would imply a standardized flat response over a defined range, and this is simply whatever bandwidth the raw recording happens to have. |
-| **dBA** | Standard A-weighting (IEC 61672-1). |
-| **Band-pass** | Keeps only a band of frequencies: centered on *Center freq.*, *width* octaves wide (1/3 octave unless you change it), with an adjustable *order* (higher orders roll off more sharply outside the band). It's run forwards and backwards, so it shifts no phase and the band edges are 6 dB down. A center of 1000 Hz and a width of 4 octaves (250 Hz to 4 kHz) is the band-pass filter in the lab's older MATLAB tool, measure_sound. | 
+| **dBA** | Standard A-weighting (IEC 61672-1). See *Exact A-weighting* below. |
+| **Band-pass** | Keeps only a band of frequencies: centered on *Center freq.*, *width* octaves wide (1/3 octave unless you change it), with an adjustable *order* (higher orders roll off more sharply outside the band). The band edges are 3 dB down. A center of 1000 Hz and a width of 4 octaves (250 Hz to 4 kHz) has the same band edges as the filter in the lab's older MATLAB tool, measure_sound, but not the same shape. | 
+
+Two checkboxes at the end of the *Filter* row change how the filter is applied. Neither changes the filter's shape (its cutoffs, slopes or band edges), so neither changes the dB SPL or dBA of a steady sound:
+
+- **Zero-phase** *(off by default)*. Off, each filter acts the way an analog filter would, like the 12AQ's high-pass or a sound level meter's A-weighting: frequencies near the cutoff come out slightly delayed, which reshapes clicks and other brief sounds, so their peSPL, Peak SPL and Max/Min can differ from the unfiltered recording. Ticked, the same filter is applied without any delay, so the filtered waveform lines up exactly with the original. The catch is that a zero-phase filter responds a little *before* a sudden sound starts, which can look like an artifact just ahead of a click. Leave it off to match what analog equipment would read. Tick it to compare waveform shapes or timing.
+- **Exact A-weighting** *(off by default)*. Off, A-weighting uses a standard digital approximation of the curve. It's exact at low and middle frequencies but falls short of the standard near the top of the recording's frequency range: at a 48 kHz sampling rate it's 1.2 dB low at 10 kHz and 6.4 dB low at 16 kHz (at 96 kHz, only 0.3 and 1.1 dB). Ticked, the exact curve is applied to the recording's spectrum, which is correct at every frequency but takes longer (a second or two for a long recording), and with *Zero-phase* off it responds very slightly before a sudden sound starts. Tick it when sounds above about 8 kHz matter and you're sampling at 48 kHz or below.
+
+!!! note "Why zero-phase isn't simply "run the filter forwards and backwards""
+    The usual way to get a zero-phase filter is to run it once forwards and once backwards (`filtfilt`). That applies the filter *twice*: a cutoff designed to be 3 dB down comes out 6 dB down, the slope doubles, and A-weighting would be doubled too (−60 dB at 50 Hz instead of −30 dB). cftscal applies the filter's frequency response once, in the frequency domain, instead, so ticking *Zero-phase* changes the timing and nothing else.
 
 ### Listening to and exporting a region
 
