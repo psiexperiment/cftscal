@@ -65,6 +65,7 @@ nav:
       - plugins/index.md
       - Measurement Microphone Calibration: plugins/measurement-microphone.md
       - Input Recording: plugins/input-recording.md
+      - Coming from measure_sound: plugins/measure-sound.md
       - Speaker Calibration: plugins/speaker.md
       - Starship Calibration: plugins/starship.md
       - Starship Check: plugins/starship-check.md

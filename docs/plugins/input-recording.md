@@ -2,6 +2,9 @@
 
 Input Recording isn't tied to a specific calibration procedure. It's a general-purpose tool for capturing and reviewing whatever's coming into one or more input channels simultaneously.
 
+!!! tip "Used measure_sound before?"
+    If you used the lab's older MATLAB program, measure_sound, read [Coming from measure_sound](measure-sound.md). Some levels, dBA especially, come out differently, and that page explains why.
+
 ## Recording
 
 Run CFTSCal and select the **Input Recording** workspace.
