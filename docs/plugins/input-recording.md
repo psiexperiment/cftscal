@@ -113,6 +113,22 @@ The *Play region* and *Export region…* buttons, at the right end of the *Filte
 
 Both buttons are greyed out until the region overlaps a ticked recording.
 
+### Reviewing PULSE `.mat` files
+
+Input Recording can also show recordings made with B&K PULSE and saved as MATLAB `.mat` files: the files the lab's older MATLAB program, measure_sound, opened, including the ones its *Save* button wrote. There's no *Open* button. Instead, copy the files into Input Recording's folder, `input-recording` inside the calibration folder (`Documents/cftscal/input-recording` unless you've changed it in Workspace > Settings), and they appear in the *Recordings* list beside the recordings made in cftscal:
+
+- A file inside a folder is listed under that folder's name, so you can file `.mat` recordings in the same folder as cftscal recordings of the same thing (for example `input-recording/BK-4123/`).
+- A file placed directly in the `input-recording` folder is listed under its own name.
+
+They're plotted, measured, played and exported just like cftscal recordings. Things to know:
+
+- **Levels.** The samples are taken to be in pascals, exactly as stored in the file. measure_sound multiplied channel 1 by 1.165 and channel 2 by 1.187; Input Recording doesn't. See [Coming from measure_sound](measure-sound.md#calibration).
+- **Columns.** *Channel* reads *Channel 1*, *Channel 2*, and so on, and *Sensor* reads *.mat file (Pa)*. *Generator* shows the file's name, since PULSE files don't record what made the sound, and *Gain* is blank.
+- **Date.** The date and time the file says it was recorded, if it says. Otherwise, when the file was last changed, which copying it may have altered.
+- **Notes** can't be added to a `.mat` recording, since there's nowhere in the file to keep them.
+- **Delete** deletes the `.mat` file itself.
+- A file that can't be read, or isn't a PULSE recording, is still listed but marked with a warning icon; hover over it to see why. Files saved in MATLAB's newer v7.3 format can't be read. Open them in MATLAB and save them again with `save(filename, '-v7')`.
+
 ## Interpreting the levels
 
 A single number describing a broadband signal's level always depends on how wide a band you're talking about, so it's worth knowing which quantity you're looking at:

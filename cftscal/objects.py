@@ -26,6 +26,10 @@ from cftsdata.api import InearCalibration, MicrophoneCalibration
 
 from psi import get_config
 
+from cftscal.mat_recording import (
+    file_datetime, MatFileError, MatRecording, read_mat_header,
+)
+
 
 log = logging.getLogger(__name__)
 
@@ -683,16 +687,34 @@ class CFTSBaseLoader(CalibrationLoader):
         objects = {}
         if not self.base_path.exists():
             return objects
-        for meta_file in self.base_path.rglob('metadata.json'):
-            cal_dir = meta_file.parent
-            object_dir = cal_dir.parent
-            try:
-                rel = object_dir.parent.relative_to(self.base_path)
-            except ValueError:
-                continue
-            folder = '' if str(rel) == '.' else rel.as_posix()
-            objects.setdefault((folder, object_dir.name), []).append(cal_dir)
+        for cal_path in self._calibration_paths():
+            key = self._object_for(cal_path)
+            if key is not None:
+                objects.setdefault(key, []).append(cal_path)
         return objects
+
+    def _calibration_paths(self):
+        '''
+        Every calibration under ``base_path``: for CFTS calibrations, each
+        directory holding a ``metadata.json``. Subclasses whose
+        calibrations are stored differently override this.
+        '''
+        for meta_file in self.base_path.rglob('metadata.json'):
+            yield meta_file.parent
+
+    def _object_for(self, cal_path):
+        '''
+        The ``(folder, name)`` of the object ``cal_path`` belongs to -- the
+        directory containing it -- or None if it isn't inside an object's
+        directory.
+        '''
+        object_dir = cal_path.parent
+        try:
+            rel = object_dir.parent.relative_to(self.base_path)
+        except ValueError:
+            return None
+        folder = '' if str(rel) == '.' else rel.as_posix()
+        return folder, object_dir.name
 
 
 ################################################################################
@@ -1316,6 +1338,85 @@ class CFTSInputRecordingLoader(CFTSBaseLoader):
     cal_class = CFTSInputRecording
 
 
+class MatInputRecording(FileCalibration):
+    '''
+    A B&K PULSE recording saved as a MATLAB ``.mat`` file (the files the
+    older MATLAB program, measure_sound, read; see `cftscal.mat_recording`),
+    offering the same properties as `CFTSInputRecording` so Input Recording
+    can plot, measure and export it the same way.
+
+    ``filename`` is the ``.mat`` file itself rather than a directory.
+    '''
+
+    @cached_property
+    def header(self):
+        return read_mat_header(self.filename)
+
+    @property
+    def problem(self):
+        try:
+            self.header
+        except MatFileError as e:
+            return str(e)
+        return None
+
+    @cached_property
+    def datetime(self):
+        # When the file says it was recorded, else when it was last
+        # modified (which copying it may have changed).
+        return self.header['datetime'] or file_datetime(self.filename)
+
+    def _fallback_datetime(self):
+        try:
+            return file_datetime(self.filename)
+        except OSError:
+            return super()._fallback_datetime()
+
+    @property
+    def generator(self):
+        # PULSE files don't record what made the sound; the file's name is
+        # the best description there is.
+        return self.filename.stem
+
+    @property
+    def sensors(self):
+        '''
+        Same layout as `CFTSInputRecording.sensors`: each channel's variable
+        name mapped to its ``label`` and, in place of a sensor, where its
+        calibration came from.
+        '''
+        return {
+            name: {'label': info['label'],
+                   'sensor': f'.mat file ({info["unit"]})'}
+            for name, info in self.header['channels'].items()
+        }
+
+    def load(self):
+        return MatRecording(self.filename, self.header)
+
+
+class MatInputRecordingLoader(CFTSBaseLoader):
+    '''
+    Lists ``.mat`` recordings saved anywhere under the Input Recording
+    folder. Each belongs to the object named after the folder holding it, so
+    a folder can mix cftscal recordings and ``.mat`` files. A file directly
+    in the Input Recording folder is its own object, named after the file.
+    '''
+
+    subfolder = 'input-recording'
+    cal_class = MatInputRecording
+
+    def _calibration_paths(self):
+        for path in self.base_path.rglob('*.mat'):
+            if path.is_file():
+                yield path
+
+    def _object_for(self, cal_path):
+        if cal_path.parent == self.base_path:
+            return '', cal_path.stem
+        return super()._object_for(cal_path)
+
+
 ################################################################################
 # InEar calibration management
 ################################################################################
@@ -1432,6 +1533,7 @@ input_amplifier_manager.register('cftscal.objects.CFTSInputAmplifierLoader')
 
 input_recording_manager = CalibrationManager(InputRecording)
 input_recording_manager.register('cftscal.objects.CFTSInputRecordingLoader')
+input_recording_manager.register('cftscal.objects.MatInputRecordingLoader')
 
 inear_manager = CalibrationManager(InEar)
 inear_manager.register('cftscal.objects.CFTSInEarLoader')

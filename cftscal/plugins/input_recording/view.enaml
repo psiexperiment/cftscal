@@ -508,6 +508,15 @@ def region_metadata(entry, filter_settings):
     }
 
 
+def recording_stem(path):
+    '''
+    What an exported region's file is named after: a recording's folder
+    name, or its file name without the extension for a recording stored as
+    one file (a ``.mat`` recording).
+    '''
+    return path.stem if path.is_file() else path.name
+
+
 def export_regions(folder, regions, filter_settings):
     '''
     Export each recording's region (InputRecordingPlotManager.
@@ -515,7 +524,7 @@ def export_regions(folder, regions, filter_settings):
     Plain Python: enaml func blocks can't hold generator expressions.
     '''
     return [
-        export_region(folder, entry['item'].filename.name,
+        export_region(folder, recording_stem(entry['item'].filename),
                       [y for _, y in entry['channels']], entry['fs'],
                       region_metadata(entry, filter_settings))
         for entry in regions

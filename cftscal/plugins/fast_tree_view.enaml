@@ -8,6 +8,7 @@ from qtpy.QtWidgets import (
 )
 from qtpy.QtGui import QColor, QBrush, QDrag, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from qtpy.QtCore import Qt, QMimeData, QPointF, QRect
+from pathlib import Path
 import shutil
 
 from psi.core.enaml.api import make_color
@@ -134,6 +135,18 @@ def _draw_note(size):
         painter.drawLine(QPointF(4 * s, y * s), QPointF(x_end * s, y * s))
     painter.end()
     return pixmap
+
+
+def delete_calibration_path(path):
+    '''
+    Delete a calibration from disk: its directory, or its file for those
+    stored as a single file (e.g. a ``.mat`` recording).
+    '''
+    path = Path(path)
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
 
 
 def _note_for(node):
@@ -827,7 +840,7 @@ class FastTreeWidget(QTreeWidget):
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.Yes:
-                shutil.rmtree(sub.item.filename)
+                delete_calibration_path(sub.item.filename)
                 self.collection.update_groups()
 
     def _context_menu_for_folder(self, item, global_pos):

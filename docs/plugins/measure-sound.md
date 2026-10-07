@@ -13,7 +13,7 @@ The short version:
 
 | In measure_sound | In Input Recording |
 | --- | --- |
-| Load a B&K PULSE `.mat` file or a WAV file | Record with Input Recording, then tick the recording in the *Recordings* list. Input Recording only reviews its own recordings; it can't open PULSE `.mat` files or other WAV files. |
+| Load a B&K PULSE `.mat` file or a WAV file | Copy the `.mat` file into Input Recording's folder and tick it in the *Recordings* list. See [Reviewing PULSE `.mat` files](input-recording.md#reviewing-pulse-mat-files). WAV files can't be opened. |
 | Choose one channel to analyze | Every channel of a recording is plotted at once, with a column each in the *Analysis* table. |
 | The analysis window is whatever is on screen: *Select*, *Advance*, *Rewind*, *Zoom in*, *Zoom out* | Zooming and panning the plot doesn't change what's measured. The measurement comes from the **selected region**, the shaded band you draw with *Ctrl+drag*. See [Selecting a region](input-recording.md#selecting-a-region). Like measure_sound, the plot opens on the first 90 seconds, but no region is selected until you draw one. |
 | RMS (dB SPL) | **dB SPL** row. |
@@ -29,6 +29,8 @@ The short version:
 ## Calibration
 
 measure_sound took the numbers in the file as pascals, after multiplying PULSE channel 1 by 1.165 and channel 2 by 1.187 (+1.33 and +1.49 dB). Those were fixed correction factors for one particular setup, and WAV files got no correction at all.
+
+When Input Recording opens a PULSE `.mat` file, it also takes the numbers as pascals, but it does **not** apply measure_sound's correction factors. Its levels for channel 1 therefore read 1.33 dB lower than measure_sound's, and for channel 2, 1.49 dB lower.
 
 Input Recording instead converts each channel to pascals using the calibration of the sensor you chose when you recorded (see [Sensor types](input-recording.md#sensor-types)). If you compare a level from measure_sound with one from cftscal, remember that the two programs may not have started from the same calibration, so a difference of a dB or so can come from calibration alone.
 
