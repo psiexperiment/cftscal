@@ -2,8 +2,8 @@
 
 Input Recording isn't tied to a specific calibration procedure. It's a general-purpose tool for capturing and reviewing whatever's coming into one or more input channels simultaneously.
 
-!!! tip "Used measure_sound before?"
-    If you used the lab's older MATLAB program, measure_sound, read [Coming from measure_sound](measure-sound.md). Some levels, dBA especially, come out differently, and that page explains why.
+!!! tip "Comparing with Measure Sound"
+    If you're comparing results with the lab's MATLAB program, Measure Sound, read [Comparing results with Measure Sound](measure-sound.md). The two programs calculate some levels differently, dBA in particular, and that page explains how to allow for it.
 
 ## Recording
 
@@ -115,14 +115,14 @@ Both buttons are greyed out until the region overlaps a ticked recording.
 
 ### Reviewing PULSE `.mat` files
 
-Input Recording can also show recordings made with B&K PULSE and saved as MATLAB `.mat` files: the files the lab's older MATLAB program, measure_sound, opened, including the ones its *Save* button wrote. There's no *Open* button. Instead, copy the files into Input Recording's folder, `input-recording` inside the calibration folder (`Documents/cftscal/input-recording` unless you've changed it in Workspace > Settings), and they appear in the *Recordings* list beside the recordings made in cftscal:
+Input Recording can also show recordings made with B&K PULSE and saved as MATLAB `.mat` files: the files the lab's MATLAB program, Measure Sound, opens, including the ones its *Save* button writes. There's no *Open* button. Instead, copy the files into Input Recording's folder, `input-recording` inside the calibration folder (`Documents/cftscal/input-recording` unless you've changed it in Workspace > Settings), and they appear in the *Recordings* list beside the recordings made in cftscal:
 
 - A file inside a folder is listed under that folder's name, so you can file `.mat` recordings in the same folder as cftscal recordings of the same thing (for example `input-recording/BK-4123/`).
 - A file placed directly in the `input-recording` folder is listed under its own name.
 
 They're plotted, measured, played and exported just like cftscal recordings. Things to know:
 
-- **Levels.** The samples are taken to be in pascals, exactly as stored in the file. measure_sound multiplied channel 1 by 1.165 and channel 2 by 1.187; Input Recording doesn't. See [Coming from measure_sound](measure-sound.md#calibration).
+- **Levels.** The samples are taken to be in pascals, exactly as stored in the file, with no correction factor applied.
 - **Columns.** *Channel* shows each channel's name from the file (e.g. *LeftEar*), or *Channel 1*, *Channel 2*, and so on if it has none, and *Sensor* reads *.mat file (Pa)*. *Generator* shows the file's name, since PULSE files don't record what made the sound, and *Gain* is blank.
 - **Date.** PULSE files store the date they were recorded, but not the time. The time comes from when the file was saved, if that was on the same day. Otherwise the date is shown at midnight. A file with no date at all shows when it was saved, or failing that, when it was last changed (which copying it may have altered).
 - **Notes** can't be added to a `.mat` recording, since there's nowhere in the file to keep them.
