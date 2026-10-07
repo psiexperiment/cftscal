@@ -77,7 +77,9 @@ def test_header(tmp_path):
         'Channel_1_Data': {'label': 'Channel 1', 'unit': 'Pa'},
         'Channel_2_Data': {'label': 'Channel 2', 'unit': 'Pa'},
     }
-    assert header['datetime'] is None
+    # No Date in File_Header: when the file was written, from the
+    # MAT-file's own header (savemat writes the current time).
+    assert abs(header['datetime'] - dt.datetime.now()) < dt.timedelta(minutes=1)
 
 
 def test_channels_in_numeric_order(tmp_path):
@@ -98,10 +100,67 @@ def test_date_time_and_unit_from_the_file(tmp_path):
     assert header['channels']['Channel_1_Data']['unit'] == 'V'
 
 
+def test_real_pulse_header_fields(tmp_path):
+    # As in a real PULSE export: SignalName names the channel, Unit is
+    # padded with spaces, and the date has no time of day.
+    path = write_pulse_mat(
+        tmp_path / 'rec.mat', {1: _tone(0.01), 2: _tone(0.01)},
+        fs='65536.000000', Date='15/MAR/2011',
+        Channel_1_Header={'Unit': 'Pa                  ', 'SignalName': 'LeftEar',
+                          'Correction': '0.020827', 'MaxLevel': '682.446029'},
+        Channel_2_Header={'Unit': 'Pa                  ', 'SignalName': 'RightEar'},
+    )
+    header = read_mat_header(path)
+    assert header['fs'] == 65536
+    assert header['channels'] == {
+        'Channel_1_Data': {'label': 'LeftEar', 'unit': 'Pa'},
+        'Channel_2_Data': {'label': 'RightEar', 'unit': 'Pa'},
+    }
+    # savemat writes today's date in the MAT header, so it isn't the
+    # recording's date: midnight on the recorded date.
+    assert header['datetime'] == dt.datetime(2011, 3, 15)
+
+
+@pytest.mark.parametrize('date, time, created_on, expected', [
+    # The file was written on the recording day: its time is used.
+    ('15/MAR/2011', None, dt.datetime(2011, 3, 15, 12, 52, 13),
+     dt.datetime(2011, 3, 15, 12, 52, 13)),
+    # Written later (e.g. re-saved by measure_sound): only the date is known.
+    ('15/MAR/2011', None, dt.datetime(2012, 1, 1, 9, 0, 0),
+     dt.datetime(2011, 3, 15)),
+    # An explicit time wins.
+    ('15/MAR/2011', '10:15:44', dt.datetime(2011, 3, 15, 12, 52, 13),
+     dt.datetime(2011, 3, 15, 10, 15, 44)),
+    # Day first, as PULSE writes it.
+    ('03/04/2011', None, None, dt.datetime(2011, 4, 3)),
+    # No date at all: when the file was written.
+    (None, None, dt.datetime(2011, 3, 15, 12, 52, 13),
+     dt.datetime(2011, 3, 15, 12, 52, 13)),
+    (None, None, None, None),
+])
+def test_recording_datetime(date, time, created_on, expected):
+    from types import SimpleNamespace
+    from cftscal.mat_recording import _parse_datetime
+    header = SimpleNamespace(**{k: v for k, v in
+                                (('Date', date), ('Time', time)) if v})
+    assert _parse_datetime(header, created_on) == expected
+
+
+def test_created_on_from_the_mat_header():
+    from cftscal.mat_recording import _created_on
+    header = b'MATLAB 5.0 MAT-file, Platform: PCWIN, Created on: Tue Mar 15 12:52:13 2011'
+    assert _created_on(header) == dt.datetime(2011, 3, 15, 12, 52, 13)
+    assert _created_on(b'MATLAB 5.0 MAT-file, Platform: PCWIN, Created on: Tue Mar  1 02:03:04 2011')         == dt.datetime(2011, 3, 1, 2, 3, 4)
+    assert _created_on(b'MATLAB 5.0 MAT-file') is None
+    assert _created_on(None) is None
+
+
 def test_unparseable_date_is_ignored(tmp_path):
     path = write_pulse_mat(tmp_path / 'rec.mat', {1: _tone(0.01)},
                            Date='not a date')
-    assert read_mat_header(path)['datetime'] is None
+    # Falls back to when the file was written.
+    when = read_mat_header(path)['datetime']
+    assert abs(when - dt.datetime.now()) < dt.timedelta(minutes=1)
 
 
 @pytest.mark.parametrize('contents, message', [
@@ -202,6 +261,15 @@ def test_mat_recording_properties(root):
 
 def test_datetime_falls_back_to_when_the_file_was_modified(root):
     path = write_pulse_mat(root / 'BK-4123' / 'noise.mat', {1: _tone(0.01)})
+    # Blank out the MAT-file header's "Created on" time, so the file says
+    # nothing about when it was made.
+    data = path.read_bytes()
+    start = data.index(b'Created on:')
+    # The header text is the first 116 bytes, padded with spaces or nulls.
+    end = data.find(bytes(1), start, 116)
+    if end == -1:
+        end = 116
+    path.write_bytes(data[:start] + b' ' * (end - start) + data[end:])
     when = dt.datetime(2020, 1, 2, 3, 4, 5)
     os.utime(path, (when.timestamp(), when.timestamp()))
     assert MatInputRecording('BK-4123', path).datetime == when

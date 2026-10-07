@@ -123,8 +123,8 @@ Input Recording can also show recordings made with B&K PULSE and saved as MATLAB
 They're plotted, measured, played and exported just like cftscal recordings. Things to know:
 
 - **Levels.** The samples are taken to be in pascals, exactly as stored in the file. measure_sound multiplied channel 1 by 1.165 and channel 2 by 1.187; Input Recording doesn't. See [Coming from measure_sound](measure-sound.md#calibration).
-- **Columns.** *Channel* reads *Channel 1*, *Channel 2*, and so on, and *Sensor* reads *.mat file (Pa)*. *Generator* shows the file's name, since PULSE files don't record what made the sound, and *Gain* is blank.
-- **Date.** The date and time the file says it was recorded, if it says. Otherwise, when the file was last changed, which copying it may have altered.
+- **Columns.** *Channel* shows each channel's name from the file (e.g. *LeftEar*), or *Channel 1*, *Channel 2*, and so on if it has none, and *Sensor* reads *.mat file (Pa)*. *Generator* shows the file's name, since PULSE files don't record what made the sound, and *Gain* is blank.
+- **Date.** PULSE files store the date they were recorded, but not the time. The time comes from when the file was saved, if that was on the same day. Otherwise the date is shown at midnight. A file with no date at all shows when it was saved, or failing that, when it was last changed (which copying it may have altered).
 - **Notes** can't be added to a `.mat` recording, since there's nowhere in the file to keep them.
 - **Delete** deletes the `.mat` file itself.
 - A file that can't be read, or isn't a PULSE recording, is still listed but marked with a warning icon; hover over it to see why. Files saved in MATLAB's newer v7.3 format can't be read. Open them in MATLAB and save them again with `save(filename, '-v7')`.

@@ -69,19 +69,19 @@ measure_sound worked out dBA from the recording's spectrum, which is a perfectly
 
 **1. The A-weighting is applied twice.** The A-weighting curve says how much to turn down each frequency: by about 30 dB at 50 Hz, for example. measure_sound's formula for the curve gives the weighting for sound *power*, but the program applied it to the *amplitude* spectrum and then squared the result. That squares the weighting too, so every frequency is turned down twice as much as the standard says: about 60 dB at 50 Hz instead of about 30 dB. At 1 kHz the weighting is 0 dB, and twice 0 dB is still 0 dB, so a 1 kHz calibration tone gives the right answer and the mistake doesn't show up in that check.
 
-**2. The calibration constant only fits one sampling rate.** measure_sound adds a fixed constant, `C = 42.8051`, to make a 1 kHz tone read the same in dB SPL and dBA. The correct constant depends on the sampling rate (it is 93.98 − 10·log₁₀(sampling rate)). 42.8051 is correct for 131,072 Hz, the rate the B&K PULSE recordings were presumably made at. At any other rate, every dBA value is shifted by 10·log₁₀(sampling rate ÷ 131,072): 4.4 dB too low at 48 kHz, 1.3 dB too low at 96 kHz, and 1.7 dB too high at 192 kHz.
+**2. The calibration constant only fits one sampling rate.** measure_sound adds a fixed constant, `C = 42.8051`, to make a 1 kHz tone read the same in dB SPL and dBA. The correct constant depends on the sampling rate (it is 93.98 − 10·log₁₀(sampling rate)). 42.8051 is only correct for a sampling rate of 131,072 Hz. At any other rate, every dBA value is shifted by 10·log₁₀(sampling rate ÷ 131,072). The lab's B&K PULSE recordings were made at 65,536 Hz, so their dBA reads **3.0 dB too low** from this alone. At 48 kHz it's 4.4 dB too low, at 96 kHz 1.3 dB too low, and at 192 kHz 1.7 dB too high.
 
 Here's what the two programs report for pure tones at 94 dB SPL:
 
-| Tone | Standard A-weighting | Input Recording dBA | measure_sound dBA (131,072 Hz) | measure_sound dBA (48 kHz) |
+| Tone | Standard A-weighting | Input Recording dBA | measure_sound dBA (65,536 Hz, as PULSE records) | measure_sound dBA (48 kHz) |
 | --- | --- | --- | --- | --- |
-| 50 Hz | −30.3 dB | 63.7 | 33.5 | 29.1 |
-| 125 Hz | −16.2 dB | 77.8 | 61.6 | 57.3 |
-| 1 kHz | 0 dB | 94.0 | 94.0 | 89.6 |
-| 4 kHz | +1.0 dB | 95.0 | 95.9 | 91.6 |
-| 16 kHz | −6.7 dB | 87.3 | 80.6 | 76.2 |
+| 50 Hz | −30.3 dB | 63.7 | 30.5 | 29.1 |
+| 125 Hz | −16.2 dB | 77.8 | 58.6 | 57.3 |
+| 1 kHz | 0 dB | 94.0 | 91.0 | 89.6 |
+| 4 kHz | +1.0 dB | 95.0 | 92.9 | 91.6 |
+| 16 kHz | −6.7 dB | 87.3 | 77.6 | 76.2 |
 
-For anything other than a 1 kHz tone recorded at 131,072 Hz, measure_sound's dBA is off. It's too low for sound that is mostly at low or high frequencies, and slightly too high for sound that is mostly between about 1 and 5 kHz, where the standard curve turns sound *up* a little. Old dBA values should be treated with care: a low-frequency noise could easily have read 10 to 30 dB too low.
+measure_sound's dBA is off for every recording, except a 1 kHz tone recorded at 131,072 Hz. On top of the sampling-rate offset, it's too low for sound that is mostly at low or high frequencies, and slightly too high for sound that is mostly between about 1 and 5 kHz, where the standard curve turns sound *up* a little. Old dBA values should be treated with care: a low-frequency noise could easily have read 10 to 30 dB too low.
 
 !!! note "Which A-weighting setting matches measure_sound's method?"
     measure_sound applied the weighting to the spectrum, which is what Input Recording does when **Exact A-weighting** is ticked. Without it, cftscal uses a digital approximation that is very slightly low above about 8 kHz at 48 kHz sampling (see [Choosing a filter](input-recording.md#choosing-a-filter)). Either way, cftscal's dBA follows the standard curve once, so neither setting reproduces measure_sound's numbers.
@@ -102,5 +102,28 @@ To compare a new measurement with one made in measure_sound:
 
 1. Set the *Filter* to **Unfiltered** (or, if you used measure_sound's filter, **Band-pass** with the same center frequency and width, keeping the differences above in mind).
 2. Draw the region over the same stretch of sound that measure_sound's window covered.
-3. Compare **dB SPL** with measure_sound's RMS, and **peSPL** with its equivalent RMS.
-4. Don't compare **dBA** directly. Unless the sound was a 1 kHz tone recorded at 131,072 Hz, measure_sound's dBA was wrong, and the newer value is the one to trust.
+3. Compare **dB SPL** with measure_sound's RMS, and **peSPL** with its equivalent RMS. For a PULSE `.mat` file, measure_sound's values are higher by its correction factor: 1.33 dB for channel 1, 1.49 dB for channel 2 (see [Calibration](#calibration)).
+4. Don't compare **dBA** directly. measure_sound's dBA was wrong, and the newer value is the one to trust.
+
+## A worked example
+
+Here is one real recording, `iPad3 60 dB Calibrated PART 1kHz-1.mat` (a B&K PULSE file recorded at 65,536 Hz on 15 March 2011), opened in both programs. The numbers are for the left channel (*LeftEar*, channel 1) over the whole 11.8-second recording, with Input Recording's *Filter* set to **Unfiltered**.
+
+| Measurement | measure_sound | Input Recording | Difference |
+| --- | --- | --- | --- |
+| RMS level / **dB SPL** | 61.7285 dB SPL | 60.4019 dB SPL | 1.3266 dB: the 1.165 correction factor |
+| Max-min equivalent RMS / **peSPL** | 73.0518 dB SPL | 71.7252 dB SPL | 1.3266 dB: the correction factor |
+| Equivalent RMS level | 0.089871 Pa | 0.077142 Pa | ×1.165 |
+| Max level / **Max (Pa)** | 0.12492 Pa | 0.10722 Pa | ×1.165 |
+| Min level / **Min (Pa)** | −0.12928 Pa | −0.11097 Pa | ×1.165 |
+| **dBA** | 34.4108 dBA | 41.03 dBA | 6.6 dB: see below |
+
+Everything except dBA differs only by measure_sound's correction factor. The dBA difference breaks down as:
+
+- measure_sound's correction factor makes its value 1.33 dB *higher*;
+- its calibration constant, which is wrong at 65,536 Hz, makes it 3.01 dB *lower*;
+- applying the A-weighting twice makes it 4.97 dB *lower*.
+
+With those two bugs fixed and the correction factor left out, measure_sound's own method gives 41.06 dBA, within 0.03 dB of Input Recording.
+
+This recording also shows why the *Filter* matters. Despite its name, almost all of its sound is below 20 Hz (it peaks at about 11 Hz), and there is very little at 1 kHz. With Input Recording's default 20 Hz **High-pass** filter, dB SPL is 55.2 rather than 60.4, because the high-pass removes that rumble. measure_sound had no such filter, so to compare the two, set the *Filter* to **Unfiltered**.

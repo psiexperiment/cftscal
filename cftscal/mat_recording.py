@@ -11,9 +11,15 @@ wrote, with its *Save* button). Each file holds:
 * ``Channel_1_Data``, ``Channel_2_Data``, ...: one vector of samples per
   channel, already in pascals.
 
-Optional extras are used when present: ``Date`` and ``Time`` fields in
-``File_Header`` for when the recording was made, and a
-``Channel_<n>_Header`` struct whose ``Unit`` field gives the channel's units.
+Optional extras are used when present: a ``Date`` field (e.g.
+``'15/MAR/2011'``) and ``Time`` field in ``File_Header``, and a
+``Channel_<n>_Header`` struct per channel whose ``SignalName`` (e.g.
+``'LeftEar'``) and ``Unit`` fields (e.g. ``'Pa'``, padded with spaces) name
+the channel and its units. PULSE files also hold ``Correction`` and
+``MaxLevel`` fields per channel, which are not used. PULSE doesn't store the
+time of day, but the MAT-file header records when the file was written
+(``Created on: Tue Mar 15 12:52:13 2011``), which is used when it falls on
+the ``Date``.
 
 The samples are used exactly as stored. measure_sound multiplied channel 1
 by 1.165 and channel 2 by 1.187, correction factors for one particular
@@ -64,17 +70,52 @@ def _loadmat(filename, variable_names):
         raise MatFileError(f'Could not read the file: {e}') from e
 
 
-def _parse_datetime(header):
-    '''When the recording was made, from File_Header, or None.'''
-    date = _field(header, 'Date')
-    if not isinstance(date, str) or not date.strip():
+def _text(value):
+    '''A text field with its padding removed, or None if it isn't text.'''
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _created_on(mat_header):
+    '''
+    When the file was written, from the MAT-file's own header text
+    (``... Created on: Tue Mar 15 12:52:13 2011``), or None.
+    '''
+    if isinstance(mat_header, bytes):
+        mat_header = mat_header.decode('latin-1')
+    match = re.search(r'Created on:\s*(\w{3} \w{3} +\d+ [\d:]+ \d{4})',
+                      mat_header or '')
+    if match is None:
         return None
-    time = _field(header, 'Time')
-    text = f'{date} {time}' if isinstance(time, str) else date
     try:
-        return pd.to_datetime(text).to_pydatetime()
-    except (ValueError, OverflowError):
+        return dt.datetime.strptime(' '.join(match.group(1).split()),
+                                    '%a %b %d %H:%M:%S %Y')
+    except ValueError:
         return None
+
+
+def _parse_datetime(header, created_on=None):
+    '''
+    When the recording was made, or None if the file doesn't say.
+
+    File_Header's ``Date`` and ``Time`` if it has both. With only a
+    ``Date``, the time the file was written (``created_on``) if that was the
+    same day -- PULSE files don't store the time otherwise -- or midnight.
+    '''
+    date = _text(_field(header, 'Date'))
+    if date is None:
+        return created_on
+    time = _text(_field(header, 'Time'))
+    text = f'{date} {time}' if time else date
+    try:
+        # dayfirst: PULSE writes dates as 15/MAR/2011.
+        parsed = pd.to_datetime(text, dayfirst=True).to_pydatetime()
+    except (ValueError, OverflowError):
+        return created_on
+    if time is None and created_on is not None             and created_on.date() == parsed.date():
+        return created_on
+    return parsed
 
 
 def read_mat_header(filename):
@@ -91,9 +132,10 @@ def read_mat_header(filename):
     header : dict
         ``fs``: sampling rate, in Hz. ``channels``: maps each channel's
         variable name (e.g. ``'Channel_1_Data'``), in channel order, to a
-        dict with its ``label`` (e.g. ``'Channel 1'``) and ``unit`` (``'Pa'``
-        unless the file says otherwise). ``datetime``: when the recording was
-        made according to the file, or None if it doesn't say.
+        dict with its ``label`` (its ``SignalName``, e.g. ``'LeftEar'``, or
+        else e.g. ``'Channel 1'``) and ``unit`` (``'Pa'`` unless the file
+        says otherwise). ``datetime``: when the recording was made according
+        to the file, or None if it doesn't say.
 
     Raises
     ------
@@ -125,12 +167,14 @@ def read_mat_header(filename):
 
     channels = {}
     for n, header_name in zip(numbers, channel_headers):
-        unit = _field(contents.get(header_name), 'Unit')
+        channel_header = contents.get(header_name)
         channels[f'Channel_{n}_Data'] = {
-            'label': f'Channel {n}',
-            'unit': unit if isinstance(unit, str) and unit else 'Pa',
+            'label': _text(_field(channel_header, 'SignalName')) or f'Channel {n}',
+            'unit': _text(_field(channel_header, 'Unit')) or 'Pa',
         }
-    return {'fs': fs, 'channels': channels, 'datetime': _parse_datetime(header)}
+    created_on = _created_on(contents.get('__header__'))
+    return {'fs': fs, 'channels': channels,
+            'datetime': _parse_datetime(header, created_on)}
 
 
 class MatSignal:
