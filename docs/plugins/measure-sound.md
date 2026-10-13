@@ -4,6 +4,7 @@ This page is for anyone who has measured sound levels with the lab's MATLAB prog
 
 The short version:
 
+- **To get Measure Sound's numbers**, tick **Emulate Measure Sound** at the end of Input Recording's *Filter* row. Input Recording then calculates everything as Measure Sound does. See [Emulating Measure Sound](#emulating-measure-sound).
 - **dB SPL**, **peSPL** and **Max/Min** agree once you allow for Measure Sound's channel correction factors (see [Calibration](#calibration)), set the *Filter* to **Unfiltered** and select the same stretch of the recording.
 - **dBA** is calculated differently, and the two programs' values can't be converted into each other for a general sound. See [dBA](#dba).
 - **The band-pass filter** has the same band edges in both programs but a different shape, so band-passed levels differ. See [Band-pass filter](#band-pass-filter).
@@ -29,7 +30,7 @@ The short version:
 
 When Measure Sound opens a B&K PULSE `.mat` file, it takes the numbers in the file as pascals and multiplies channel 1 by 1.165 and channel 2 by 1.187: correction factors for the setup it was written for (+1.33 dB and +1.49 dB). WAV files are used as they are.
 
-Input Recording takes the numbers in a PULSE file as pascals exactly as stored, without any correction factor. So for the same file, Measure Sound's levels are **1.33 dB higher on channel 1 and 1.49 dB higher on channel 2**, and its pressures (Max, Min, equivalent RMS in Pa) are 1.165 and 1.187 times larger.
+Input Recording takes the numbers in a PULSE file as pascals exactly as stored, without any correction factor (unless **Emulate Measure Sound** is ticked). So for the same file, Measure Sound's levels are **1.33 dB higher on channel 1 and 1.49 dB higher on channel 2**, and its pressures (Max, Min, equivalent RMS in Pa) are 1.165 and 1.187 times larger.
 
 Recordings made with Input Recording itself are converted to pascals using the calibration of the sensor chosen when recording (see [Sensor types](input-recording.md#sensor-types)).
 
@@ -85,7 +86,7 @@ At 1 kHz, the weighting is 0 dB in both programs, so a 1 kHz tone gives the same
 | 4 kHz | 95.0 | 92.9 | 91.6 |
 | 16 kHz | 87.3 | 77.6 | 76.2 |
 
-The gap grows the further the sound's energy is from 1 kHz, so for a sound with energy at many frequencies there's no single number that converts one program's dBA into the other's. Compare dBA values only within one program. If you need Input Recording's dBA for a sound that was measured with Measure Sound, open the recording in Input Recording.
+The gap grows the further the sound's energy is from 1 kHz, so for a sound with energy at many frequencies there's no single number that converts one program's dBA into the other's. Compare dBA values only within one program. To get Measure Sound's dBA in Input Recording, tick **Emulate Measure Sound**; to get Input Recording's dBA for a sound measured with Measure Sound, open the recording in Input Recording with it unticked.
 
 Two more differences:
 
@@ -100,9 +101,28 @@ In the rare case where the whole window is positive (or the whole window negativ
 
 Input Recording also reports **Peak SPL**, half the full swing without dividing by √2. It's 3 dB above peSPL.
 
+## Emulating Measure Sound
+
+Ticking **Emulate Measure Sound**, at the end of the *Filter* row, makes Input Recording calculate everything the way Measure Sound does, so its numbers can be compared directly with results measured in Measure Sound. It's meant for comparing with old results; untick it for new measurements.
+
+While it's ticked:
+
+- **Correction factors.** The first channel of every recording is multiplied by 1.165 and the second by 1.187, as Measure Sound does. This applies to every recording, including ones made with Input Recording, so they can be compared with old Measure Sound results. Further channels are left as they are.
+- **Filter.** Only Measure Sound's two settings are offered: **Unfiltered**, and **Band-pass**, which becomes Measure Sound's filter (order 1, run forwards and backwards). *Center freq.* and *width* still apply; the *order* shows 1 and can't be changed. *Zero-phase* shows ticked, because Measure Sound's filter is zero-phase, and can't be changed; *Exact A-weighting* doesn't apply. If a High-pass or dBA filter was selected, the Filter switches to Unfiltered, and switches back when the box is unticked.
+- **The whole recording is filtered**, and the region is measured from it, as Measure Sound does.
+- **dBA** is calculated as Measure Sound does (see [dBA](#dba)), from the filtered signal when the band-pass is on.
+- **Max (Pa)** and **Min (Pa)** can't go below or above 0 Pa, and **peSPL** (Measure Sound's equivalent RMS) is calculated from them, as described in [Peak levels](#peak-levels).
+- **The plot, the Analysis table, Play region and Export region all use the same emulated signal**, so what you hear and export is what's shown and measured. Exported files record that Measure Sound was being emulated, and the correction factor used on each channel.
+
+A note above the *Analysis* table shows while the box is ticked, so emulated numbers aren't mistaken for standard ones.
+
+One thing isn't reproduced: as described in [Filtering more than once](#filtering-more-than-once), Measure Sound's level after pressing *Advance*, *Rewind*, *Zoom in* or *Zoom out* with its filter on depends on how many times they were pressed. The emulation matches Measure Sound measured straight after opening the file.
+
+With the worked example below, emulation gives exactly Measure Sound's numbers: 61.7285 dB SPL, 34.4108 dBA, 73.0518 dB peSPL, and 0.12492 Pa and −0.12928 Pa.
+
 ## Getting numbers you can compare
 
-To compare a measurement with one made in Measure Sound:
+The simplest way to compare with a Measure Sound result is to tick **Emulate Measure Sound** and select the same stretch of sound. To compare without emulation, using Input Recording's standard calculations:
 
 1. Set the *Filter* to **Unfiltered**, or, if you used Measure Sound's filter, **Band-pass** with the same center frequency and width, keeping the differences above in mind.
 2. Draw the region over the same stretch of sound that Measure Sound's window covered.
