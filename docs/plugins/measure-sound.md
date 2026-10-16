@@ -60,9 +60,22 @@ In practice:
 
 ### Filtering more than once
 
-In Measure Sound, with the filter ticked, the *Advance*, *Rewind*, *Zoom in* and *Zoom out* buttons each filter the waveform currently held in memory, which has already been filtered, and keep the result. Each press therefore adds one more pass of the filter: at the band edges of the default filter, 6 dB after opening the file, 12 dB after one press, 18 dB after two, and so on. *Select* and *Refresh* continue from the waveform as it is, and unticking the filter keeps it as it is; reopening the file starts again from the recording.
+In Measure Sound, with the filter ticked, the *Advance*, *Rewind*, *Zoom in* and *Zoom out* buttons each filter the waveform currently held in memory, which has already been filtered, and keep the result. Each press therefore adds one more pass of the filter: at the band edges of the default filter, 6 dB after opening the file, 12 dB after one press, 18 dB after two, and so on.
 
-So a band-passed level from Measure Sound depends on how many of those buttons were pressed since the file was opened. Input Recording always filters the original recording, so its result doesn't depend on how you zoomed or moved around. To compare band-passed results, measure in Measure Sound straight after opening the file, using *Select* only.
+*Select* and *Refresh* behave differently: they filter the copy of the recording Measure Sound keeps alongside the waveform, so pressing them again doesn't add a pass. But the navigation buttons overwrite that copy too, so once one of them has been pressed, *Select* and *Refresh* carry on with the extra passes. Unticking the filter keeps the waveform as it is; only reopening the file starts again from the recording. With the filter unticked, none of this happens.
+
+Here is what Measure Sound shows for the worked example's recording (below) with the filter ticked at its default settings (1000 Hz, 4 octaves), measured by running Measure Sound itself in MATLAB. Every row measures the whole recording, so only the filtering changes:
+
+| Steps since opening the file | RMS level | dBA | Times filtered |
+| --- | --- | --- | --- |
+| Open | 44.80 dB SPL | 32.07 | 1 |
+| Open, *Zoom out* | 41.74 dB SPL | 29.93 | 2 |
+| Open, *Zoom out* ×2 | 39.02 dB SPL | 28.12 | 3 |
+| Open, *Zoom out* ×3 | 36.51 dB SPL | 26.66 | 4 |
+| Open, *Select* (any number of times) | 44.80 dB SPL | 32.07 | 1 |
+| Open, *Zoom out*, *Select* (any number of times) | 41.74 dB SPL | 29.93 | 2 |
+
+So a band-passed level from Measure Sound is only the result of filtering once if no navigation button was pressed between opening the file and measuring. Input Recording always filters the original recording, so its result doesn't depend on how you zoomed or moved around. To compare band-passed results, measure in Measure Sound straight after opening the file, using *Select* only; *Select* can safely be pressed as many times as you like.
 
 ### dBA
 
@@ -116,7 +129,7 @@ While it's ticked:
 
 A note above the *Analysis* table shows while the box is ticked, so emulated numbers aren't mistaken for standard ones.
 
-One thing isn't reproduced: as described in [Filtering more than once](#filtering-more-than-once), Measure Sound's level after pressing *Advance*, *Rewind*, *Zoom in* or *Zoom out* with its filter on depends on how many times they were pressed. The emulation matches Measure Sound measured straight after opening the file.
+One thing isn't reproduced: as described in [Filtering more than once](#filtering-more-than-once), Measure Sound's level after pressing *Advance*, *Rewind*, *Zoom in* or *Zoom out* with its filter on depends on how many times they were pressed. The emulation matches Measure Sound measured straight after opening the file, or with *Select* pressed any number of times after opening it.
 
 With the worked example below, emulation gives exactly Measure Sound's numbers: 61.7285 dB SPL, 34.4108 dBA, 73.0518 dB peSPL, and 0.12492 Pa and −0.12928 Pa.
 
