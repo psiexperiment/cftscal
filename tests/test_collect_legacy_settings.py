@@ -10,6 +10,7 @@ point. These tests moved here from psiexperiment along with the code.
 test's own temporary directory.
 '''
 import json
+from pathlib import Path
 
 import pytest
 
@@ -145,7 +146,8 @@ class TestWorkspace:
         '''
         write_workspace(folder, {'data_path': 'C:/Calibration/real'})
         migrate_with_psi(folder, monkeypatch)
-        assert str(get_config('CFTSCAL_ROOT')) == r'C:\Calibration\real'
+        # Compared as paths: str() of one uses the platform's separator.
+        assert Path(get_config('CFTSCAL_ROOT')) == Path('C:/Calibration/real')
 
     def test_device_identity_is_carried_over(self, folder):
         write_workspace(folder, {'selected_device_name': 'Fireface',
