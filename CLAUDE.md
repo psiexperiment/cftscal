@@ -57,6 +57,13 @@ Both cftscal and psiexperiment are editable-installed (`pip install -e .`)
 into the same conda env in this dev setup; run `python -m pytest` from
 each repo's root using that env's interpreter.
 
+CI (`.github/workflows/test.yml`) runs the tests against psiexperiment's
+`main` on every push and PR, but the release workflow
+(`publish-to-pypi.yml`) runs them against the psiexperiment on PyPI and
+won't publish unless they pass. So a cftscal change that needs unreleased
+psiexperiment code passes CI but blocks the next cftscal release until
+psiexperiment is released.
+
 ## Architecture
 
 ### Plugin System (Enaml Workbench)

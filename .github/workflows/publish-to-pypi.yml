@@ -5,8 +5,16 @@ on:
       - '[0-9].[0-9]+.[0-9]+'
 
 jobs:
+  # Against the psiexperiment on PyPI, not main: that is what installing
+  # this release will give users.
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      psiexperiment: release
+
   pypi-publish:
     name: Build and publish Python distribution to PyPI
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: pypi
