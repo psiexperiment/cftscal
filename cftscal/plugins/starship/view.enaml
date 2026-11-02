@@ -12,6 +12,7 @@ from enaml.widgets.api import (
 from psi.data.plots_manifest import PGCanvas
 
 from cftscal.objects import starship_manager
+from cftscal.util import natural_sort_key
 from cftscal.plugins.widgets import (
     AddItem, CalibratedObjects, GroupPathPicker, SensorView, SinglePlotManager,
     ObjectCollection, _remove_selected,
@@ -117,7 +118,7 @@ enamldef StarshipView(Container): starship_view:
                             text = 'Cal. Mic.'
 
                         ObjectCombo: mic_channel:
-                            items = sorted(settings.available_inputs, key=lambda x: x.input_label)
+                            items = sorted(settings.available_inputs, key=lambda x: natural_sort_key(x.input_label))
                             selected := settings.selected_input
                             to_string = lambda m: m.input_label
 

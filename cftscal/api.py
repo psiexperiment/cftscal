@@ -7,6 +7,7 @@ from .util import (
     list_outputs,
     list_speaker_connections,
     list_starship_connections,
+    natural_sort_key,
     resolve_io,
 )
 
