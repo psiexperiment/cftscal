@@ -778,6 +778,44 @@ class NominalInputCalibration(Calibration):
         return cls(float(sensitivity))
 
 
+class NominalSpeakerCalibration(Calibration):
+    '''
+    A flat speaker calibration built from a nominal sensitivity (`spl`, the
+    dB SPL the speaker plays at 1 Vrms) rather than a measured one -- the
+    speaker counterpart of `NominalInputCalibration`, e.g. for trying out a
+    paradigm before the speaker has been calibrated.
+
+    Levels are only as accurate as that sensitivity (most headphones and
+    small speakers are somewhere around 100 to 110 dB SPL at 1 Vrms). A
+    higher `spl` plays more quietly. Like `NominalInputCalibration`, it is
+    not backed by a loader: `SpeakerCalibrationReference.get_calibration()`
+    (`cftscal/plugins/settings.py`) constructs one from what the user typed.
+    '''
+
+    def __init__(self, spl):
+        self.spl = spl
+
+    @property
+    def name(self):
+        # There is no speaker name to go by, so the sensitivity is what
+        # identifies it.
+        return f'Nominal ({self.spl:g} dB SPL at 1 Vrms)'
+
+    def load(self):
+        # Frequency-dependent rather than a FlatCalibration so that it can
+        # equalize noise (e.g., the tinnitus stimuli). It is flat, so
+        # extrapolating beyond these frequencies keeps it flat.
+        return InterpCalibration.from_spl([10, 100e3], [self.spl] * 2)
+
+    def to_string(self):
+        return f'{self.qualname}::{self.spl}'
+
+    @classmethod
+    def from_string(cls, string):
+        _, spl = string.split('::')
+        return cls(float(spl))
+
+
 ################################################################################
 # Starship calibration management
 ################################################################################

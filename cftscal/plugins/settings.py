@@ -15,7 +15,7 @@ from cftscal.objects import (
     generic_microphone_manager, input_amplifier_manager, input_manager,
     inear_manager, measurement_microphone_manager, output_manager,
     speaker_manager, starship_manager, unity_manager, CalibrationManager,
-    NominalInputCalibration, UnityInputCalibration,
+    NominalInputCalibration, NominalSpeakerCalibration, UnityInputCalibration,
 )
 
 from cftscal.util import resolve_io
@@ -275,6 +275,12 @@ class GeneratorSettings(PersistentSettings):
             return self.available_generators[0]
         except IndexError:
             return ''
+
+    def get_calibration(self):
+        '''
+        The calibration set as current for the generator called `name`.
+        '''
+        return output_manager.get_object(self.name).get_current_calibration()
 
 
 class PistonphoneSettings(GeneratorSettings):
@@ -564,9 +570,12 @@ class MultiTypeSensorReference(SensorReference):
     #: (starship/speaker), which aren't sensors at all.
     device_type = Enum(*DEVICE_TYPES).tag(persist=True)
 
-    #: Nominal sensitivity in mV/Pa, used only when device_type ==
-    #: 'Nominal' -- see the class docstring.
+    #: Nominal sensitivity in `SENSITIVITY_UNIT`, used only when
+    #: device_type == 'Nominal' -- see the class docstring.
     sensitivity = Float(1.0).tag(persist=True)
+
+    #: Unit of `sensitivity`, shown next to its field by ``SensorView``.
+    SENSITIVITY_UNIT = 'mV/Pa'
 
     def get_manager(self):
         return self.TYPE_MANAGERS[self.device_type]
@@ -583,8 +592,14 @@ class MultiTypeSensorReference(SensorReference):
         if self.device_type == 'Unity':
             return UnityInputCalibration()
         if self.device_type == 'Nominal':
-            return NominalInputCalibration(self.sensitivity)
+            return self.nominal_calibration()
         return super().get_calibration()
+
+    def nominal_calibration(self):
+        '''
+        The calibration for `sensitivity`, when device_type is 'Nominal'.
+        '''
+        return NominalInputCalibration(self.sensitivity)
 
     def is_configured(self):
         if self.device_type == 'Unity':
@@ -640,6 +655,52 @@ class OutputCalibrationReference(MultiTypeSensorReference):
     DEVICE_TYPES = list(TYPE_MANAGERS.keys())
 
     device_type = Enum(*DEVICE_TYPES).tag(persist=True)
+
+
+class MicrophoneCalibrationReference(MultiTypeSensorReference):
+    '''
+    Picks the calibration for a microphone an experiment records from: a
+    calibrated generic or measurement microphone, or (e.g., before any
+    microphone has been calibrated) 'Unity' or a 'Nominal' sensitivity.
+
+    Used by launchers such as abts's. The default type, 'Generic Mic.', is
+    what they offered before they had a choice of type.
+    '''
+    TYPE_MANAGERS = {
+        'Generic Mic.': generic_microphone_manager,
+        'Meas. Mic.': measurement_microphone_manager,
+        'Unity': unity_manager,
+    }
+    DEVICE_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
+
+    device_type = Enum(*DEVICE_TYPES).tag(persist=True)
+
+
+class SpeakerCalibrationReference(MultiTypeSensorReference):
+    '''
+    Picks the calibration for the speaker an experiment plays through: a
+    calibrated speaker, or (e.g., before the speaker has been calibrated) a
+    'Nominal' sensitivity, the dB SPL the speaker plays at 1 Vrms (see
+    `NominalSpeakerCalibration`).
+
+    There is no 'Unity' type: with a unity calibration, a level of 60 dB SPL
+    would ask for 1000 Vrms. `gain` is unused, as for
+    :class:`OutputCalibrationReference` (pass ``show_gain=False`` to
+    ``SensorView``).
+    '''
+    TYPE_MANAGERS = {
+        'Speaker': speaker_manager,
+    }
+    DEVICE_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
+
+    device_type = Enum(*DEVICE_TYPES).tag(persist=True)
+
+    sensitivity = Float(110).tag(persist=True)
+
+    SENSITIVITY_UNIT = 'dB SPL at 1 Vrms'
+
+    def nominal_calibration(self):
+        return NominalSpeakerCalibration(self.sensitivity)
 
 
 class InputSettings(PersistentSettings):
@@ -702,8 +763,12 @@ class OutputSettings(PersistentSettings):
     #: Label of output as defined in IO manifest
     output_label = Str()
 
-    #: Generator attached to output
-    generator = Typed(GeneratorSettings, ()).tag(persist=True)
+    #: What is attached to the output and how its calibration is found:
+    #: a `GeneratorSettings` (e.g., `SpeakerSettings`, naming the speaker
+    #: being calibrated) or a reference such as
+    #: `SpeakerCalibrationReference` (picking the calibration an experiment
+    #: plays with). Either has `get_calibration()`.
+    generator = Typed(PersistentSettings, factory=GeneratorSettings)         .tag(persist=True)
 
     #: Per-output target folder for new calibrations.  Same semantics as
     #: InputSettings.group_path — the plugin view's picker swaps in
@@ -715,8 +780,7 @@ class OutputSettings(PersistentSettings):
             env_prefix: self.output_name,
         }
         if include_cal:
-            generator = output_manager.get_object(self.generator.name)
-            cal = generator.get_current_calibration()
+            cal = self.generator.get_calibration()
             env[f'{env_prefix}_{self.output_name.upper()}'] = cal.to_string()
         return env
 
