@@ -1,0 +1,148 @@
+'''
+Behavior paradigms (abts) on any computer, with keys for the sensors.
+
+Stimuli play on the audio device selected in cftscal's workspace settings
+(`CFTSCAL_DEVICE_NAME`, `CFTSCAL_DEVICE_HOSTAPI` and `CFTSCAL_SAMPLE_RATE`).
+Keys stand in for the IR sensors:
+
+=====  ==============  ==========================
+Key    Input (hw_ai)   Stands in for
+=====  ==============  ==========================
+Space  np_contact      Nose-poke
+Left   resp_contact_1  Response port 1 (go/nogo)
+Right  resp_contact_2  Response port 2
+=====  ==============  ==========================
+
+Hold a key to break the beam. The keys are read as sampled signals, exactly
+as the IR sensors are (see psi.controller.engines.keyboard), so the sensor
+processing, plots and stored data all run as they do on a rig. `loopback_1`
+and `microphone_1` are digital loopbacks of `speaker_1`: the samples sent to
+the sound card, not recordings (the paradigms need a microphone, and the
+selected device may have no inputs). Pellet dispensers and lights are logged
+(logger `psi.controller.engines.keyboard`).
+
+Keys are read whichever part of the window has focus, except a field being
+typed into. Select it as:
+
+* the abts launcher (and cftscal): set `CFTSCAL_IO` to
+  `cftscal.io.keyboard.IOManifest` (or pick this file under Workspace
+  settings > Hardware > Other IO manifest);
+* `psi` directly: `--io cftscal.io.keyboard.IOManifest`.
+
+Levels are only as accurate as the speaker calibration selected in the
+launcher. Without one, the speakers fall back to a calibration that puts
+120 dB SPL at 1 Vrms, so stimuli play far quieter than their nominal level
+rather than dangerously loud.
+'''
+from enaml.workbench.api import Extension, PluginManifest
+
+from psi import get_config
+from psi.controller.api import SoftwareDOChannel
+from psi.controller.engines.keyboard import (
+    KeyboardAIChannel, KeyboardAOChannel, KeyboardEngine, LoopbackAIChannel,
+)
+from psi.controller.engines.soundcard import (
+    SoundcardEngine, SoundcardHardwareAOChannel,
+)
+from psiaudio.calibration import FlatCalibration
+
+from cftscal.util import device_query
+
+
+#: Sampling rate used when none is selected in the workspace settings.
+DEFAULT_FS = 48000
+
+
+def selected_device():
+    return device_query(get_config('CFTSCAL_DEVICE_NAME'),
+                        get_config('CFTSCAL_DEVICE_HOSTAPI'))
+
+
+def selected_fs():
+    return int(get_config('CFTSCAL_SAMPLE_RATE')) or DEFAULT_FS
+
+
+enamldef Speaker(SoundcardHardwareAOChannel):
+    supported_devices = ['speaker']
+    calibration_user_editable = True
+    calibration = FlatCalibration.from_spl(120)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    The selected sound card plus keys for the sensors. See the module
+    docstring.
+    '''
+    id = 'keyboard_io'
+
+    Extension:
+        id = 'keyboard'
+        point = 'psi.controller.io'
+
+        SoundcardEngine: sound:
+            name = 'sound'
+            master_clock = True
+            device_name = selected_device()
+            fs = selected_fs()
+            # Smaller than the default (8192) so the keys respond quickly.
+            blocksize = 2048
+
+            Speaker:
+                channel = 0
+                name = 'speaker_1'
+                label = 'Speaker 1 (left)'
+            Speaker:
+                channel = 1
+                name = 'speaker_2'
+                label = 'Speaker 2 (right)'
+
+        KeyboardEngine:
+            name = 'keyboard'
+            clock = sound
+            fs = 10000
+
+            # abts: the go/nogo IR sensor's emitter and sensors.
+            KeyboardAOChannel:
+                name = 'ir_emitter'
+                label = 'IR emitter'
+            KeyboardAIChannel:
+                name = 'np_contact'
+                label = 'Nose-poke IR (Space)'
+                key = 'Space'
+            KeyboardAIChannel:
+                name = 'resp_contact_1'
+                label = 'Response 1 IR (Left)'
+                key = 'Left'
+            KeyboardAIChannel:
+                name = 'resp_contact_2'
+                label = 'Response 2 IR (Right)'
+                key = 'Right'
+
+            # abts: behavior_nafc records hw_ai::loopback_<N> for each
+            # speaker.
+            LoopbackAIChannel:
+                name = 'loopback_1'
+                label = 'Loopback 1 (digital)'
+                source_name = 'speaker_1'
+
+            # abts: every paradigm records a microphone.
+            LoopbackAIChannel:
+                name = 'microphone_1'
+                label = 'Microphone 1 (digital loopback of speaker 1)'
+                source_name = 'speaker_1'
+                supported_devices = ['generic_microphone']
+
+            # abts: rewards and lights (psibehavior's reward, cue and timeout
+            # plugins).
+            SoftwareDOChannel:
+                name = 'pellet_1'
+                label = 'Pellet dispenser 1'
+            SoftwareDOChannel:
+                name = 'pellet_2'
+                label = 'Pellet dispenser 2'
+            SoftwareDOChannel:
+                name = 'cue_light'
+                label = 'Cue light'
+            SoftwareDOChannel:
+                name = 'room_light'
+                label = 'Room light'
