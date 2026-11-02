@@ -63,6 +63,38 @@ def slugify(text):
     return re.sub(r'[^a-z0-9]+', '-', text).strip('-')
 
 
+def natural_sort_key(text):
+    '''
+    Sort key that orders the numbers in `text` by value, not digit by digit.
+
+    Plain sorting puts "Output 10" before "Output 2", since it compares the
+    characters "1" and "2". Use this as the `key` of `sorted` to get
+    "Output 1", "Output 2", ..., "Output 10" instead. Letters are compared
+    without regard to case.
+
+    Parameters
+    ----------
+    text : str
+        Text to sort, such as a channel label.
+
+    Returns
+    -------
+    key : tuple
+        The text split into pieces, each run of digits as an integer.
+
+    Examples
+    --------
+    >>> sorted(['Output 10', 'Output 2', 'Output 1'], key=natural_sort_key)
+    ['Output 1', 'Output 2', 'Output 10']
+    '''
+    # Splitting on a captured group of digits always puts text at the even
+    # positions and numbers at the odd ones, so pieces at the same position
+    # are always the same type and compare cleanly.
+    pieces = re.split(r'(\d+)', text)
+    return tuple(int(p) if i % 2 else p.casefold()
+                 for i, p in enumerate(pieces))
+
+
 def device_query(name, hostapi):
     '''
     The "<name>, <host API>" string identifying an audio device.
