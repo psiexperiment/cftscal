@@ -1,9 +1,10 @@
 '''
 Behavior paradigms (abts) on any computer, with keys for the sensors.
 
-Stimuli play on the audio device selected in cftscal's workspace settings
-(`CFTSCAL_DEVICE_NAME`, `CFTSCAL_DEVICE_HOSTAPI` and `CFTSCAL_SAMPLE_RATE`).
-Keys stand in for the IR sensors:
+Stimuli play on the computer's default sound output (set in Windows' Sound
+settings), at the sampling rate set for it there. The device selected in
+cftscal's workspace settings is left for calibrating. Keys stand in for the
+IR sensors:
 
 =====  ==============  ==========================
 Key    Input (hw_ai)   Stands in for
@@ -36,7 +37,6 @@ rather than dangerously loud.
 '''
 from enaml.workbench.api import Extension, PluginManifest
 
-from psi import get_config
 from psi.controller.api import SoftwareDOChannel
 from psi.controller.engines.keyboard import (
     KeyboardAIChannel, KeyboardAOChannel, KeyboardEngine, LoopbackAIChannel,
@@ -46,20 +46,20 @@ from psi.controller.engines.soundcard import (
 )
 from psiaudio.calibration import FlatCalibration
 
-from cftscal.util import device_query
+from cftscal.util import default_output_device
 
 
-#: Sampling rate used when none is selected in the workspace settings.
-DEFAULT_FS = 48000
+#: Sampling rate declared when the computer has no sound output, so the
+#: manifest can still be loaded (e.g., to list its channels). The
+#: experiment then fails to open the sound card, naming the device.
+NO_OUTPUT_FS = 48000
 
 
-def selected_device():
-    return device_query(get_config('CFTSCAL_DEVICE_NAME'),
-                        get_config('CFTSCAL_DEVICE_HOSTAPI'))
-
-
-def selected_fs():
-    return int(get_config('CFTSCAL_SAMPLE_RATE')) or DEFAULT_FS
+def default_output():
+    try:
+        return default_output_device()
+    except ValueError:
+        return '', NO_OUTPUT_FS
 
 
 enamldef Speaker(SoundcardHardwareAOChannel):
@@ -80,10 +80,11 @@ enamldef IOManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         SoundcardEngine: sound:
+            attr output = default_output()
             name = 'sound'
             master_clock = True
-            device_name = selected_device()
-            fs = selected_fs()
+            device_name = output[0]
+            fs = output[1]
             # Smaller than the default (8192) so the keys respond quickly.
             blocksize = 2048
 

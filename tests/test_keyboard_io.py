@@ -78,6 +78,28 @@ def test_keyboard_keeps_sound_card_time(manifest):
     assert loopback.fs == sound.fs
 
 
+def test_plays_on_default_output(monkeypatch):
+    import cftscal.io.keyboard as keyboard
+    monkeypatch.setattr(keyboard, 'default_output_device',
+                        lambda: ('Headphones, Windows WASAPI', 96000))
+    manifest = initialize_io_manifest(MANIFEST)
+    sound = channels(manifest)['speaker_1'].engine
+    assert sound.device_name == 'Headphones, Windows WASAPI'
+    assert sound.fs == 96000
+
+
+def test_loads_without_sound_output(monkeypatch):
+    # E.g., to list its channels on a computer without one.
+    import cftscal.io.keyboard as keyboard
+
+    def no_output():
+        raise ValueError('This computer has no sound output.')
+
+    monkeypatch.setattr(keyboard, 'default_output_device', no_output)
+    manifest = initialize_io_manifest(MANIFEST)
+    assert 'speaker_1' in channels(manifest)
+
+
 def test_uncalibrated_speakers_play_quietly(manifest):
     # 60 dB SPL on the fallback calibration is 1 mVrms.
     speaker = channels(manifest)['speaker_1']

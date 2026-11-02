@@ -109,6 +109,52 @@ def device_query(name, hostapi):
     return f'{name}, {hostapi}' if hostapi else name
 
 
+#: Host APIs to take the default output device from, best first. On Windows,
+#: PortAudio's own default is the MME device, which adds more latency than
+#: the same device through WASAPI.
+DEFAULT_OUTPUT_HOSTAPIS = ['Windows WASAPI']
+
+
+def default_output_device():
+    '''
+    The computer's default sound output: what the operating system plays
+    sounds through (e.g., set in Windows' Sound settings).
+
+    Returns
+    -------
+    device : str
+        The device, as `device_query` names it (e.g., "Headphones (Realtek(R)
+        Audio), Windows WASAPI").
+    fs : int
+        Its sampling rate. A shared-mode device (e.g., through WASAPI) only
+        plays at the rate the operating system set for it.
+
+    Raises
+    ------
+    ValueError
+        If the computer has no sound output.
+    '''
+    import sounddevice as sd
+    hostapis = sd.query_hostapis()
+    index = None
+    for name in DEFAULT_OUTPUT_HOSTAPIS:
+        for hostapi in hostapis:
+            if hostapi['name'] == name and hostapi['default_output_device'] >= 0:
+                index = hostapi['default_output_device']
+                break
+        if index is not None:
+            break
+    try:
+        if index is None:
+            device = sd.query_devices(kind='output')
+        else:
+            device = sd.query_devices(index)
+    except sd.PortAudioError as e:
+        raise ValueError('This computer has no sound output.') from e
+    hostapi = hostapis[device['hostapi']]['name']
+    return device_query(device['name'], hostapi), int(device['default_samplerate'])
+
+
 def resolve_io():
     '''
     The IO manifest to run psi with, and the environment it needs.
