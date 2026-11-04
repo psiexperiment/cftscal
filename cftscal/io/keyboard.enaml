@@ -85,8 +85,10 @@ enamldef IOManifest(PluginManifest): manifest:
             master_clock = True
             device_name = output[0]
             fs = output[1]
-            # Smaller than the default (8192) so the keys respond quickly.
-            blocksize = 2048
+            # Much smaller than the default (8192) so stimuli play soon after
+            # a key press. Smaller still gains little on Windows' shared
+            # mode, whose own buffering then dominates.
+            blocksize = 512
 
             Speaker:
                 channel = 0
