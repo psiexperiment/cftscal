@@ -11,7 +11,8 @@ from cftscal.objects import (
     UnityInputCalibration,
 )
 from cftscal.plugins.settings import (
-    InputSettings, MicrophoneCalibrationReference, OutputSettings,
+    CalibrationReference, InputSettings, MicrophoneCalibrationReference,
+    OutputCalibrationReference, OutputSettings, SensorDevice, SensorSettings,
     SpeakerCalibrationReference, SpeakerSettings,
 )
 
@@ -99,3 +100,38 @@ def test_selection_survives_save_and_load():
     restored.set_persistence(speaker.get_persistence())
     assert restored.device_type == 'Nominal'
     assert restored.sensitivity == 100
+
+
+@pytest.mark.parametrize('reference', [
+    SpeakerCalibrationReference, OutputCalibrationReference,
+])
+def test_output_references_are_not_sensors(reference):
+    # Outputs pick a calibration like a sensor does, but have no gain.
+    ref = reference()
+    assert isinstance(ref, CalibrationReference)
+    assert not isinstance(ref, SensorSettings)
+    assert not hasattr(ref, 'gain')
+    assert 'gain' not in ref.get_persistence()
+
+
+def test_microphone_reference_is_a_sensor():
+    mic = MicrophoneCalibrationReference()
+    assert isinstance(mic, CalibrationReference)
+    assert isinstance(mic, SensorSettings)
+    assert 'gain' in mic.get_persistence()
+
+
+def test_output_settings_needs_a_calibration_source():
+    # A device being calibrated has no calibration to play with.
+    with pytest.raises(TypeError):
+        OutputSettings(output_name='speaker_1', generator=SensorDevice())
+
+
+def test_speaker_settings_saved_with_gain_still_load():
+    # Speaker references used to inherit an (unused) gain, which settings
+    # saved before the change still carry.
+    restored = SpeakerCalibrationReference()
+    restored.set_persistence({'name': '', 'gain': 0.0,
+                              'device_type': 'Nominal', 'sensitivity': 104})
+    assert restored.device_type == 'Nominal'
+    assert restored.sensitivity == 104

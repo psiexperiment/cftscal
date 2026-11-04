@@ -262,7 +262,19 @@ class CalibrationSettings(Atom):
                     )
 
 
-class GeneratorSettings(PersistentSettings):
+class CalibrationSource(PersistentSettings):
+    '''
+    Anything an output's calibration can come from: a
+    :class:`GeneratorSettings` naming the device being calibrated, or a
+    :class:`CalibrationReference` picking the calibration an experiment
+    uses. See ``OutputSettings.generator``.
+    '''
+
+    def get_calibration(self):
+        raise NotImplementedError
+
+
+class GeneratorSettings(CalibrationSource):
 
     #: Name of generator.
     name = Str().tag(persist=True)
@@ -322,6 +334,185 @@ class SpeakerSettings(GeneratorSettings):
         return sorted(speaker_manager.list_names())
 
 
+class CalibrationReference(CalibrationSource):
+    '''
+    Picks an existing calibration to load in an experiment, for any kind of
+    device: a sensor (see :class:`SensorReference`, which adds its gain) or
+    an output such as a speaker (see :class:`SpeakerCalibrationReference`).
+
+    ``name`` is a fully-qualified calibration path (e.g. ``"MMM0"`` or
+    ``"Bramhall/MMM"``) that ``get_manager().get_object(name)`` resolves
+    to a calibrated object. Subclasses say which manager by overriding
+    ``get_manager()``; :class:`MultiTypeCalibrationReference` (below)
+    instead switches it based on a ``device_type`` selection.
+    '''
+    #: Current selection: a fully-qualified calibration path.
+    name = Str().tag(persist=True)
+
+    #: NOT persisted, deliberately -- unlike SensorDevice.available_devices
+    #: (free-form labels with no other source of truth), every name here
+    #: is backed by a real calibration and always resurfaces on its own
+    #: via get_available_references() on the next refresh, regardless of
+    #: whether this list was ever saved to disk. Persisting it would only
+    #: ever have one effect: letting a stale name -- from a calibration
+    #: since deleted, renamed, or moved -- linger in the dropdown forever,
+    #: indistinguishable from a real option (worse for the SensorView
+    #: instances shown in "static" mode, which have no "+"/"-" to remove
+    #: it again). Only the selection itself needs to survive a reload; if
+    #: a restored ``name`` is no longer among the freshly-discovered
+    #: options, resolve_object() raises LookupError at launch time, which
+    #: every plugin's click handler already turns into a warning dialog.
+    available_references = List()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.refresh_available()
+
+    def get_manager(self):
+        raise NotImplementedError
+
+    def get_available_references(self):
+        return sorted(self.get_manager().list_names())
+
+    def resolve_object(self):
+        return self.get_manager().get_object(self.name)
+
+    def get_calibration(self):
+        '''Resolve this selection to an actual ``Calibration`` object.
+
+        Default routes through the manager: ``resolve_object()`` plus
+        the object's pinned "current" calibration. Overridden by
+        :class:`MultiTypeCalibrationReference` for the types that have no
+        on-disk object to pin a "current" calibration in (see
+        ``CalibratedObject._object_dir``) and are resolved directly
+        instead.'''
+        return self.resolve_object().get_current_calibration()
+
+    def is_configured(self):
+        '''Whether a calibration has been picked.'''
+        return bool(self.name)
+
+    def display_name(self):
+        '''Human-readable label for this selection.'''
+        return self.name
+
+    def refresh_available(self):
+        '''Refresh the picker list from disk. Called from ``__init__``,
+        from ``set_persistence()`` (below), and from widget observers
+        after a new calibration is recorded -- _merge_picker_list's
+        union is with whatever's already in memory from one of those
+        earlier calls, not with anything persisted, so a name that's
+        stopped being discoverable naturally drops out on the next
+        refresh instead of lingering.'''
+        _merge_picker_list(
+            self, 'available_references', self.get_available_references(),
+        )
+
+    def set_persistence(self, config):
+        # available_references itself is never restored here (not
+        # persisted -- see the field's own comment) -- this override
+        # exists to restore the persisted selection via the inherited
+        # PersistentSettings.set_persistence(), then refresh the picker
+        # list against current disk state on the same load path __init__
+        # already uses, in case anything's changed since this object was
+        # constructed.
+        super().set_persistence(config)
+        self.refresh_available()
+
+
+class MultiTypeCalibrationReference(CalibrationReference):
+    '''
+    Draws from any of several differently-typed managers rather than one
+    fixed manager, e.g. a speaker or starship for an output.
+
+    Picking ``device_type`` narrows ``available_references``/
+    ``resolve_object()`` to that type's own manager, so names/paths never
+    need cross-type disambiguation the way a single flat merged list
+    would -- each manager already produces correct ``folder/name`` paths
+    entirely on its own.
+
+    Types in ``INSTANCELESS_TYPES`` are resolved without picking an
+    instance. Here that is only ``'Nominal'``, which has no backing
+    manager/instance at all: the user instead types a nominal
+    ``sensitivity`` (in ``SENSITIVITY_UNIT``) directly, e.g. read off a
+    device's spec sheet when no measured calibration exists for it.
+    Subclasses offering it implement ``nominal_calibration()``.
+
+    ``SensorView`` (``cftscal/plugins/widgets.enaml``) shows a type picker
+    for these, and hides the instance picker for the instanceless types,
+    showing a sensitivity field instead for ``'Nominal'``.
+    '''
+    #: Type name -> the manager its calibrations are drawn from.
+    TYPE_MANAGERS = {}
+
+    #: Selectable types, in dropdown order. 'Nominal' is appended to
+    #: TYPE_MANAGERS' keys by subclasses offering it, since it has no
+    #: manager to draw from -- get_manager() is never reached for it.
+    DEVICE_TYPES = []
+
+    #: Types resolved without picking an instance (see class docstring).
+    INSTANCELESS_TYPES = ('Nominal',)
+
+    #: Which kind of device this reference resolves a calibration for.
+    #: Subclasses redeclare it as an ``Enum(*DEVICE_TYPES)``.
+    device_type = Str().tag(persist=True)
+
+    #: Nominal sensitivity in `SENSITIVITY_UNIT`, used only when
+    #: device_type == 'Nominal' -- see the class docstring.
+    sensitivity = Float(1.0).tag(persist=True)
+
+    #: Unit of `sensitivity`, shown next to its field by ``SensorView``.
+    SENSITIVITY_UNIT = ''
+
+    def get_manager(self):
+        return self.TYPE_MANAGERS[self.device_type]
+
+    def get_available_references(self):
+        # No instance list to populate a picker with (see class docstring).
+        if self.device_type in self.INSTANCELESS_TYPES:
+            return []
+        return super().get_available_references()
+
+    def get_calibration(self):
+        if self.device_type == 'Nominal':
+            return self.nominal_calibration()
+        return super().get_calibration()
+
+    def nominal_calibration(self):
+        '''
+        The calibration for `sensitivity`, when device_type is 'Nominal'.
+        '''
+        raise NotImplementedError
+
+    def is_configured(self):
+        if self.device_type == 'Nominal':
+            return self.sensitivity > 0
+        return super().is_configured()
+
+    def display_name(self):
+        # No instance name to show, so show the name of the calibration
+        # they resolve to -- the same text experiments report as the
+        # calibration in use.
+        if self.device_type in self.INSTANCELESS_TYPES:
+            return self.get_calibration().name
+        return super().display_name()
+
+    def switch_type(self, new_type):
+        '''Explicit, UI-triggered type change -- clears the now-invalid
+        name/option list for the old type. Deliberately not wired up as
+        an ``_observe_device_type`` handler: ``set_persistence()``
+        restores ``device_type`` via plain ``setattr`` alongside ``name``,
+        and their relative order isn't guaranteed, so an observer-based
+        clear could run *after* ``name`` was already correctly restored
+        and wipe it back out. Keeping the clear-on-switch behavior in an
+        explicit method callers opt into (the widget, on user action)
+        avoids that hazard entirely.'''
+        self.device_type = new_type
+        self.name = ''
+        self.available_references = []
+        self.refresh_available()
+
+
 class SensorSettings(PersistentSettings):
     '''
     Abstract base for :class:`SensorReference` and :class:`SensorDevice`.
@@ -373,15 +564,12 @@ class SensorSettings(PersistentSettings):
         return self.name
 
 
-class SensorReference(SensorSettings):
+class SensorReference(SensorSettings, CalibrationReference):
     '''
-    Picks an existing calibration to load in an experiment.
-
-    ``name`` is a fully-qualified calibration path (e.g. ``"MMM0"`` or
-    ``"Bramhall/MMM"``) that ``get_manager().get_object(name)`` resolves
-    to a calibrated object. Pair with :class:`SensorDevice` — pick one
-    based on whether the plugin is loading an existing calibration or
-    labelling a new one.
+    Picks an existing calibration for a sensor, plus the gain it records
+    with (see :class:`CalibrationReference` for picking the calibration).
+    Pair with :class:`SensorDevice` -- pick one based on whether the
+    plugin is loading an existing calibration or labelling a new one.
 
     Subclasses that only ever draw from one calibration type (e.g.
     :class:`MeasurementMicrophoneReference`) override ``get_manager()``.
@@ -390,68 +578,9 @@ class SensorReference(SensorSettings):
     selection, for plugins (input_recording) where a channel might be
     wired to any of several differently-typed calibrations.
     '''
-    #: NOT persisted, deliberately -- unlike SensorDevice.available_devices
-    #: (free-form labels with no other source of truth), every name here
-    #: is backed by a real calibration and always resurfaces on its own
-    #: via get_available_references() on the next refresh, regardless of
-    #: whether this list was ever saved to disk. Persisting it would only
-    #: ever have one effect: letting a stale name -- from a calibration
-    #: since deleted, renamed, or moved -- linger in the dropdown forever,
-    #: indistinguishable from a real option (worse for the SensorView
-    #: instances shown in "static" mode, which have no "+"/"-" to remove
-    #: it again). Only ``name``/``gain`` (the actual selection) need to
-    #: survive a reload; if a restored ``name`` is no longer among the
-    #: freshly-discovered options, resolve_object() raises LookupError at
-    #: launch time, which every plugin's click handler already turns into
-    #: a warning dialog.
-    available_references = List()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.refresh_available()
 
     def get_manager(self):
         return input_manager
-
-    def get_available_references(self):
-        return sorted(self.get_manager().list_names())
-
-    def resolve_object(self):
-        return self.get_manager().get_object(self.name)
-
-    def get_calibration(self):
-        '''Resolve this selection to an actual ``Calibration`` object.
-
-        Default routes through the manager: ``resolve_object()`` plus
-        the object's pinned "current" calibration. Overridden by
-        :class:`MultiTypeSensorReference` for its Unity/Nominal sensor
-        types, which have no on-disk object to pin a "current"
-        calibration in (see ``CalibratedObject._object_dir``) and are
-        resolved directly instead.'''
-        return self.resolve_object().get_current_calibration()
-
-    def refresh_available(self):
-        '''Refresh the picker list from disk. Called from ``__init__``,
-        from ``set_persistence()`` (below), and from widget observers
-        after a new calibration is recorded -- _merge_picker_list's
-        union is with whatever's already in memory from one of those
-        earlier calls, not with anything persisted, so a name that's
-        stopped being discoverable naturally drops out on the next
-        refresh instead of lingering.'''
-        _merge_picker_list(
-            self, 'available_references', self.get_available_references(),
-        )
-
-    def set_persistence(self, config):
-        # available_references itself is never restored here (not
-        # persisted -- see the field's own comment) -- this override
-        # exists to restore the persisted `name`/`gain` selection via
-        # the inherited PersistentSettings.set_persistence(), then
-        # refresh the picker list against current disk state on the same
-        # load path __init__ already uses, in case anything's changed
-        # since this object was constructed.
-        super().set_persistence(config)
-        self.refresh_available()
 
 
 class MeasurementMicrophoneReference(SensorReference):
@@ -518,38 +647,18 @@ class InputAmplifierReference(SensorReference):
         }
 
 
-class MultiTypeSensorReference(SensorReference):
+class MultiTypeSensorReference(MultiTypeCalibrationReference,
+                               SensorReference):
     '''
-    Draws from any of several differently-typed managers rather than one
-    fixed manager -- used by input_recording, where a channel might be
-    wired to a measurement mic, generic mic, or starship probe mic (a
-    starship's probe mic is a perfectly normal frequency-dependent
-    calibration too).
+    A sensor whose calibration can be any of several types -- used by
+    input_recording, where a channel might be wired to a measurement mic,
+    generic mic, or starship probe mic (a starship's probe mic is a
+    perfectly normal frequency-dependent calibration too). See
+    :class:`MultiTypeCalibrationReference` for how the types work.
 
-    Picking ``device_type`` narrows ``available_references``/
-    ``resolve_object()`` to that type's own manager, so names/paths never
-    need cross-type disambiguation the way a single flat merged list
-    would -- each of measurement_microphone_manager/
-    generic_microphone_manager/starship_manager/unity_manager already
-    produces correct ``folder/name`` paths entirely on its own.
-
-    See also :class:`OutputCalibrationReference` below, the analogous
-    picker for OUTPUT devices (starships/speakers).
-
-    Two of the device types are special-cased throughout this class
-    rather than routing through ``TYPE_MANAGERS``:
-
-    - ``'Unity'`` has exactly one possible instance (``'unity'``) --
-      picking the type already fully determines the calibration, so
-      there's nothing left to choose from an instance picker.
-    - ``'Nominal'`` has no backing manager/instance at all -- the user
-      instead types a nominal sensitivity (``sensitivity``, in mV/Pa)
-      directly, e.g. read off a device's spec sheet when no measured
-      calibration exists for it.
-
-    ``SensorView`` (``cftscal/plugins/widgets.enaml``) hides the
-    instance picker for both, showing an mV/Pa entry field instead for
-    ``'Nominal'``.
+    Besides 'Nominal' (a sensitivity in mV/Pa), ``'Unity'`` needs no
+    instance either: it has exactly one possible instance (``'unity'``),
+    so picking the type already fully determines the calibration.
     '''
     TYPE_MANAGERS = {
         'Meas. Mic.': measurement_microphone_manager,
@@ -558,89 +667,32 @@ class MultiTypeSensorReference(SensorReference):
         'Unity': unity_manager,
     }
 
-    #: Selectable types, in dropdown order. 'Nominal' is appended here
-    #: rather than folded into TYPE_MANAGERS since it has no manager to
-    #: draw from -- get_manager() is never reached for it, every method
-    #: that would otherwise call it special-cases 'Nominal' first.
     DEVICE_TYPES = list(TYPE_MANAGERS.keys()) + ['Nominal']
 
-    #: Which kind of device this reference resolves a calibration for --
-    #: named generically (not "sensor_type") since the same mechanism is
-    #: reused by :class:`OutputCalibrationReference` for OUTPUT devices
-    #: (starship/speaker), which aren't sensors at all.
+    INSTANCELESS_TYPES = ('Unity', 'Nominal')
+
     device_type = Enum(*DEVICE_TYPES).tag(persist=True)
 
-    #: Nominal sensitivity in `SENSITIVITY_UNIT`, used only when
-    #: device_type == 'Nominal' -- see the class docstring.
-    sensitivity = Float(1.0).tag(persist=True)
-
-    #: Unit of `sensitivity`, shown next to its field by ``SensorView``.
     SENSITIVITY_UNIT = 'mV/Pa'
-
-    def get_manager(self):
-        return self.TYPE_MANAGERS[self.device_type]
-
-    def get_available_references(self):
-        # Neither has an instance list to populate a picker with --
-        # 'Unity' always resolves to its one instance without asking,
-        # 'Nominal' has no instance at all (see class docstring).
-        if self.device_type in ('Unity', 'Nominal'):
-            return []
-        return super().get_available_references()
 
     def get_calibration(self):
         if self.device_type == 'Unity':
             return UnityInputCalibration()
-        if self.device_type == 'Nominal':
-            return self.nominal_calibration()
         return super().get_calibration()
 
     def nominal_calibration(self):
-        '''
-        The calibration for `sensitivity`, when device_type is 'Nominal'.
-        '''
         return NominalInputCalibration(self.sensitivity)
 
     def is_configured(self):
         if self.device_type == 'Unity':
             return True
-        if self.device_type == 'Nominal':
-            return self.sensitivity > 0
         return super().is_configured()
 
-    def display_name(self):
-        # Neither has an instance name to show, so show the name of the
-        # calibration they resolve to -- the same text experiments report
-        # as the calibration in use.
-        if self.device_type in ('Unity', 'Nominal'):
-            return self.get_calibration().name
-        return super().display_name()
 
-    def switch_type(self, new_type):
-        '''Explicit, UI-triggered type change -- clears the now-invalid
-        name/option list for the old type. Deliberately not wired up as
-        an ``_observe_device_type`` handler: ``set_persistence()``
-        restores ``device_type`` via plain ``setattr`` alongside ``name``,
-        and their relative order isn't guaranteed, so an observer-based
-        clear could run *after* ``name`` was already correctly restored
-        and wipe it back out. Keeping the clear-on-switch behavior in an
-        explicit method callers opt into (the widget, on user action)
-        avoids that hazard entirely.'''
-        self.device_type = new_type
-        self.name = ''
-        self.available_references = []
-        self.refresh_available()
-
-
-class OutputCalibrationReference(MultiTypeSensorReference):
+class OutputCalibrationReference(MultiTypeCalibrationReference):
     '''
-    Picks the calibration for an OUTPUT device (a starship or speaker),
-    analogous to :class:`MultiTypeSensorReference` but for outputs rather
-    than input channels. No 'Unity'/'Nominal' types and no meaningful use
-    of the inherited ``gain`` field -- an output driver doesn't have the
-    separate "preamp gain" concept an input channel's sensor does, so
-    ``gain`` is simply left unused (``SensorView`` callers should pass
-    ``show_gain=False``).
+    Picks the calibration for an OUTPUT device (a starship or speaker).
+    No 'Nominal' type.
 
     Used by the CFTS launcher's Settings > Outputs list to configure a
     starship's or speaker's own calibration directly, rather than via an
@@ -676,7 +728,7 @@ class MicrophoneCalibrationReference(MultiTypeSensorReference):
     device_type = Enum(*DEVICE_TYPES).tag(persist=True)
 
 
-class SpeakerCalibrationReference(MultiTypeSensorReference):
+class SpeakerCalibrationReference(MultiTypeCalibrationReference):
     '''
     Picks the calibration for the speaker an experiment plays through: a
     calibrated speaker, or (e.g., before the speaker has been calibrated) a
@@ -684,9 +736,7 @@ class SpeakerCalibrationReference(MultiTypeSensorReference):
     `NominalSpeakerCalibration`).
 
     There is no 'Unity' type: with a unity calibration, a level of 60 dB SPL
-    would ask for 1000 Vrms. `gain` is unused, as for
-    :class:`OutputCalibrationReference` (pass ``show_gain=False`` to
-    ``SensorView``).
+    would ask for 1000 Vrms.
     '''
     TYPE_MANAGERS = {
         'Speaker': speaker_manager,
@@ -765,10 +815,10 @@ class OutputSettings(PersistentSettings):
 
     #: What is attached to the output and how its calibration is found:
     #: a `GeneratorSettings` (e.g., `SpeakerSettings`, naming the speaker
-    #: being calibrated) or a reference such as
+    #: being calibrated) or a `CalibrationReference` such as
     #: `SpeakerCalibrationReference` (picking the calibration an experiment
-    #: plays with). Either has `get_calibration()`.
-    generator = Typed(PersistentSettings, factory=GeneratorSettings)         .tag(persist=True)
+    #: plays with).
+    generator = Typed(CalibrationSource, factory=GeneratorSettings)         .tag(persist=True)
 
     #: Per-output target folder for new calibrations.  Same semantics as
     #: InputSettings.group_path — the plugin view's picker swaps in

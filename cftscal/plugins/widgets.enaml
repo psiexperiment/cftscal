@@ -616,7 +616,8 @@ enamldef SensorView(HGroup):
     attr gain_unit = 'db gain'
     #: Set False to omit the built-in gain dropdown -- for callers that
     #: want gain on its own row instead of sharing the sensor row (see
-    #: InputAmplifierView).
+    #: InputAmplifierView). It is never shown for a reference without a
+    #: gain (e.g. a SpeakerCalibrationReference: speakers aren't sensors).
     attr show_gain = True
     #: Set True to let the device-select combo grow into unused row
     #: width instead of hugging its own size hint -- opt-in so this
@@ -648,9 +649,9 @@ enamldef SensorView(HGroup):
         if collection is not None:
             collection.observe('updated', _on_collection_updated)
 
-    #: Type-then-instance picker -- only for a sensor that can draw from
-    #: more than one calibration type (MultiTypeSensorReference/
-    #: OutputCalibrationReference). Every other caller's sensor (a plain
+    #: Type-then-instance picker -- only for a reference that can draw
+    #: from more than one calibration type (MultiTypeCalibrationReference
+    #: and its subclasses). Every other caller's sensor (a plain
     #: SensorReference/SensorDevice subclass locked to one manager) has
     #: no `device_type`, so this renders as nothing for them.
     Conditional:
@@ -706,15 +707,16 @@ enamldef SensorView(HGroup):
                 clicked ::
                     _remove_selected(device_select)
 
-    #: The instance picker is skipped for 'Unity' (its one possible
-    #: instance is already implied by picking the type -- nothing left
-    #: to choose) and for 'Nominal' (replaced by the sensitivity field
-    #: below; see MultiTypeSensorReference's class docstring). Also
-    #: skipped for a SensorDevice, which the device branch above handles.
-    #: Every other sensor -- including a single-type SensorReference,
-    #: which has no `device_type` at all -- always shows it.
+    #: The instance picker is skipped for the types needing no instance:
+    #: 'Unity' (its one possible instance is already implied by picking
+    #: the type -- nothing left to choose) and 'Nominal' (replaced by the
+    #: sensitivity field below; see MultiTypeCalibrationReference's class
+    #: docstring). Also skipped for a SensorDevice, which the device
+    #: branch above handles. Every other sensor -- including a single-type
+    #: SensorReference, which has no `device_type` at all -- always shows
+    #: it.
     Conditional:
-        condition << not hasattr(sensor, 'available_devices') and getattr(sensor, 'device_type', None) not in ('Unity', 'Nominal')
+        condition << not hasattr(sensor, 'available_devices') and getattr(sensor, 'device_type', None) not in getattr(sensor, 'INSTANCELESS_TYPES', ())
 
         ObjectCombo: select:
             items := sensor.available_references
@@ -756,7 +758,7 @@ enamldef SensorView(HGroup):
             text << sensor.SENSITIVITY_UNIT
 
     Conditional:
-        condition << show_gain
+        condition << show_gain and hasattr(sensor, 'gain')
 
         ObjectCombo:
             items = gains

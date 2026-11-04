@@ -138,6 +138,27 @@ class TestSensorViewRoles:
         # Instance combo still renders (bound to available_references).
         assert _find(view, 'ObjectCombo')
 
+    def test_gain_only_for_sensors(self, qt_app):
+        # A speaker isn't a sensor and has no gain, so only the
+        # microphone gets a gain picker (with the default show_gain).
+        from cftscal.plugins.settings import (
+            MicrophoneCalibrationReference, SpeakerCalibrationReference,
+        )
+        for ref, has_gain in ((MicrophoneCalibrationReference(), True),
+                              (SpeakerCalibrationReference(), False)):
+            view = _build_sensor_view(qt_app, ref, mode='static')
+            labels = [w.text for w in _find(view, 'Label')]
+            assert ('db gain' in labels) == has_gain, type(ref).__name__
+
+    def test_instanceless_types_hide_instance_picker(self, qt_app):
+        from cftscal.plugins.settings import SpeakerCalibrationReference
+        ref = SpeakerCalibrationReference()
+        ref.switch_type('Nominal')
+        view = _build_sensor_view(qt_app, ref, mode='static')
+        # Just the type picker, then the sensitivity field.
+        assert len(_find(view, 'ObjectCombo')) == 1
+        assert _find(view, 'FloatField')
+
 
 class TestInputRecordingSlots:
     '''
