@@ -886,11 +886,16 @@ enamldef InputRecordingView(Container):
             Container:
                 Container: toolbar:
                     padding = 0
-                    # Filter settings on the left; the region's Play and
-                    # Export buttons at the right end.
+                    # Two rows, to keep the window narrow: the filter and its
+                    # settings with the region's Play and Export buttons at
+                    # the right end, then the filter options below.
                     constraints = [
-                        hbox(filter_row, spacer, play_button, export_button),
+                        vbox(
+                            hbox(filter_row, spacer, play_button, export_button),
+                            hbox(options_row, spacer),
+                        ),
                         align('v_center', filter_row, play_button, export_button),
+                        align('left', filter_row, options_row),
                     ]
 
                     PushButton: play_button:
@@ -908,6 +913,7 @@ enamldef InputRecordingView(Container):
 
                     HGroup: filter_row:
                         align_widths = False
+                        padding = 0
                         Label:
                             text = 'Filter'
                         ObjectCombo:
@@ -949,6 +955,9 @@ enamldef InputRecordingView(Container):
                                     if not input_recording_plot.manager.emulate_measure_sound:
                                         input_recording_plot.manager.filter_order = change['value']
 
+                    HGroup: options_row:
+                        align_widths = False
+                        padding = 0
                         CheckBox:
                             text = 'Zero-phase'
                             # Measure Sound's filter (filtfilt) is zero-phase,
