@@ -20,6 +20,8 @@ dependencies = [
     # needs a Qt binding (e.g. PySide6), which is left to the user.
     "qtpy",
     "sounddevice",
+    # Reads MATLAB v7.3 .mat recordings (Input Recording).
+    "h5py",
     "pyyaml",
     "tqdm",
 ]

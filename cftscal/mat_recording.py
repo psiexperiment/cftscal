@@ -21,6 +21,9 @@ time of day, but the MAT-file header records when the file was written
 (``Created on: Tue Mar 15 12:52:13 2011``), which is used when it falls on
 the ``Date``.
 
+Files saved in MATLAB's HDF5-based v7.3 format (``save(..., '-v7.3')``)
+are read with h5py; older ones with `scipy.io.loadmat`.
+
 The samples are used exactly as stored. measure_sound multiplied channel 1
 by 1.165 and channel 2 by 1.187, correction factors for one particular
 setup; those are *not* applied here.
@@ -28,6 +31,7 @@ setup; those are *not* applied here.
 import datetime as dt
 from pathlib import Path
 import re
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -56,16 +60,88 @@ def _field(struct, name, default=None):
     return value
 
 
-def _loadmat(filename, variable_names):
+def _is_v73(filename):
+    '''True if `filename` is a MATLAB v7.3 (HDF5-based) file.'''
     try:
+        with open(filename, 'rb') as fh:
+            return fh.read(10) == b'MATLAB 7.3'
+    except OSError:
+        return False
+
+
+def _h5py():
+    try:
+        import h5py
+    except ImportError as e:
+        raise MatFileError(
+            'This is a MATLAB v7.3 file, which needs the h5py package to '
+            'read. Install h5py, or open the file in MATLAB and save it '
+            "again with save(filename, '-v7')."
+        ) from e
+    return h5py
+
+
+def _h5_value(item):
+    '''
+    Convert a variable read from a v7.3 file into what `scipy.io.loadmat`
+    would return with ``squeeze_me=True, struct_as_record=False``: structs
+    become objects with one attribute per field, text becomes a string and
+    numbers become (squeezed) arrays.
+    '''
+    h5py = _h5py()
+    if isinstance(item, h5py.Group):
+        return SimpleNamespace(**{name: _h5_value(value)
+                                  for name, value in item.items()})
+    matlab_class = item.attrs.get('MATLAB_class', b'')
+    if isinstance(matlab_class, bytes):
+        matlab_class = matlab_class.decode('ascii')
+    if matlab_class == 'char':
+        if item.attrs.get('MATLAB_empty', 0):
+            return ''
+        # UTF-16 code units, stored transposed (MATLAB is column-major).
+        codes = np.asarray(item[()], dtype=np.uint16).T.ravel()
+        return codes.tobytes().decode('utf-16-le')
+    if item.attrs.get('MATLAB_empty', 0):
+        return np.array([])
+    # HDF5 holds MATLAB arrays transposed.
+    return np.squeeze(item[()].T)
+
+
+def _list_variables(filename):
+    '''The names of the variables in a ``.mat`` file.'''
+    try:
+        if _is_v73(filename):
+            with _h5py().File(filename, 'r') as fh:
+                # Names starting with # hold MATLAB's internal data.
+                return [n for n in fh.keys() if not n.startswith('#')]
+        return [name for name, _, _ in io.whosmat(filename)]
+    except MatFileError:
+        raise
+    except Exception as e:
+        raise MatFileError(f'Could not read the file: {e}') from e
+
+
+def _loadmat(filename, variable_names):
+    '''
+    Load `variable_names` from a ``.mat`` file of any version, as
+    `scipy.io.loadmat` would with ``squeeze_me=True,
+    struct_as_record=False``, plus the file's header text as
+    ``'__header__'``. Names not in the file are left out.
+    '''
+    try:
+        if _is_v73(filename):
+            with open(filename, 'rb') as fh:
+                # The text header fills the HDF5 file's 512-byte user block.
+                contents = {'__header__': fh.read(116)}
+            with _h5py().File(filename, 'r') as fh:
+                for name in variable_names:
+                    if name in fh:
+                        contents[name] = _h5_value(fh[name])
+            return contents
         return io.loadmat(filename, variable_names=variable_names,
                           squeeze_me=True, struct_as_record=False)
-    except NotImplementedError as e:
-        # scipy can't read MATLAB's HDF5-based v7.3 format.
-        raise MatFileError(
-            'This is a MATLAB v7.3 file, which cannot be read. Open it in '
-            "MATLAB and save it again with save(filename, '-v7')."
-        ) from e
+    except MatFileError:
+        raise
     except Exception as e:
         raise MatFileError(f'Could not read the file: {e}') from e
 
@@ -143,10 +219,7 @@ def read_mat_header(filename):
         If the file can't be read, or isn't laid out as described in the
         module docstring.
     '''
-    try:
-        variables = [name for name, _, _ in io.whosmat(filename)]
-    except Exception as e:
-        raise MatFileError(f'Could not read the file: {e}') from e
+    variables = _list_variables(filename)
     numbers = sorted(int(m.group(1)) for v in variables
                      if (m := CHANNEL_PATTERN.match(v)))
     if 'File_Header' not in variables or not numbers:

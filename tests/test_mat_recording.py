@@ -202,6 +202,96 @@ def test_recording_reads_samples_on_demand(tmp_path):
 
 
 ################################################################################
+# MATLAB v7.3 (HDF5) files
+################################################################################
+def _write_h5_text(group, name, text):
+    # As MATLAB does: UTF-16 code units, stored as a (n, 1) column.
+    codes = np.frombuffer(text.encode('utf-16-le'), dtype=np.uint16)
+    if codes.size == 0:
+        dataset = group.create_dataset(name, data=np.array([0, 0], dtype=np.uint64))
+        dataset.attrs['MATLAB_empty'] = np.uint8(1)
+    else:
+        dataset = group.create_dataset(name, data=codes[:, np.newaxis])
+        dataset.attrs['MATLAB_int_decode'] = np.int32(2)
+    dataset.attrs['MATLAB_class'] = np.bytes_(b'char')
+
+
+def _write_h5_struct(fh, name, fields):
+    group = fh.create_group(name)
+    group.attrs['MATLAB_class'] = np.bytes_(b'struct')
+    for field, text in fields.items():
+        _write_h5_text(group, field, text)
+
+
+def write_pulse_mat_v73(path, channels, fs=FS, created_on='Tue Nov 22 14:51:59 2022',
+                        channel_headers=None, **file_header):
+    '''
+    Write a PULSE recording the way MATLAB's ``save(..., '-v7.3')`` does: an
+    HDF5 file whose 512-byte user block holds MATLAB's text header.
+    '''
+    h5py = pytest.importorskip('h5py')
+    with h5py.File(path, 'w', userblock_size=512) as fh:
+        _write_h5_struct(fh, 'File_Header', {
+            'SampleFrequency': str(fs),
+            'NumberOfChannels': str(len(channels)),
+            'Comment': '',
+            **file_header,
+        })
+        for n, y in channels.items():
+            # A column vector in MATLAB is stored as a (1, n) dataset.
+            dataset = fh.create_dataset(f'Channel_{n}_Data',
+                                        data=np.asarray(y)[np.newaxis, :])
+            dataset.attrs['MATLAB_class'] = np.bytes_(b'double')
+        for n, fields in (channel_headers or {}).items():
+            _write_h5_struct(fh, f'Channel_{n}_Header', fields)
+    text = (f'MATLAB 7.3 MAT-file, Platform: PCWIN64, Created on: {created_on} '
+            'HDF5 schema 1.00 .').ljust(116).encode('ascii')
+    with open(path, 'r+b') as fh:
+        fh.write(text)
+    return path
+
+
+def test_v73_header(tmp_path):
+    path = write_pulse_mat_v73(
+        tmp_path / 'rec.mat', {1: _tone(), 2: _tone()},
+        channel_headers={1: {'SignalName': 'LeftEar', 'Unit': 'Pa      '}},
+    )
+    header = read_mat_header(path)
+    assert header['fs'] == FS
+    assert header['channels'] == {
+        'Channel_1_Data': {'label': 'LeftEar', 'unit': 'Pa'},
+        'Channel_2_Data': {'label': 'Channel 2', 'unit': 'Pa'},
+    }
+    # No Date: when the file was written, from MATLAB's header.
+    assert header['datetime'] == dt.datetime(2022, 11, 22, 14, 51, 59)
+
+
+def test_v73_date_from_file_header(tmp_path):
+    path = write_pulse_mat_v73(tmp_path / 'rec.mat', {1: _tone()},
+                               Date='22/NOV/2022')
+    assert read_mat_header(path)['datetime'] == dt.datetime(2022, 11, 22, 14, 51, 59)
+
+
+def test_v73_samples(tmp_path):
+    left, right = _tone(), _tone(amplitude=0.5)
+    path = write_pulse_mat_v73(tmp_path / 'rec.mat', {1: left, 2: right})
+    signal = MatRecording(path).Channel_2_Data
+    np.testing.assert_allclose(signal[0], right)
+    assert signal.shape == (1, len(right))
+
+
+def test_v73_not_a_pulse_recording(tmp_path):
+    h5py = pytest.importorskip('h5py')
+    path = tmp_path / 'other.mat'
+    with h5py.File(path, 'w', userblock_size=512) as fh:
+        fh.create_dataset('x', data=np.zeros(3))
+    with open(path, 'r+b') as fh:
+        fh.write(b'MATLAB 7.3 MAT-file')
+    with pytest.raises(MatFileError, match='Not a B&K PULSE recording'):
+        read_mat_header(path)
+
+
+################################################################################
 # Listing them in Input Recording
 ################################################################################
 @pytest.fixture

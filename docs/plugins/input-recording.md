@@ -129,7 +129,7 @@ They're plotted, measured, played and exported just like cftscal recordings. Thi
 - **Date.** PULSE files store the date they were recorded, but not the time. The time comes from when the file was saved, if that was on the same day. Otherwise the date is shown at midnight. A file with no date at all shows when it was saved, or failing that, when it was last changed (which copying it may have altered).
 - **Notes** can't be added to a `.mat` recording, since there's nowhere in the file to keep them.
 - **Delete** deletes the `.mat` file itself.
-- A file that can't be read, or isn't a PULSE recording, is still listed but marked with a warning icon; hover over it to see why. Files saved in MATLAB's newer v7.3 format can't be read. Open them in MATLAB and save them again with `save(filename, '-v7')`.
+- A file that can't be read, or isn't a PULSE recording, is still listed but marked with a warning icon; hover over it to see why. Files saved in MATLAB's newer v7.3 format are read too.
 
 ## Interpreting the levels
 
