@@ -39,6 +39,28 @@ def test_launcher_lookups(manifest):
     # Every abts paradigm records a microphone.
     assert list(util.list_connections('hw_ai', 'generic_microphone').values()) \
         == ['microphone_1']
+    # cfts.
+    assert list(util.list_starship_connections().values()) == ['starship_K']
+    assert list(util.list_input_amplifier_connections().values()) == ['eeg']
+
+
+def test_starship_loopbacks(manifest):
+    '''
+    The starship's microphone and the EEG read back both of its speakers
+    (e.g., a DPOAE's f1 and f2), which play left and right.
+    '''
+    c = channels(manifest)
+    primary = c['starship_K_primary']
+    secondary = c['starship_K_secondary']
+    assert (primary.channel, secondary.channel) == (0, 1)
+    for name in ('starship_K_microphone', 'eeg'):
+        assert c[name].sources == [primary, secondary]
+        assert c[name].fs == primary.engine.fs
+    # Uncalibrated, everything plays quietly (see
+    # test_uncalibrated_speakers_play_quietly), including through an in-ear
+    # calibration from the microphone.
+    for name in ('starship_K_primary', 'starship_K_microphone'):
+        assert c[name].calibration.get_sf(1000, 60) == pytest.approx(1e-3)
 
 
 @pytest.mark.parametrize('type_code, name', [

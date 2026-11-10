@@ -689,26 +689,6 @@ class MultiTypeSensorReference(MultiTypeCalibrationReference,
         return super().is_configured()
 
 
-class OutputCalibrationReference(MultiTypeCalibrationReference):
-    '''
-    Picks the calibration for an OUTPUT device (a starship or speaker).
-    No 'Nominal' type.
-
-    Used by the CFTS launcher's Settings > Outputs list to configure a
-    starship's or speaker's own calibration directly, rather than via an
-    unrelated input channel -- both device types are built from the same
-    kind of frequency-dependent sensitivity curve (see
-    CFTSStarshipCalibration/CFTSSpeakerCalibration).
-    '''
-    TYPE_MANAGERS = {
-        'Starship': starship_manager,
-        'Speaker': speaker_manager,
-    }
-    DEVICE_TYPES = list(TYPE_MANAGERS.keys())
-
-    device_type = Enum(*DEVICE_TYPES).tag(persist=True)
-
-
 class MicrophoneCalibrationReference(MultiTypeSensorReference):
     '''
     Picks the calibration for a microphone an experiment records from: a

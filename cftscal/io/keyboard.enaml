@@ -1,5 +1,7 @@
 '''
-Behavior paradigms (abts) on any computer, with keys for the sensors.
+Behavior paradigms (abts) on any computer, with keys for the sensors. CFTS
+paradigms run on it too, without the keys, to listen to the stimuli and see
+them come back on the inputs.
 
 Stimuli play on the computer's default sound output (set in Windows' Sound
 settings), at the sampling rate set for it there. The device selected in
@@ -30,10 +32,37 @@ typed into. Select it as:
   settings > Hardware > Other IO manifest);
 * `psi` directly: `--io cftscal.io.keyboard.IOManifest`.
 
+For cfts, starship `K` plays its primary on the left and its secondary on the
+right. Its microphone (`starship_K_microphone`) and the EEG (`eeg`) are
+digital loopbacks of the sum of the two: the starship's microphone hears
+both speakers, as it would in the ear (a DPOAE's f1 and f2 are on separate
+speakers), and the EEG shows each stimulus, whichever speaker plays it. A
+speaker not in use adds silence. The stimuli are in the EEG at full scale
+(e.g., tens of mV), so raise the ABR's artifact reject threshold or every
+epoch is rejected.
+
+Stimuli above half the sampling rate (e.g., 24 kHz on a 48 kHz output)
+cannot be played. Set the default output to a higher rate in Windows' Sound
+settings to hear them.
+
 Levels are only as accurate as the speaker calibration selected in the
 launcher. Without one, the speakers fall back to a calibration that puts
 120 dB SPL at 1 Vrms, so stimuli play far quieter than their nominal level
-rather than dangerously loud.
+rather than dangerously loud. The cfts paradigms calibrate the starship in
+the ear first, through its microphone, so there the level follows the
+starship calibration selected in the launcher instead: the loopback reads
+back exactly what was played, so a microphone calibration that reads 1 V as
+a lower level makes the stimuli louder. Without one, the microphone falls
+back to 120 dB SPL at 1 V, as the speakers do.
+
+The cfts launcher needs a calibration for the starship. There is no starship
+calibration on file for a loopback, so in File > Settings > Input Channels
+give `starship_K_microphone` the Nominal type and a sensitivity: 50 mV/Pa
+reads 1 V as 120 dB SPL, matching the fallback (each doubling of the
+sensitivity makes the stimuli 6 dB louder). It also needs one for each
+speaker (`speaker_1`, `speaker_2`), even when a paradigm plays only on the
+starship: under Outputs, give each the Nominal type and the dB SPL it plays
+at 1 Vrms (120 matches the fallback; a lower value plays more loudly).
 '''
 from enaml.workbench.api import Extension, PluginManifest
 
@@ -62,9 +91,24 @@ def default_output():
         return '', NO_OUTPUT_FS
 
 
+#: Outputs the starship's microphone and the EEG read back.
+STARSHIP_OUTPUTS = ['starship_K_primary', 'starship_K_secondary']
+
+
 enamldef Speaker(SoundcardHardwareAOChannel):
     supported_devices = ['speaker']
     calibration_user_editable = True
+    calibration = FlatCalibration.from_spl(120)
+
+
+enamldef StarshipSpeaker(Speaker):
+    supported_devices = ['starship']
+
+
+enamldef LoopbackMicrophone(LoopbackAIChannel):
+    # Reads 1 V as 120 dB SPL, matching the speakers. With the default unity
+    # calibration (1 V as 0 dB), an in-ear calibration through it would ask
+    # for kilovolts.
     calibration = FlatCalibration.from_spl(120)
 
 
@@ -98,6 +142,20 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 1
                 name = 'speaker_2'
                 label = 'Speaker 2 (right)'
+
+            # cfts: a starship, found by the starship_<ID>_{microphone,
+            # primary,secondary} naming convention (see
+            # cftscal.util.list_starship_connections; IDs must not contain
+            # underscores). Shares the sound card's channels with the
+            # speakers above; only the outputs a paradigm uses are opened.
+            StarshipSpeaker:
+                channel = 0
+                name = 'starship_K_primary'
+                label = 'Starship K primary (left)'
+            StarshipSpeaker:
+                channel = 1
+                name = 'starship_K_secondary'
+                label = 'Starship K secondary (right)'
 
         KeyboardEngine:
             name = 'keyboard'
@@ -134,6 +192,19 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'Microphone 1 (digital loopback of speaker 1)'
                 source_name = 'speaker_1'
                 supported_devices = ['generic_microphone']
+
+            # cfts: the starship's microphone and the EEG, both hearing
+            # both of the starship's speakers.
+            LoopbackMicrophone:
+                name = 'starship_K_microphone'
+                label = 'Starship K microphone (digital loopback)'
+                source_names = STARSHIP_OUTPUTS
+                supported_devices = ['starship']
+            LoopbackAIChannel:
+                name = 'eeg'
+                label = 'EEG (digital loopback of starship K)'
+                source_names = STARSHIP_OUTPUTS
+                supported_devices = ['input_amplifier']
 
             # abts: rewards and lights (psibehavior's reward, cue and timeout
             # plugins).

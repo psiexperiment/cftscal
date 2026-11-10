@@ -12,7 +12,7 @@ from cftscal.objects import (
 )
 from cftscal.plugins.settings import (
     CalibrationReference, InputSettings, MicrophoneCalibrationReference,
-    OutputCalibrationReference, OutputSettings, SensorDevice, SensorSettings,
+    OutputSettings, SensorDevice, SensorSettings,
     SpeakerCalibrationReference, SpeakerSettings,
 )
 
@@ -103,7 +103,7 @@ def test_selection_survives_save_and_load():
 
 
 @pytest.mark.parametrize('reference', [
-    SpeakerCalibrationReference, OutputCalibrationReference,
+    SpeakerCalibrationReference,
 ])
 def test_output_references_are_not_sensors(reference):
     # Outputs pick a calibration like a sensor does, but have no gain.
