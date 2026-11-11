@@ -41,6 +41,14 @@ speaker not in use adds silence. The stimuli are in the EEG at full scale
 (e.g., tens of mV), so raise the ABR's artifact reject threshold or every
 epoch is rejected.
 
+For noise-exp, `cal_microphone` (a measurement microphone) is a digital
+loopback of the sum of `speaker_1` and `speaker_2`, so it monitors the
+exposure on whichever speaker the launcher selects. Uncalibrated it reads
+1 V as 120 dB SPL, matching the speakers, so it reads back the level played.
+Being a measurement microphone, it also makes cftscal's microphone, speaker
+and starship calibrations available; on this manifest they calibrate the
+loopback, not real hardware.
+
 Stimuli above half the sampling rate (e.g., 24 kHz on a 48 kHz output)
 cannot be played. Set the default output to a higher rate in Windows' Sound
 settings to hear them.
@@ -93,6 +101,9 @@ def default_output():
 
 #: Outputs the starship's microphone and the EEG read back.
 STARSHIP_OUTPUTS = ['starship_K_primary', 'starship_K_secondary']
+
+#: Outputs the measurement microphone reads back.
+SPEAKER_OUTPUTS = ['speaker_1', 'speaker_2']
 
 
 enamldef Speaker(SoundcardHardwareAOChannel):
@@ -207,6 +218,16 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'EEG (digital loopback of starship K)'
                 source_names = STARSHIP_OUTPUTS
                 supported_devices = ['input_amplifier']
+
+            # noise-exp: the measurement microphone the exposure is
+            # monitored with (named as in dummy_fireface). It hears both
+            # speakers, so it hears the exposure on whichever one the
+            # launcher selects.
+            LoopbackMicrophone:
+                name = 'cal_microphone'
+                label = 'Calibration microphone (digital loopback of speakers 1 and 2)'
+                source_names = SPEAKER_OUTPUTS
+                supported_devices = ['measurement_microphone']
 
             # abts: rewards and lights (psibehavior's reward, cue and timeout
             # plugins).

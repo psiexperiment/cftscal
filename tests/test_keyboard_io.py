@@ -42,6 +42,22 @@ def test_launcher_lookups(manifest):
     # cfts.
     assert list(util.list_starship_connections().values()) == ['starship_K']
     assert list(util.list_input_amplifier_connections().values()) == ['eeg']
+    # noise-exp monitors the exposure with a measurement microphone.
+    assert list(util.list_measurement_microphone_connections().values()) \
+        == ['cal_microphone']
+
+
+def test_measurement_microphone_hears_both_speakers(manifest):
+    '''
+    noise-exp's exposure plays on whichever speaker the launcher selects,
+    and the microphone reads back the level played when uncalibrated.
+    '''
+    c = channels(manifest)
+    microphone = c['cal_microphone']
+    assert microphone.sources == [c['speaker_1'], c['speaker_2']]
+    assert microphone.fs == c['speaker_1'].engine.fs
+    assert microphone.calibration.get_sf(1000, 60) == \
+        pytest.approx(c['speaker_1'].calibration.get_sf(1000, 60))
 
 
 def test_starship_loopbacks(manifest):
