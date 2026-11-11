@@ -39,12 +39,14 @@ jobs:
           python-version: '3.11'
 
       # sounddevice's Linux wheel, unlike the Windows one, doesn't include
-      # PortAudio.
-      - name: Install the libraries Qt and sounddevice need (Linux)
+      # PortAudio, and PortAudio fails to initialize (so sounddevice fails to
+      # import) unless a PulseAudio server is running.
+      - name: Install and start what Qt and sounddevice need (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libportaudio2
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libportaudio2 pulseaudio
+          pulseaudio --start --exit-idle-time=-1
 
       # cftscal is usually developed against psiexperiment's main branch,
       # since fixes often need commits in both. Installing it first means
