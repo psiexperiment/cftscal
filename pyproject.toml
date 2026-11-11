@@ -13,8 +13,9 @@ maintainers = [
 ]
 dependencies = [
     "cftsdata",
-    # 0.9.0 is the first release with psi.launcher.
-    "psiexperiment >=0.9.0",
+    # 0.9.4's sound card engine fails to import with atom >=0.14, which
+    # breaks every IO manifest that uses it (e.g., cftscal.io.keyboard).
+    "psiexperiment >=0.9.5",
     "enaml >=0.13.0",
     # Imported directly; nothing above depends on either. qtpy still
     # needs a Qt binding (e.g. PySide6), which is left to the user.
