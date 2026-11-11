@@ -130,9 +130,11 @@ enamldef IOManifest(PluginManifest): manifest:
             device_name = output[0]
             fs = output[1]
             # Much smaller than the default (8192) so stimuli play soon after
-            # a key press. Smaller still gains little on Windows' shared
-            # mode, whose own buffering then dominates.
-            blocksize = 512
+            # a key press. But at 512 (5.3 ms at 96 kHz) psi's callback
+            # often took most of the block and hiccups made it late, and
+            # Windows' shared mode then plays silence. 1024 leaves more
+            # headroom. Look for "output lag" in the psi log to check.
+            blocksize = 1024
 
             Speaker:
                 channel = 0
