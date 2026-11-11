@@ -15,9 +15,18 @@ def isolated_config(tmp_path, monkeypatch):
     would otherwise read the developer's real configuration and
     save_config() would write into it. Only the settings tests used to
     redirect it, and only by remembering to.
+
+    The environment overrides both the defaults and the file, so every
+    setting set there is removed too: e.g., a machine with CFTSCAL_IO set
+    to the keyboard manifest failed every test of which IO manifest is
+    picked.
     '''
     from psi import config as psi_config
 
+    settings = set(psi_config.setting_names())
+    for name in list(os.environ):
+        if name in settings or name.startswith(('PSI_', 'CFTSCAL_')):
+            monkeypatch.delenv(name)
     monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
     # The folder cftscal kept its settings in before config.toml. Pointed
     # somewhere empty so that starting cftscal in a test does not migrate
