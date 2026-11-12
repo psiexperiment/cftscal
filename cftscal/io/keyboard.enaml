@@ -225,7 +225,7 @@ enamldef IOManifest(PluginManifest): manifest:
             # launcher selects.
             LoopbackMicrophone:
                 name = 'cal_microphone'
-                label = 'Calibration microphone (digital loopback of speakers 1 and 2)'
+                label = 'Mic (loopback of L/R speakers)'
                 source_names = SPEAKER_OUTPUTS
                 supported_devices = ['measurement_microphone']
 
